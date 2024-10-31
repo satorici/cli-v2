@@ -4,7 +4,7 @@ import rich
 import rich_click as click
 
 from ..api import client
-from ..utils.console import show_execution_output
+from ..utils.console import download_execution_files, show_execution_output
 
 execution_id_arg = click.argument("execution-id", type=int)
 
@@ -43,3 +43,9 @@ def delete(execution_id: int):
 @execution_id_arg
 def output(execution_id: int):
     show_execution_output(execution_id)
+
+
+@execution.command()
+@execution_id_arg
+def files(execution_id: int):
+    download_execution_files(execution_id)
