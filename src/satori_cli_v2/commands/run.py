@@ -55,6 +55,8 @@ def run(
 
     if sync or show_output or get_files:
         wait_job_until_finished(run_id)
+    else:
+        sys.exit(0)
 
     res = client.get("/executions", params={"job_id": run_id})
     execution_id = res.json()["items"][0]["id"]
