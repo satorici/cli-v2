@@ -1,0 +1,28 @@
+[project]
+name = "satori-cli-v2"
+version = "0.1.0"
+authors = [
+    {name = "Satori CI", email = "info@satori.ci"},
+]
+dependencies = [
+    "httpx>=0.27.0",
+    "rich>=13.7.1",
+    "click>=8.1.7",
+    "rich-click>=1.8.3",
+]
+requires-python = ">=3.9"
+readme = "README.md"
+license = {text = "MIT"}
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[project.scripts]
+satori-v2 = "satori_cli_v2:main"
+
+[tool.pdm]
+distribution = true
+
+[tool.pdm.scripts]
+_.env_file = ".env"
