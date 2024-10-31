@@ -32,7 +32,7 @@ def scan(
         "criteria": {"quantity": quantity},
     }
 
-    res = client.post("/scans", json=body | source)
+    res = client.post("/jobs", json=body | source)
     rich.print_json(res.text)
 
     if sync:

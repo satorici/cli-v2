@@ -28,5 +28,5 @@ def monitor(
         "data": {"expression": expression, "description": description},
     }
 
-    res = client.post("/monitors", json=body | source)
+    res = client.post("/jobs", json=body | source)
     rich.print_json(res.text)
