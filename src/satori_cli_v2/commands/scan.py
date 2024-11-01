@@ -28,8 +28,10 @@ def scan(
         "type": "SCAN",
         "parameters": input,
         "regions": list(region_filter),
-        "repository": repository,
-        "criteria": {"quantity": quantity},
+        "data": {
+            "repository": repository,
+            "quantity": quantity,
+        },
     }
 
     res = client.post("/jobs", json=body | source)
