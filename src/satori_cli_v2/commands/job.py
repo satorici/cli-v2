@@ -35,3 +35,21 @@ def list_(page: int, quantity: int, type: Optional[str]):
 @job_id_arg
 def delete(job_id: int):
     client.delete(f"/jobs/{job_id}")
+
+
+@job.command()
+@job_id_arg
+def pause(job_id: int):
+    client.patch(f"/jobs/{job_id}/pause")
+
+
+@job.command()
+@job_id_arg
+def start(job_id: int):
+    client.patch(f"/jobs/{job_id}/start")
+
+
+@job.command()
+@job_id_arg
+def cancel(job_id: int):
+    client.patch(f"/jobs/{job_id}/cancel")
