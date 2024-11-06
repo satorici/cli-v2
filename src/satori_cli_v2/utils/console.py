@@ -1,7 +1,7 @@
 import time
 
 import httpx
-from rich import progress
+from rich import print_json, progress
 
 from ..api import client
 
@@ -25,6 +25,11 @@ def wait_job_until_finished(job_id: int):
 def show_execution_output(execution_id: int):
     res = client.get(f"/executions/{execution_id}/output", follow_redirects=True)
     print(res.text)
+
+
+def show_execution_report(execution_id: int):
+    res = client.get(f"/executions/{execution_id}/report", follow_redirects=True)
+    print_json(res.text)
 
 
 def download_execution_files(execution_id: int):
