@@ -19,7 +19,7 @@ requires = ["pdm-backend"]
 build-backend = "pdm.backend"
 
 [project.scripts]
-satori-v2 = "satori_cli_v2:main"
+satori = "satori_cli_v2:main"
 
 [tool.pdm]
 distribution = true
