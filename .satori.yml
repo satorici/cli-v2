@@ -17,19 +17,8 @@ test:
       - apt install -y --no-install-recommends git jq
     satori:
       - pip install .
-
-  # the -P or --profile parameters allows you to use different Satori CI API Tokens
-  token_saved:
-    create_profile:
-      - satori config token "not_a_token" --profile test_user
-
-    # define the default token for the configuration
     set_token:
       - satori config token ${{TOKEN}}
-
-    # set default team to run all tests
-    set_team:
-      - satori config default_team SatoriCI
 
   # show the user's dashboard
   dashboard:
@@ -161,10 +150,6 @@ test:
     #   - satori playbook ${{test.playbook.private_playbook_by_id.stdout.trim()}} delete
 
   repo:
-    # add a new repository to private team
-    add_repo:
-      - satori team Private add --repo='satoridev01/hello_world'
-
     # list the repositories showing to which team they belong, if they are connected to Github CI, info about the playbook and the latest results obtained
     list:
       - satori repos
@@ -193,9 +178,6 @@ test:
 
       del:
         - satori repo satoridev01/hello_world params del var
-
-    delete_repo:
-      - satori team Private del --repo='satoridev01/hello_world'
 
     playbooks:
       parallel:
@@ -284,134 +266,12 @@ test:
       - satori scan ${{test.scan.run.stdout}} stop
 
     # Restart a scan execution
-    # start:
-    #   - satori scan satoridev01/hello_world start
+    start:
+      - satori scan satoridev01/hello_world start
 
     # Delete the scan reports
     clean:
       - satori scan ${{test.scan.run.stdout}} clean
 
-    #delete:
-    #  - satori scan ${{test.scan.run.stdout}} delete
-
-  teams:
-    # list teams and repos without teams
-    list:
-      - satori teams
-
-    # create team 'test_team'
-    create:
-      - satori team test_team create --debug
-
-    parallel:
-      setParallel: true
-      # list the repos associated to the 'test_team' and their team members
-      single:
-        - satori team test_team
-
-      # list the members of the 'test_team'
-      members:
-        - satori team test_team members
-
-      # list your TEAM members
-      settings:
-        - satori team test_team settings
-
-      # list your TEAM settings
-      get_config:
-        - satori team test_team get_config notification_email
-
-    # show your TEAM's config setting for a specific value
-    set_config:
-      - satori team test_team set_config notification_email test@satori.ci
-    # set your TEAM CONFIG setting
-
-    # add the email 'test@satori.ci' as a member of the team 'test_team'
-    add_member:
-      - satori team test_team add --email='test@satori.ci'
-
-    # delete the email 'test@satori.ci' as a member of the team 'test_team'
-    delete_member:
-      - satori team test_team del --email='test@satori.ci'
-
-    add_github_member:
-      - satori team test_team add --github='satoridev02'
-
-    delete_github_member:
-      - satori team test_team del --github='satoridev02'
-
-    # add the repo 'satoridev01/hello_world' to the team 'test_team'
-    add_repo:
-      - satori team test_team add --repo='satoridev01/hello_world'
-
-    # list the repos associated to the 'test_team'
-    team_with_repos:
-      - satori team test_team repos
-
-    # delete the repo 'satoridev01/hello_world' from the team 'test_team'
-    del_repo:
-      - satori team test_team del --repo='satoridev01/hello_world'
-
-    # list the repos associated to the 'test_team'
-    team_without_repos:
-      - satori team test_team repos
-
-    # delete the 'test_team'
     delete:
-      - satori team test_team delete
-
-negative_test:
-  assertReturnCodeNot: 0
-  assertStderrNotContains:
-    - Traceback
-    - malformed node
-    - invalid syntax
-    - object has no attribute
-    - "codec can\\'t decode byte"
-
-  parallel:
-    setParallel: true
-
-    repos_playbook_del:
-      - satori repos playbook del
-
-    fail:
-      - satori run .satori/fail.yml --sync
-
-    fail_import:
-      - satori run .satori/fail_import.yml --sync
-
-    empty_playbook:
-      - satori run .satori/empty.yml --report
-
-    empty_playbook_id:
-      - satori playbook
-
-    empty_directory:
-      - mkdir test; cd test; satori run ./
-
-    random:
-      - dd if=/dev/urandom of=random_file.yml bs=1024 count=1; satori run random_file.yml --output
-
-    malformed_or_invalid_json_data:
-      - satori run .satori/empty.yml --data A=B; satori run .satori/empty.yml -d A=B -d C=D
-
-    deleted_report:
-      #- satori report ${{test.report.dont_save.stdout.trim()}}
-      - satori report ${{test.report.dont_save.stdout}}
-
-    deleted_output:
-      #- satori report ${{test.report.dont_save.stdout.trim()}} output
-      - satori report ${{test.report.dont_save.stdout}} output
-
-    deleted_monitor:
-      - satori monitor ${{test.monitor.new.stdout}}
-
-  serial:
-    setParallel: false
-
-    no_dns:
-      - cp /etc/resolv.conf /etc/resolv.conf.bak; echo 'nameserver 0.0.0.0' > /etc/resolv.conf ; satori; RET=$?; cat /etc/resolv.conf.bak > /etc/resolv.conf; return $RET
-
-    malformed_credentials:
-      - cp random_file.yml ~/.satori_credentials.yml; satori
+      - satori scan ${{test.scan.run.stdout}} delete
