@@ -44,10 +44,7 @@ test:
     # define inputs on your playbook and execute it with different combination of parameters
     input:
       - satori local .satori/input.yml --report --output
-
-  wait:
-    - echo waiting...
-
+      
   run:
     setParallel: true
     # execute a Satori CI playbook and show the report once its done with 4 CPUs
