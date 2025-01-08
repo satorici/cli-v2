@@ -25,13 +25,12 @@ def scan(
     input: Optional[dict[str, list[str]]],
 ):
     body = {
+        "playbook_data": source,
         "type": "SCAN",
         "parameters": input,
         "regions": list(region_filter),
-        "data": {
-            "repository": repository,
-            "quantity": quantity,
-        },
+        "repository_data": {"repository": repository},
+        "criteria": {"quantity": quantity},
     }
 
     res = client.post("/jobs", json=body | source)

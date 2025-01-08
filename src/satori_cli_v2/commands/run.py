@@ -44,10 +44,12 @@ def run(
         print("WARNING: Only first execution report will be shown")
 
     body = {
+        "playbook_data": source,
         "type": "RUN",
         "parameters": input,
         "regions": list(region_filter),
-        "data": {"count": count, "save_files": get_files or save_files},
+        "count": count,
+        "save_files": get_files or save_files,
     }
 
     res = client.post("/jobs", json=body | source)

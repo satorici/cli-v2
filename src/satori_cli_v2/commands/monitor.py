@@ -22,10 +22,12 @@ def monitor(
     input: Optional[dict[str, list[str]]],
 ):
     body = {
+        "playbook_data": source,
         "type": "MONITOR",
         "parameters": input,
         "regions": list(region_filter),
-        "data": {"expression": expression, "description": description},
+        "expression": expression,
+        "description": description,
     }
 
     res = client.post("/jobs", json=body | source)
