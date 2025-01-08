@@ -38,4 +38,4 @@ def scan(
 
     if sync:
         scan_id = res.json()["id"]
-        wait_job_until_finished(scan_id, "SCAN")
+        wait_job_until_finished(scan_id)
