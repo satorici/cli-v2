@@ -1,10 +1,10 @@
 from typing import Optional
 
-import rich
 import rich_click as click
 
 from ..api import client
 from ..utils.arguments import source_arg
+from ..utils.console import stdout
 from ..utils.options import input_opt, region_filter_opt
 
 
@@ -31,4 +31,5 @@ def monitor(
     }
 
     res = client.post("/jobs", json=body | source)
-    rich.print_json(res.text)
+    res.raise_for_status()
+    stdout.print_json(res.text)

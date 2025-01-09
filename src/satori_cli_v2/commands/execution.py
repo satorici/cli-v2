@@ -1,6 +1,5 @@
 from typing import Optional
 
-import rich
 import rich_click as click
 
 from ..api import client
@@ -8,6 +7,7 @@ from ..utils.console import (
     download_execution_files,
     show_execution_output,
     show_execution_report,
+    stdout,
 )
 
 execution_id_arg = click.argument("execution-id", type=int)
@@ -22,7 +22,7 @@ def execution():
 @execution_id_arg
 def get(execution_id: int):
     res = client.get(f"/executions/{execution_id}")
-    rich.print_json(res.text)
+    stdout.print_json(res.text)
 
 
 @execution.command()
@@ -34,7 +34,7 @@ def list(page: int, quantity: int, job_type: Optional[str], job_id: Optional[int
     params = {k: v for k, v in locals().items() if v is not None}
 
     res = client.get("/executions", params=params)
-    rich.print_json(res.text)
+    stdout.print_json(res.text)
 
 
 @execution.command()

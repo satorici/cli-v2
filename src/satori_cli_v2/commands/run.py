@@ -1,7 +1,6 @@
 import sys
 from typing import Optional
 
-import rich
 import rich_click as click
 
 from ..api import client
@@ -10,6 +9,8 @@ from ..utils.console import (
     download_execution_files,
     show_execution_output,
     show_execution_report,
+    stderr,
+    stdout,
     wait_job_until_finished,
 )
 from ..utils.options import input_opt, region_filter_opt, sync_opt
@@ -37,11 +38,11 @@ def run(
     input: Optional[dict[str, list[str]]],
 ):
     if show_output and count > 1:
-        print("WARNING: Only first execution output will be shown")
+        stderr.print("WARNING: Only first execution output will be shown")
     if get_files and count > 1:
-        print("WARNING: Only first execution files will be downloaded")
+        stderr.print("WARNING: Only first execution files will be downloaded")
     if show_report and count > 1:
-        print("WARNING: Only first execution report will be shown")
+        stderr.print("WARNING: Only first execution report will be shown")
 
     body = {
         "playbook_data": source,
@@ -53,7 +54,7 @@ def run(
     }
 
     res = client.post("/jobs", json=body | source)
-    rich.print_json(res.text)
+    stdout.print_json(res.text)
 
     if not res.is_success:
         sys.exit(1)

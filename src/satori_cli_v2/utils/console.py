@@ -1,9 +1,13 @@
 import time
 
 import httpx
-from rich import print_json, progress
+from rich import progress
+from rich.console import Console
 
 from ..api import client
+
+stdout = Console()
+stderr = Console(stderr=True)
 
 
 def wait_job_until_finished(job_id: int):
@@ -11,6 +15,7 @@ def wait_job_until_finished(job_id: int):
         progress.SpinnerColumn("dots2"),
         progress.TextColumn("[progress.description]Status: {task.description}"),
         progress.TimeElapsedColumn(),
+        console=stderr,
     ) as p:
         status = "QUEUED"
         task = p.add_task(status)
@@ -24,12 +29,12 @@ def wait_job_until_finished(job_id: int):
 
 def show_execution_output(execution_id: int):
     res = client.get(f"/executions/{execution_id}/output", follow_redirects=True)
-    print(res.text)
+    stdout.print(res.text)
 
 
 def show_execution_report(execution_id: int):
     res = client.get(f"/executions/{execution_id}/report", follow_redirects=True)
-    print_json(res.text)
+    stdout.print_json(res.text)
 
 
 def download_execution_files(execution_id: int):
@@ -38,7 +43,7 @@ def download_execution_files(execution_id: int):
     with httpx.stream("GET", res.headers["Location"]) as s:
         total = int(s.headers["Content-Length"])
 
-        with progress.Progress() as p:
+        with progress.Progress(console=stderr) as p:
             task = p.add_task("Downloading...", total=total)
 
             with open(f"satorici-files-{execution_id}.tar.gz", "wb") as f:
