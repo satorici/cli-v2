@@ -1,12 +1,14 @@
 import rich_click as click
+from httpx import HTTPStatusError
 
 from .auth import authenticate
 from .commands.execution import execution
+from .commands.job import job
 from .commands.monitor import monitor
 from .commands.run import run
 from .commands.scan import scan
-from .commands.job import job
 from .constants import SATORI_HOME
+from .utils.console import stderr
 
 
 @click.group()
@@ -33,4 +35,10 @@ cli.add_command(execution)
 
 
 def main():
-    cli()
+    try:
+        cli()
+        return
+    except HTTPStatusError as e:
+        stderr.print_json(e.response.text)
+
+    return 1
