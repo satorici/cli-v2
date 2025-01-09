@@ -25,6 +25,7 @@ from ..utils.options import input_opt, region_filter_opt, sync_opt
 @click.option("--show-output", "-o", is_flag=True)
 @click.option("--show-report", is_flag=True)
 @click.option("--save-files", is_flag=True)
+@click.option("--no-save-report", is_flag=True)
 @click.option("--get-files", "-f", is_flag=True)
 def run(
     source: dict,
@@ -33,6 +34,7 @@ def run(
     sync: bool,
     show_output: bool,
     show_report: bool,
+    no_save_report: bool,
     save_files: bool,
     get_files: bool,
     input: Optional[dict[str, list[str]]],
@@ -51,6 +53,7 @@ def run(
         "regions": list(region_filter),
         "count": count,
         "save_files": get_files or save_files,
+        "save_report": not no_save_report,
     }
 
     res = client.post("/jobs", json=body | source)
