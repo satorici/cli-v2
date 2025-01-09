@@ -19,6 +19,11 @@ class SatoriAuth(Auth):
         if token := os.getenv("SATORI_TOKEN"):
             request.headers["Authorization"] = f"Bearer {token}"
             yield request
+            return
+        elif token := os.getenv("SATORI_REFRESH_TOKEN"):
+            request.headers["Authorization"] = f"Bearer {refresh_access_token(token)}"
+            yield request
+            return
 
         try:
             refresh_token = (SATORI_HOME / "refresh-token").read_text()
