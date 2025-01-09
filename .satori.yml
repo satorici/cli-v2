@@ -63,6 +63,9 @@ test:
     input:
       - satori run .satori/input.yml --report --output
 
+    region:
+      - satori run .satori/import/pass.yml --region TBC
+
   report:
     # run synchronously a local playbook
     new_sync:
