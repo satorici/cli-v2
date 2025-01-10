@@ -13,7 +13,7 @@ from ..utils.console import (
     stdout,
     wait_job_until_finished,
 )
-from ..utils.options import input_opt, region_filter_opt, sync_opt
+from ..utils.options import input_opt, region_filter_opt, sync_opt, env_opt
 
 
 @click.command()
@@ -22,6 +22,7 @@ from ..utils.options import input_opt, region_filter_opt, sync_opt
 @sync_opt
 @region_filter_opt
 @input_opt
+@env_opt
 @click.option("--show-output", "-o", is_flag=True)
 @click.option("--show-report", is_flag=True)
 @click.option("--save-files", is_flag=True)
@@ -38,6 +39,7 @@ def run(
     save_files: bool,
     get_files: bool,
     input: Optional[dict[str, list[str]]],
+    env: Optional[dict[str, str]],
 ):
     if show_output and count > 1:
         stderr.print("WARNING: Only first execution output will be shown")
@@ -54,6 +56,7 @@ def run(
         "count": count,
         "save_files": get_files or save_files,
         "save_report": not no_save_report,
+        "environment_variables": env,
     }
 
     res = client.post("/jobs", json=body | source)
