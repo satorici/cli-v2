@@ -1,3 +1,5 @@
+from base64 import b64decode
+import json
 import time
 
 import httpx
@@ -28,8 +30,21 @@ def wait_job_until_finished(job_id: int):
 
 
 def show_execution_output(execution_id: int):
-    res = client.get(f"/executions/{execution_id}/output", follow_redirects=True)
-    stdout.print(res.text)
+    with client.stream(
+        "GET", f"/executions/{execution_id}/output", follow_redirects=True
+    ) as s:
+        for line in s.iter_lines():
+            loaded = json.loads(line)
+            stdout.out("Command:", loaded["original"])
+
+            results = loaded["output"]
+
+            stdout.out("Return code:", results["return_code"])
+            stdout.out("Stdout:")
+            stdout.out(b64decode(results["stdout"]).decode(errors="ignore"), highlight=False)
+            stdout.out("Stderr:")
+            stdout.out(b64decode(results["stderr"]).decode(errors="ignore"), highlight=False)
+            stdout.out()
 
 
 def show_execution_report(execution_id: int):
