@@ -1,3 +1,5 @@
+from typing import Optional
+
 import rich_click as click
 from httpx import HTTPStatusError
 
@@ -7,8 +9,10 @@ from .commands.job import job
 from .commands.monitor import monitor
 from .commands.run import run
 from .commands.scan import scan
+from .config import config
 from .constants import SATORI_HOME
 from .utils.console import stderr
+from .utils.options import profile_opt
 
 
 @click.group()
@@ -17,14 +21,31 @@ def cli():
 
 
 @cli.command()
-def login():
+@profile_opt
+def login(profile: str):
     credentials = authenticate()
 
     access_token = credentials["access_token"]
     refresh_token = credentials["refresh_token"]
 
-    (SATORI_HOME / "refresh-token").write_text(refresh_token)
-    (SATORI_HOME / "access-token").write_text(access_token)
+    config.save("refresh_token", refresh_token, profile)
+    (SATORI_HOME / f"{profile}/access-token").write_text(access_token)
+
+
+@cli.command("config")
+@click.argument("key", required=False)
+@click.argument("value", required=False)
+@profile_opt
+def config_(key: Optional[str], value: Optional[str], **kwargs):
+    if key is None:
+        stderr.print(config)
+        return
+
+    if value is None:
+        stderr.print(config[key])
+        return
+
+    config.save(key, value, kwargs["profile"])
 
 
 cli.add_command(run)
