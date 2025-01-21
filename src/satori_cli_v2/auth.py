@@ -6,6 +6,7 @@ from typing import Generator
 
 from httpx import Auth, Client, Request, Response, post
 
+from .config import config
 from .constants import SATORI_HOME
 from .exceptions import AuthError
 
@@ -25,10 +26,12 @@ class SatoriAuth(Auth):
             yield request
             return
 
+        token_path = SATORI_HOME / config.profile / "access-token"
+
         try:
-            refresh_token = (SATORI_HOME / "refresh-token").read_text()
-            access_token = (SATORI_HOME / "access-token").read_text()
-        except FileNotFoundError:
+            refresh_token = config["refresh_token"]
+            access_token = token_path.read_text()
+        except (FileNotFoundError, KeyError):
             raise AuthError("Login required")
 
         _, payload, _ = access_token.split(".")
@@ -36,7 +39,7 @@ class SatoriAuth(Auth):
 
         if claims["exp"] < time.time():
             access_token = refresh_access_token(refresh_token)
-            (SATORI_HOME / "access-token").write_text(access_token)
+            token_path.write_text(access_token)
 
         request.headers["Authorization"] = f"Bearer {access_token}"
         yield request

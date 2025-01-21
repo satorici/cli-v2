@@ -29,7 +29,11 @@ def login(profile: str):
     refresh_token = credentials["refresh_token"]
 
     config.save("refresh_token", refresh_token, profile)
-    (SATORI_HOME / f"{profile}/access-token").write_text(access_token)
+
+    profile_path = SATORI_HOME / f"{profile}"
+    profile_path.mkdir(exist_ok=True)
+
+    (profile_path / "access-token").write_text(access_token)
 
 
 @cli.command("config")

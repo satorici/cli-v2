@@ -41,7 +41,7 @@ class Config:
             profile = profile
 
         self._config = config
-        self._profile = profile
+        self.profile = profile
 
     def __getitem__(self, key: str):
         if key in self._env_config:
@@ -51,7 +51,7 @@ class Config:
 
     def get_all(self):
         config = self._config["default"]
-        config = always_merger.merge(config, self._config.get(self._profile, {}))
+        config = always_merger.merge(config, self._config.get(self.profile, {}))
         config = always_merger.merge(config, self._env_config)
         return config
 
