@@ -19,7 +19,7 @@ def _env_callback(ctx, name, envs):
 
 
 input_opt = click.option(
-    "--input", "-i", type=(str, str), multiple=True, callback=_input_callback
+    "--data", "-d", "input", type=(str, str), multiple=True, callback=_input_callback
 )
 env_opt = click.option(
     "--env", "-e", type=(str, str), multiple=True, callback=_env_callback
