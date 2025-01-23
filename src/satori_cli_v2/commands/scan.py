@@ -35,7 +35,7 @@ def scan(
         "environment_variables": env,
     }
 
-    res = client.post("/jobs", json=body | source)
+    res = client.post("/jobs", json=body)
 
     res.raise_for_status()
 
