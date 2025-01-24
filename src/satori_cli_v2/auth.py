@@ -26,20 +26,34 @@ class SatoriAuth(Auth):
             yield request
             return
 
-        token_path = SATORI_HOME / config.profile / "access-token"
+        profile_dir = SATORI_HOME / config.profile
+        profile_dir.mkdir(exist_ok=True)
+        token_path = profile_dir / "access-token"
 
         try:
             refresh_token = config["refresh_token"]
+        except KeyError:
+            refresh_token = None
+
+        try:
             access_token = token_path.read_text()
-        except (FileNotFoundError, KeyError):
-            raise AuthError("Login required")
+        except FileNotFoundError:
+            access_token = None
 
-        _, payload, _ = access_token.split(".")
-        claims = json.loads(b64decode(payload))
+        if access_token:
+            _, payload, _ = access_token.split(".")
+            claims = json.loads(b64decode(payload))
 
-        if claims["exp"] < time.time():
+            if claims["exp"] > time.time() and refresh_token:
+                access_token = refresh_access_token(refresh_token)
+                token_path.write_text(access_token)
+            else:
+                raise AuthError("Login required")
+        elif refresh_token:
             access_token = refresh_access_token(refresh_token)
             token_path.write_text(access_token)
+        else:
+            raise AuthError("Login required")
 
         request.headers["Authorization"] = f"Bearer {access_token}"
         yield request
