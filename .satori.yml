@@ -18,7 +18,7 @@ test:
     satori:
       - pip install .
     set_token:
-      - satori config token ${{TOKEN}}
+      - satori config refresh_token ${{TOKEN}}
 
   # show the user's dashboard
   dashboard:
@@ -44,7 +44,7 @@ test:
     # define inputs on your playbook and execute it with different combination of parameters
     input:
       - satori local .satori/input.yml --report --output
-      
+
   run:
     setParallel: true
     # execute a Satori CI playbook and show the report once its done with 4 CPUs
@@ -57,11 +57,11 @@ test:
 
     # execute a public Satori CI playbook and pass parameters
     url_output:
-      - satori run satori://web/testssl.yml --data HOST=https://satori.ci --output
+      - satori run satori://web/testssl.yml --data HOST https://satori.ci --show-output
 
     # define inputs on your playbook and execute it with different combination of parameters
     input:
-      - satori run .satori/input.yml --report --output
+      - satori run .satori/input.yml --show-output --show-report
 
     region:
       - satori run .satori/import/pass.yml --region TBC
