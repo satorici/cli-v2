@@ -27,7 +27,7 @@ from ..utils.options import input_opt, region_filter_opt, sync_opt, env_opt
 @click.option("--report", "show_report", is_flag=True)
 @click.option("--save-files", is_flag=True)
 @click.option("--no-save-report", is_flag=True)
-@click.option("--get-files", "-f", is_flag=True)
+@click.option("--files", "-f", "get_files", is_flag=True)
 def run(
     source: dict,
     region_filter: tuple[str],
