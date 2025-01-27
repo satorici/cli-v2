@@ -44,7 +44,7 @@ class SatoriAuth(Auth):
             _, payload, _ = access_token.split(".")
             claims = json.loads(b64decode(payload))
 
-            if claims["exp"] > time.time() and refresh_token:
+            if claims["exp"] < time.time() and refresh_token:
                 access_token = refresh_access_token(refresh_token)
                 token_path.write_text(access_token)
             else:
