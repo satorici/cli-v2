@@ -23,8 +23,8 @@ from ..utils.options import input_opt, region_filter_opt, sync_opt, env_opt
 @region_filter_opt
 @input_opt
 @env_opt
-@click.option("--show-output", "-o", is_flag=True)
-@click.option("--show-report", is_flag=True)
+@click.option("--output", "-o", "show_output", is_flag=True)
+@click.option("--report", "show_report", is_flag=True)
 @click.option("--save-files", is_flag=True)
 @click.option("--no-save-report", is_flag=True)
 @click.option("--get-files", "-f", is_flag=True)
