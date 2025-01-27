@@ -3,11 +3,13 @@ from collections import defaultdict
 import click
 
 
-def _input_callback(ctx, name, inputs):
+def _input_callback(ctx, name, inputs: tuple[str]):
     if inputs:
         parameters = defaultdict(list)
 
-        for k, v in inputs:
+        for input in inputs:
+            k, v = input.split("=", 1)
+
             parameters[k].append(v)
 
         return dict(parameters)
@@ -19,7 +21,7 @@ def _env_callback(ctx, name, envs):
 
 
 input_opt = click.option(
-    "--data", "-d", "input", type=(str, str), multiple=True, callback=_input_callback
+    "--data", "-d", "input", multiple=True, callback=_input_callback
 )
 env_opt = click.option(
     "--env", "-e", type=(str, str), multiple=True, callback=_env_callback
