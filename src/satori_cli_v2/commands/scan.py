@@ -5,17 +5,17 @@ import rich_click as click
 from ..api import client
 from ..utils.arguments import source_arg
 from ..utils.console import stdout, wait_job_until_finished
-from ..utils.options import env_opt, input_opt, region_filter_opt, sync_opt
+from ..utils import options as opts
 
 
 @click.command()
 @click.argument("repository")
 @source_arg
 @click.option("-q", "--quantity", type=int)
-@region_filter_opt
-@sync_opt
-@input_opt
-@env_opt
+@opts.region_filter_opt
+@opts.sync_opt
+@opts.input_opt
+@opts.env_opt
 def scan(
     repository: str,
     source: dict,
@@ -24,6 +24,8 @@ def scan(
     quantity: Optional[int],
     input: Optional[dict[str, list[str]]],
     env: Optional[dict[str, str]],
+    cpu: Optional[int],
+    memory: Optional[int],
 ):
     body = {
         "playbook_data": source,
@@ -33,6 +35,7 @@ def scan(
         "repository_data": {"repository": repository},
         "criteria": {"quantity": quantity},
         "environment_variables": env,
+        "container_settings": {"cpu": cpu, "memory": memory},
     }
 
     res = client.post("/jobs", json=body)

@@ -13,21 +13,23 @@ from ..utils.console import (
     stdout,
     wait_job_until_finished,
 )
-from ..utils.options import input_opt, region_filter_opt, sync_opt, env_opt
+from ..utils import options as opts
 
 
 @click.command()
 @source_arg
 @click.option("--count", default=1, show_default=True)
-@sync_opt
-@region_filter_opt
-@input_opt
-@env_opt
+@opts.sync_opt
+@opts.region_filter_opt
+@opts.input_opt
+@opts.env_opt
 @click.option("--output", "-o", "show_output", is_flag=True)
 @click.option("--report", "show_report", is_flag=True)
 @click.option("--save-files", is_flag=True)
 @click.option("--no-save-report", is_flag=True)
 @click.option("--files", "-f", "get_files", is_flag=True)
+@opts.cpu_opt
+@opts.memory_opt
 def run(
     source: dict,
     region_filter: tuple[str],
@@ -40,6 +42,8 @@ def run(
     get_files: bool,
     input: Optional[dict[str, list[str]]],
     env: Optional[dict[str, str]],
+    cpu: Optional[int],
+    memory: Optional[int],
 ):
     if show_output and count > 1:
         stderr.print("WARNING: Only first execution output will be shown")
@@ -57,6 +61,7 @@ def run(
         "save_files": get_files or save_files,
         "save_report": not no_save_report,
         "environment_variables": env,
+        "container_settings": {"cpu": cpu, "memory": memory},
     }
 
     res = client.post("/jobs", json=body)

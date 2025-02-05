@@ -29,3 +29,5 @@ env_opt = click.option(
 region_filter_opt = click.option("--region-filter", "-r", multiple=True)
 sync_opt = click.option("--sync", "-s", is_flag=True, default=False)
 profile_opt = click.option("--profile", default="default")
+cpu_opt = click.option("--cpu", type=int)
+memory_opt = click.option("--memory", type=int)
