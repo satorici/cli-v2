@@ -13,5 +13,5 @@ from ..utils.console import stdout
 def reports(job_id: Optional[int], page: int, quantity: int):
     params = {k: v for k, v in locals().items() if v is not None}
 
-    res = client.get("/executions/reports", params=params)
+    res = client.get("/executions", params=params)
     stdout.print_json(res.text)
