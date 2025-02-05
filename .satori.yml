@@ -64,7 +64,7 @@ test:
       - satori run .satori/input.yml --output --report
 
     region:
-      - satori run .satori/import/pass.yml --region TBC
+      - satori run .satori/import/pass.yml --region-filter us-west-1
 
   report:
     # run synchronously a local playbook
