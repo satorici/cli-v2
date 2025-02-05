@@ -48,7 +48,7 @@ def show_execution_output(execution_id: int):
 
 
 def show_execution_report(execution_id: int):
-    res = client.get(f"/executions/{execution_id}/report", follow_redirects=True)
+    res = client.get(f"/executions/{execution_id}", follow_redirects=True)
     res.raise_for_status()
     stdout.print_json(res.text)
 
