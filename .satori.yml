@@ -57,11 +57,11 @@ test:
 
     # execute a public Satori CI playbook and pass parameters
     url_output:
-      - satori run satori://web/testssl.yml --data HOST https://satori.ci --show-output
+      - satori run satori://web/testssl.yml --data HOST=https://satori.ci --output
 
     # define inputs on your playbook and execute it with different combination of parameters
     input:
-      - satori run .satori/input.yml --show-output --show-report
+      - satori run .satori/input.yml --output --report
 
     region:
       - satori run .satori/import/pass.yml --region TBC
