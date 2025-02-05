@@ -27,6 +27,8 @@ def scan(
     cpu: Optional[int],
     memory: Optional[int],
 ):
+    container_settings = {k: v for k, v in {"cpu": cpu, "memory": memory}.items() if v}
+
     body = {
         "playbook_data": source,
         "type": "SCAN",
@@ -35,7 +37,7 @@ def scan(
         "repository_data": {"repository": repository},
         "criteria": {"quantity": quantity},
         "environment_variables": env,
-        "container_settings": {"cpu": cpu, "memory": memory},
+        "container_settings": container_settings,
     }
 
     res = client.post("/jobs", json=body)
