@@ -12,7 +12,9 @@ def dump_file_uris(playbook_obj: dict) -> Generator[str, None, None]:
             yield from dump_file_uris(value)
         elif isinstance(value, list):
             if len(value) == 1 and isinstance(value[0], list):
-                yield from (i["file"] for i in value[0] if i.get("file"))
+                yield from (
+                    i["file"] for i in value[0] if isinstance(i, dict) and i.get("file")
+                )
             elif all(
                 isinstance(i, str) and i.startswith(("file://", "satori://"))
                 for i in value
