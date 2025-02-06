@@ -72,7 +72,7 @@ test:
       - satori run .satori/import/pass.yml -s | grep 'Report ID' | grep -E 'r[a-zA-Z0-9]{15}' -o | tr -d '\n'
 
     dont_save:
-      - satori run .satori/import/pass.yml --save-report 'False' --save-output 'False' --report --output | grep 'Report ID' | grep -E 'r[a-zA-Z0-9]{15}' -o | tr -d '\n'
+      - satori run .satori/import/pass.yml --delete-report --delete-output --report --output | grep 'Report ID' | grep -E 'r[a-zA-Z0-9]{15}' -o | tr -d '\n'
 
     # list the reports generated
     list:
