@@ -27,7 +27,8 @@ from ..utils import options as opts
 @click.option("--output", "-o", "show_output", is_flag=True)
 @click.option("--report", "show_report", is_flag=True)
 @click.option("--save-files", is_flag=True)
-@click.option("--no-save-report", is_flag=True)
+@click.option("--delete-report", is_flag=True)
+@click.option("--delete-output", is_flag=True)
 @click.option("--files", "-f", "get_files", is_flag=True)
 @opts.cpu_opt
 @opts.memory_opt
@@ -38,7 +39,8 @@ def run(
     sync: bool,
     show_output: bool,
     show_report: bool,
-    no_save_report: bool,
+    delete_report: bool,
+    delete_output: bool,
     save_files: bool,
     get_files: bool,
     input: Optional[dict[str, list[str]]],
@@ -65,7 +67,8 @@ def run(
         "regions": list(region_filter),
         "count": count,
         "save_files": get_files or save_files,
-        "save_report": not no_save_report,
+        "save_report": not delete_report,
+        "save_output": not delete_output,
         "environment_variables": env,
         "container_settings": container_settings,
         "with_files": bool(upload_data),
