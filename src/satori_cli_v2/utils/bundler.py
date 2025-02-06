@@ -22,7 +22,7 @@ def dump_file_uris(playbook_obj: dict) -> Generator[str, None, None]:
                 yield from (i for i in value if i.startswith("file://"))
 
 
-def make_bundle(playbook_path: str) -> bytes:
+def make_bundle(playbook_path: str | Path) -> bytes:
     with open(playbook_path, "rb") as f:
         playbook_raw = f.read()
         playbook_obj = yaml.safe_load(playbook_raw)
