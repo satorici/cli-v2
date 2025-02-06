@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Optional
 
 import rich_click as click
@@ -18,7 +19,7 @@ from ..utils import options as opts
 @opts.cpu_opt
 @opts.memory_opt
 def monitor(
-    source: dict,
+    source: Callable[[], dict],
     expression: str,
     description: Optional[str],
     region_filter: tuple[str],
@@ -29,6 +30,9 @@ def monitor(
 ):
     container_settings = {k: v for k, v in {"cpu": cpu, "memory": memory}.items() if v}
 
+    playbook_data = source()
+    upload_data = playbook_data.pop("upload_data", None)
+
     body = {
         "playbook_data": source,
         "type": "MONITOR",
@@ -38,8 +42,14 @@ def monitor(
         "description": description,
         "environment_variables": env,
         "container_settings": container_settings,
+        "with_files": bool(upload_data),
     }
 
     res = client.post("/jobs", json=body)
     res.raise_for_status()
-    stdout.print_json(res.text)
+
+    monitor = res.json()
+    stdout.print_json(data=monitor)
+
+    if files_upload := monitor["files_upload"]:
+        upload_data(files_upload)

@@ -1,3 +1,4 @@
+from collections.abc import Callable
 import sys
 from typing import Optional
 
@@ -31,7 +32,7 @@ from ..utils import options as opts
 @opts.cpu_opt
 @opts.memory_opt
 def run(
-    source: dict,
+    source: Callable[[], dict],
     region_filter: tuple[str],
     count: int,
     sync: bool,
@@ -54,8 +55,11 @@ def run(
 
     container_settings = {k: v for k, v in {"cpu": cpu, "memory": memory}.items() if v}
 
+    playbook_data = source()
+    upload_data = playbook_data.pop("upload_data", None)
+
     body = {
-        "playbook_data": source,
+        "playbook_data": playbook_data,
         "type": "RUN",
         "parameters": input,
         "regions": list(region_filter),
@@ -64,15 +68,21 @@ def run(
         "save_report": not no_save_report,
         "environment_variables": env,
         "container_settings": container_settings,
+        "with_files": bool(upload_data),
     }
 
     res = client.post("/jobs", json=body)
-    stdout.print_json(res.text)
+
+    run = res.json()
+    stdout.print_json(data=run)
 
     if not res.is_success:
         sys.exit(1)
 
-    run_id = res.json()["id"]
+    if files_upload := run["files_upload"]:
+        upload_data(files_upload)
+
+    run_id = run["id"]
 
     if sync or show_output or get_files or show_report:
         wait_job_until_finished(run_id)
