@@ -6,6 +6,14 @@ from ..api import client
 from ..utils.arguments import source_arg
 from ..utils.console import stdout, wait_job_until_finished
 from ..utils import options as opts
+from .job import list_jobs
+
+
+@click.command("scans")
+@click.option("--page", default=1)
+@click.option("--quantity", default=10)
+def list_scans(page: int, quantity: int):
+    return list_jobs(page, quantity, "SCAN")
 
 
 @click.command()

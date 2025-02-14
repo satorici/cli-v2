@@ -20,15 +20,18 @@ def get(job_id: int):
     stdout.print_json(res.text)
 
 
-@job.command("list")
-@click.option("--page", default=1)
-@click.option("--quantity", default=10)
-@click.option("--type")
-def list_(page: int, quantity: int, type: Optional[str]):
+def list_jobs(page: int, quantity: int, type: Optional[str]):
     params = {k: v for k, v in locals().items() if v is not None}
 
     res = client.get("/jobs", params=params)
     stdout.print_json(res.text)
+
+@job.command("list")
+@click.option("--page", default=1)
+@click.option("--quantity", default=10)
+@click.option("--type")
+def _(**kwargs):
+    return list_jobs(**kwargs)
 
 
 @job.command()

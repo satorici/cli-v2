@@ -6,9 +6,9 @@ from httpx import HTTPStatusError
 from .auth import authenticate
 from .commands.execution import execution
 from .commands.job import job
-from .commands.monitor import monitor
+from .commands.monitor import monitor, list_monitors
 from .commands.run import run
-from .commands.scan import scan
+from .commands.scan import scan, list_scans
 from .commands.report import reports
 from .config import config
 from .constants import SATORI_HOME
@@ -55,7 +55,9 @@ def config_(key: Optional[str], value: Optional[str], **kwargs):
 
 cli.add_command(run)
 cli.add_command(scan)
+cli.add_command(list_scans)
 cli.add_command(monitor)
+cli.add_command(list_monitors)
 cli.add_command(job)
 cli.add_command(execution)
 cli.add_command(reports)

@@ -4,9 +4,17 @@ from typing import Optional
 import rich_click as click
 
 from ..api import client
+from ..utils import options as opts
 from ..utils.arguments import source_arg
 from ..utils.console import stdout
-from ..utils import options as opts
+from .job import list_jobs
+
+
+@click.command("monitors")
+@click.option("--page", default=1)
+@click.option("--quantity", default=10)
+def list_monitors(page: int, quantity: int):
+    return list_jobs(page, quantity, "MONITOR")
 
 
 @click.command()
