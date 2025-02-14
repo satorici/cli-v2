@@ -13,8 +13,9 @@ from .job import list_jobs
 @click.command("monitors")
 @click.option("--page", default=1)
 @click.option("--quantity", default=10)
-def list_monitors(page: int, quantity: int):
-    return list_jobs(page, quantity, "MONITOR")
+@click.option("--public", "visibility", flag_value="PUBLIC")
+def list_monitors(page: int, quantity: int, visibility: Optional[str]):
+    return list_jobs(page, quantity, "MONITOR", visibility)
 
 
 @click.command()
