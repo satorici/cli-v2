@@ -78,6 +78,9 @@ test:
     list:
       - satori reports
 
+    list_json:
+      - satori reports --json
+      
     # list the pending reports
     filter:
       - satori reports --filter="status=Pending"
