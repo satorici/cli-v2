@@ -48,6 +48,9 @@ test:
     pass_report:
       - satori run .satori/import/pass.yml --report --cpu 256 --memory 512
 
+    pass_report_json:
+      - satori run .satori/import/pass.yml --report --cpu 256 --memory 512 --json
+      
     # execute a Satori CI playbook locally on a directory with a .satori.yml playbook
     import_sync:
       - satori run .satori/import --sync
