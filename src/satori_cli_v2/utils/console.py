@@ -1,5 +1,6 @@
 from base64 import b64decode
 import json
+import sys
 import time
 
 import httpx
@@ -41,9 +42,15 @@ def show_execution_output(execution_id: int):
 
             stdout.out("Return code:", results["return_code"])
             stdout.out("Stdout:")
-            stdout.out(b64decode(results["stdout"]).decode(errors="ignore"), highlight=False)
+            if stdout_ := results["stdout"]:
+                sys.stdout.buffer.write(b64decode(stdout_))
+                stdout.out()
+
             stdout.out("Stderr:")
-            stdout.out(b64decode(results["stderr"]).decode(errors="ignore"), highlight=False)
+            if stderr_ := results["stderr"]:
+                sys.stdout.buffer.write(b64decode(stderr_))
+                stdout.out()
+
             stdout.out()
 
 
