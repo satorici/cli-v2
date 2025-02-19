@@ -55,7 +55,6 @@ def monitor(
     }
 
     res = client.post("/jobs", json=body)
-    res.raise_for_status()
 
     monitor = res.json()
     stdout.print_json(data=monitor)

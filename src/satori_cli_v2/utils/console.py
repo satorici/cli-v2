@@ -49,7 +49,6 @@ def show_execution_output(execution_id: int):
 
 def show_execution_report(execution_id: int):
     res = client.get(f"/executions/{execution_id}", follow_redirects=True)
-    res.raise_for_status()
     stdout.print_json(res.text)
 
 
@@ -57,6 +56,8 @@ def download_execution_files(execution_id: int):
     res = client.get(f"/executions/{execution_id}/files")
 
     with httpx.stream("GET", res.headers["Location"]) as s:
+        s.raise_for_status()
+
         total = int(s.headers["Content-Length"])
 
         with progress.Progress(console=stderr) as p:

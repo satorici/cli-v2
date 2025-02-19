@@ -51,8 +51,6 @@ def scan(
 
     res = client.post("/jobs", json=body)
 
-    res.raise_for_status()
-
     stdout.print_json(res.text)
 
     if sync:
