@@ -15,6 +15,7 @@ from ..utils.console import (
     wait_job_until_finished,
 )
 from ..utils import options as opts
+from ..utils.wrappers import JobWrapper
 
 
 @click.command()
@@ -32,6 +33,7 @@ from ..utils import options as opts
 @click.option("--files", "-f", "get_files", is_flag=True)
 @opts.cpu_opt
 @opts.memory_opt
+@opts.json_opt
 def run(
     source: Callable[[], dict],
     region_filter: tuple[str],
@@ -47,6 +49,7 @@ def run(
     env: Optional[dict[str, str]],
     cpu: Optional[int],
     memory: Optional[int],
+    **kwargs,
 ):
     if show_output and count > 1:
         stderr.print("WARNING: Only first execution output will be shown")
@@ -77,7 +80,11 @@ def run(
     res = client.post("/jobs", json=body)
 
     run = res.json()
-    stdout.print_json(data=run)
+
+    if show_output or show_report:
+        stderr.print(JobWrapper(run))
+    else:
+        stdout.print(JobWrapper(run))
 
     if not res.is_success:
         sys.exit(1)
