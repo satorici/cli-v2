@@ -41,6 +41,7 @@ class Config:
             profile = profile
 
         self._config = config
+        self._current_config = {}
         self.profile = profile
 
     def __getitem__(self, key: str):
@@ -49,10 +50,17 @@ class Config:
 
         return self.get_all()[key]
 
+    def __setitem__(self, key: str, value):
+        self._current_config[key] = value
+
+    def get(self, key: str, default=None):
+        return self.get_all().get(key, default)
+
     def get_all(self):
         config = self._config["default"]
         config = always_merger.merge(config, self._config.get(self.profile, {}))
         config = always_merger.merge(config, self._env_config)
+        config = always_merger.merge(config, self._current_config)
         return config
 
     def save(self, key: str, value, profile="default"):
