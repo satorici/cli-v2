@@ -54,7 +54,7 @@ def show_execution_output(execution_id: int):
             stdout.out()
 
 
-def show_execution_report(execution_id: int):
+def show_execution(execution_id: int):
     res = client.get(f"/executions/{execution_id}", follow_redirects=True)
     stdout.print_json(res.text)
 

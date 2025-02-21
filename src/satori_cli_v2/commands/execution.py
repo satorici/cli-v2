@@ -5,6 +5,7 @@ import rich_click as click
 from ..api import client
 from ..utils.console import (
     download_execution_files,
+    show_execution,
     show_execution_output,
     stdout,
 )
@@ -20,8 +21,7 @@ def execution():
 @execution.command()
 @execution_id_arg
 def get(execution_id: int):
-    res = client.get(f"/executions/{execution_id}")
-    stdout.print_json(res.text)
+    show_execution(execution_id)
 
 
 @execution.command()
