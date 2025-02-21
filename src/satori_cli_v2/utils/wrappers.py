@@ -40,3 +40,12 @@ class JobWrapper(Wrapper[dict]):
     def __rich_console__(self, console, options):
         yield f"Job id: {self.obj['id']}"
         yield f"Job type: {self.obj['type']}"
+
+
+@has_json_output
+class ExecutionWrapper(Wrapper[dict]):
+    def __rich_console__(self, console, options):
+        yield f"Execution id: {self.obj['id']}"
+        yield f"Status: {self.obj['status']}"
+        yield JobWrapper(self.obj["job"])
+        yield "Report: " + json.dumps(self.obj["data"]["report"], indent=2)

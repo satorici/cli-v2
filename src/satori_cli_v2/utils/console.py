@@ -1,13 +1,14 @@
-from base64 import b64decode
 import json
 import sys
 import time
+from base64 import b64decode
 
 import httpx
 from rich import progress
 from rich.console import Console
 
 from ..api import client
+from ..utils.wrappers import ExecutionWrapper
 
 stdout = Console()
 stderr = Console(stderr=True)
@@ -56,7 +57,7 @@ def show_execution_output(execution_id: int):
 
 def show_execution(execution_id: int):
     res = client.get(f"/executions/{execution_id}", follow_redirects=True)
-    stdout.print_json(res.text)
+    stdout.print(ExecutionWrapper(res.json()))
 
 
 def download_execution_files(execution_id: int):
