@@ -74,7 +74,7 @@ class PagedWrapper(Wrapper[PagedResponse[W]]):
 
 class ExecutionListWrapper(Wrapper[dict]):
     def __rich_console__(self, console, options):
-        table = Table()
+        table = Table(expand=True)
         table.add_column("Id")
         table.add_column("Status")
         table.add_column("Visibility")
