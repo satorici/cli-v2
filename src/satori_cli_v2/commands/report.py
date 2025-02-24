@@ -5,7 +5,7 @@ import rich_click as click
 from ..api import client
 from ..utils import options as opts
 from ..utils.console import stdout
-from ..utils.wrappers import ExecutionListWrapper, PagedWrapper
+from ..utils.wrappers import ExecutionListWrapper, ExecutionWrapper, PagedWrapper
 
 
 @click.command()
@@ -18,3 +18,11 @@ def reports(job_id: Optional[int], page: int, quantity: int, **kwargs):
 
     res = client.get("/executions", params=params)
     stdout.print(PagedWrapper(res.json(), page, quantity, ExecutionListWrapper))
+
+
+@click.command()
+@click.argument("execution-id", type=int)
+@opts.json_opt
+def report(execution_id: int, **kwargs):
+    res = client.get(f"/executions/{execution_id}")
+    stdout.print(ExecutionWrapper(res.json()))

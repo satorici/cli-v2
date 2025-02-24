@@ -9,7 +9,7 @@ from .commands.job import job
 from .commands.monitor import monitor, list_monitors
 from .commands.run import run
 from .commands.scan import scan, list_scans
-from .commands.report import reports
+from .commands.report import report, reports
 from .config import config
 from .constants import SATORI_HOME
 from .utils.console import stderr
@@ -61,6 +61,7 @@ cli.add_command(list_monitors)
 cli.add_command(job)
 cli.add_command(execution)
 cli.add_command(reports)
+cli.add_command(report)
 
 
 def main():
