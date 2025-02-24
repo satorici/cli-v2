@@ -6,6 +6,7 @@ from .config import config
 
 def raise_for_status(response: Response):
     if response.is_error:
+        response.read()
         response.raise_for_status()
 
 
