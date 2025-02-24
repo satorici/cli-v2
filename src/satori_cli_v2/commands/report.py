@@ -12,8 +12,11 @@ from ..utils.wrappers import ExecutionListWrapper, ExecutionWrapper, PagedWrappe
 @click.argument("job-id", type=int, required=False)
 @click.option("--page", default=1)
 @click.option("--quantity", default=10)
+@click.option(
+    "--status", type=click.Choice(["FINISHED", "CANCELED", "RUNNING", "QUEUED"])
+)
 @opts.json_opt
-def reports(job_id: Optional[int], page: int, quantity: int, **kwargs):
+def reports(job_id: Optional[int], page: int, quantity: int, status: str, **kwargs):
     params = {k: v for k, v in locals().items() if v is not None and k != "kwargs"}
 
     res = client.get("/executions", params=params)
