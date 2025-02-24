@@ -4,6 +4,7 @@ from typing import Generic, TypeVar
 
 from rich.console import Console, ConsoleOptions, RenderResult
 from rich.table import Table
+from typing_extensions import TypedDict
 
 from ..config import config
 
@@ -53,9 +54,14 @@ class ExecutionWrapper(Wrapper[dict]):
         yield "Report: " + json.dumps(self.obj["data"]["report"], indent=2)
 
 
+class PagedResponse(Generic[T], TypedDict):
+    total: int
+    items: list[T]
+
+
 @has_json_output
-class PagedWrapper(Wrapper[dict]):
-    def __init__(self, obj, page: int, quantity: int, items_wrapper: type[Wrapper]):
+class PagedWrapper(Wrapper[PagedResponse[W]]):
+    def __init__(self, obj, page: int, quantity: int, items_wrapper: type[W]):
         self._wrapper = items_wrapper
         self.page = page
         self.quantity = quantity
