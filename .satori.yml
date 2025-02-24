@@ -83,7 +83,7 @@ test:
 
     # list the pending reports
     filter:
-      - satori reports --filter="status=Pending"
+      - satori reports --status=RUNNING
 
     parallel:
       setParallel: true
