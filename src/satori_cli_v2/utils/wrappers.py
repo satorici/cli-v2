@@ -1,3 +1,5 @@
+from collections import defaultdict
+from itertools import groupby
 import json
 from math import floor
 from typing import Generic, TypeVar
@@ -51,7 +53,8 @@ class ExecutionWrapper(Wrapper[dict]):
         yield f"Execution id: {self.obj['id']}"
         yield f"Status: {self.obj['status']}"
         yield JobWrapper(self.obj["job"])
-        yield "Report: " + json.dumps(self.obj["data"]["report"], indent=2)
+        yield "Report:"
+        yield ReportWrapper(self.obj["data"]["report"]["detail"])
 
 
 class PagedResponse(Generic[T], TypedDict):
@@ -98,3 +101,29 @@ class ExecutionListWrapper(Wrapper[dict]):
             )
 
         yield table
+
+
+class ReportWrapper(Wrapper[list[dict]]):
+    def __rich_console__(self, console, options):
+        grid = Table.grid(expand=True)
+        grid.add_column(ratio=1)
+        grid.add_column(ratio=3)
+
+        for detail in self.obj:
+            assert_grid = Table.grid(expand=True)
+            assert_grid.add_column(ratio=1)
+            assert_grid.add_column(ratio=2)
+
+            for name, valresults in groupby(detail["asserts"], lambda x: x["assert"]):
+                valres_grid = Table.grid(expand=True)
+                valres_grid.add_column(ratio=1)
+                valres_grid.add_column(ratio=1)
+
+                for valres in valresults:
+                    valres_grid.add_row(str(valres["expected"]), valres["status"])
+
+                assert_grid.add_row(name, valres_grid)
+
+            grid.add_row(detail["test"], assert_grid)
+
+        yield grid
