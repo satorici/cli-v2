@@ -1,1 +1,1 @@
-# satori-cli-v2
+# satori-cli
