@@ -105,35 +105,27 @@ class ExecutionListWrapper(Wrapper[dict]):
 
 class ReportWrapper(Wrapper[list[dict]]):
     def __rich_console__(self, console, options):
-        headers = Table.grid(
-            Column(ratio=1),
-            Column(ratio=1),
-            Column(ratio=1),
-            Column(ratio=1),
+        table = Table(
+            Column("Test", ratio=1),
+            Column("Assert", ratio=1),
+            Column("Assert value", ratio=1),
+            Column("Result", ratio=1),
             expand=True,
         )
-        headers.add_row("Test", "Assert", "Expected", "Result")
-        yield headers
-
-        grid = Table.grid(expand=True)
-        grid.add_column(ratio=1)
-        grid.add_column(ratio=3)
 
         for detail in self.obj:
-            assert_grid = Table.grid(expand=True)
-            assert_grid.add_column(ratio=1)
-            assert_grid.add_column(ratio=2)
+            check = "✅" if detail["test_status"] == "Pass" else "❌"
+            test_name = check + " " + ":".join(detail["test"].split(" > "))
+            grouped_asserts = groupby(detail["asserts"], lambda x: x["assert"])
 
-            for name, valresults in groupby(detail["asserts"], lambda x: x["assert"]):
-                valres_grid = Table.grid(expand=True)
-                valres_grid.add_column(ratio=1)
-                valres_grid.add_column(ratio=1)
+            for name, valresults in grouped_asserts:
+                values = list(valresults)
+                expected = "\n".join([str(val["expected"]) for val in values])
+                status = "\n".join([str(val["status"]) for val in values])
 
-                for valres in valresults:
-                    valres_grid.add_row(str(valres["expected"]), valres["status"])
+                table.add_row(test_name, name.lstrip("assert"), expected, status)
+                test_name = ""
 
-                assert_grid.add_row(name.lstrip("assert"), valres_grid)
+            table.add_section()
 
-            grid.add_row(detail["test"], assert_grid)
-
-        yield grid
+        yield table
