@@ -3,9 +3,9 @@ from typing import Optional
 import rich_click as click
 
 from ..api import client
+from ..utils import options as opts
 from ..utils.arguments import source_arg
 from ..utils.console import stdout, wait_job_until_finished
-from ..utils import options as opts
 from .job import list_jobs
 
 

@@ -6,10 +6,10 @@ from httpx import HTTPStatusError
 from .auth import authenticate
 from .commands.execution import execution
 from .commands.job import job
-from .commands.monitor import monitor, list_monitors
-from .commands.run import run
-from .commands.scan import scan, list_scans
+from .commands.monitor import list_monitors, monitor
 from .commands.report import report, reports
+from .commands.run import run
+from .commands.scan import list_scans, scan
 from .config import config
 from .constants import SATORI_HOME
 from .utils.console import stderr

@@ -1,20 +1,20 @@
-from collections.abc import Callable
 import sys
+from collections.abc import Callable
 from typing import Optional
 
 import rich_click as click
 
 from ..api import client
+from ..utils import options as opts
 from ..utils.arguments import source_arg
 from ..utils.console import (
     download_execution_files,
-    show_execution_output,
     show_execution,
+    show_execution_output,
     stderr,
     stdout,
     wait_job_until_finished,
 )
-from ..utils import options as opts
 from ..utils.wrappers import JobWrapper
 
 

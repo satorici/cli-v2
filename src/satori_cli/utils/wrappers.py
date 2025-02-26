@@ -1,11 +1,10 @@
-from collections import defaultdict
-from itertools import groupby
 import json
+from itertools import groupby
 from math import floor
 from typing import Generic, TypeVar
 
 from rich.console import Console, ConsoleOptions, RenderResult
-from rich.table import Table, Column
+from rich.table import Column, Table
 from typing_extensions import TypedDict
 
 from ..config import config
