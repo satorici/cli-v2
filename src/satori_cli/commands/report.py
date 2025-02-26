@@ -15,8 +15,16 @@ from ..utils.wrappers import ExecutionListWrapper, ExecutionWrapper, PagedWrappe
 @click.option(
     "--status", type=click.Choice(["FINISHED", "CANCELED", "RUNNING", "QUEUED"])
 )
+@click.option("--public", "visibility", flag_value="PUBLIC")
 @opts.json_opt
-def reports(job_id: Optional[int], page: int, quantity: int, status: str, **kwargs):
+def reports(
+    job_id: Optional[int],
+    page: int,
+    quantity: int,
+    status: str,
+    visibility: str,
+    **kwargs,
+):
     params = {k: v for k, v in locals().items() if v is not None and k != "kwargs"}
 
     res = client.get("/executions", params=params)
