@@ -5,7 +5,7 @@ from math import floor
 from typing import Generic, TypeVar
 
 from rich.console import Console, ConsoleOptions, RenderResult
-from rich.table import Table
+from rich.table import Table, Column
 from typing_extensions import TypedDict
 
 from ..config import config
@@ -105,6 +105,16 @@ class ExecutionListWrapper(Wrapper[dict]):
 
 class ReportWrapper(Wrapper[list[dict]]):
     def __rich_console__(self, console, options):
+        headers = Table.grid(
+            Column(ratio=1),
+            Column(ratio=1),
+            Column(ratio=1),
+            Column(ratio=1),
+            expand=True,
+        )
+        headers.add_row("Test", "Assert", "Expected", "Result")
+        yield headers
+
         grid = Table.grid(expand=True)
         grid.add_column(ratio=1)
         grid.add_column(ratio=3)
@@ -122,7 +132,7 @@ class ReportWrapper(Wrapper[list[dict]]):
                 for valres in valresults:
                     valres_grid.add_row(str(valres["expected"]), valres["status"])
 
-                assert_grid.add_row(name, valres_grid)
+                assert_grid.add_row(name.lstrip("assert"), valres_grid)
 
             grid.add_row(detail["test"], assert_grid)
 
