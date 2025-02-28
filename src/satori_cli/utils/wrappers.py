@@ -4,6 +4,7 @@ from math import floor
 from typing import Generic, TypeVar
 
 from rich.console import Console, ConsoleOptions, RenderResult
+from rich.panel import Panel
 from rich.table import Column, Table
 from typing_extensions import TypedDict
 
@@ -49,11 +50,39 @@ class JobWrapper(Wrapper[dict]):
 @has_json_output
 class ExecutionWrapper(Wrapper[dict]):
     def __rich_console__(self, console, options):
-        yield f"Execution id: {self.obj['id']}"
-        yield f"Status: {self.obj['status']}"
-        yield JobWrapper(self.obj["job"])
-        yield "Report:"
-        yield ReportWrapper(self.obj["data"]["report"]["detail"])
+        job = self.obj["job"]
+        data = self.obj["data"]
+
+        grid = Table.grid(Column(ratio=1), Column(ratio=1), expand=True)
+
+        execution_grid = Table.grid(padding=(0, 2))
+        execution_grid.add_row("Status", self.obj["status"])
+        execution_grid.add_row("Visibility", self.obj["visibility"])
+
+        if region := data.get("region"):
+            execution_grid.add_row("Region", region)
+
+        execution_grid.add_row("Created at", self.obj["created_at"])
+
+        if started_at := data.get("timestamps", {}).get("startedAt"):
+            execution_grid.add_row("Started at", started_at)
+        if stopped_at := data.get("timestamps", {}).get("executionStoppedAt"):
+            execution_grid.add_row("Stopped at", stopped_at)
+
+        job_grid = Table.grid(padding=(0, 2))
+        job_grid.add_row("Type", job["type"])
+        job_grid.add_row("Visibility", job["visibility"])
+        job_grid.add_row("Created at", job["created_at"])
+
+        grid.add_row(
+            execution_grid,
+            Panel(job_grid, title=f"Job {job['id']}", title_align="left"),
+        )
+
+        yield Panel(grid, title=f"Execution {self.obj['id']}", title_align="left")
+
+        if report := data["report"]["detail"]:
+            yield ReportWrapper(report)
 
 
 class PagedResponse(Generic[T], TypedDict):
