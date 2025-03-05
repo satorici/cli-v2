@@ -1,9 +1,9 @@
-import json
 from itertools import groupby
 from math import floor
 from typing import Generic, TypeVar
 
 from rich.console import Console, ConsoleOptions, RenderResult
+from rich.json import JSON
 from rich.panel import Panel
 from rich.table import Column, Table
 from typing_extensions import TypedDict
@@ -31,7 +31,7 @@ def has_json_output(cls: type[W]):
 
     def __rich_console__(self: W, console: Console, options: ConsoleOptions):
         if config.get("json"):
-            yield json.dumps(self.obj, indent=2)
+            yield JSON.from_data(self.obj)
         else:
             yield from orig(self, console, options)
 
