@@ -1,14 +1,13 @@
 import json
-import sys
 import time
-from base64 import b64decode
+from itertools import groupby
 
 import httpx
 from rich import progress
 from rich.console import Console
 
 from ..api import client
-from ..utils.wrappers import ExecutionWrapper
+from ..utils.wrappers import ExecutionWrapper, OutputWrapper
 
 stdout = Console()
 stderr = Console(stderr=True)
@@ -35,24 +34,14 @@ def show_execution_output(execution_id: int):
     with client.stream(
         "GET", f"/executions/{execution_id}/output", follow_redirects=True
     ) as s:
-        for line in s.iter_lines():
-            loaded = json.loads(line)
-            stdout.out("Command:", loaded["original"])
+        loaded = (json.loads(line) for line in s.iter_lines())
+        grouped = groupby(loaded, lambda o: o["path"])
 
-            results = loaded["output"]
+        for path, outputs in grouped:
+            stdout.rule(path)
 
-            stdout.out("Return code:", results["return_code"])
-            stdout.out("Stdout:")
-            if stdout_ := results["stdout"]:
-                sys.stdout.buffer.write(b64decode(stdout_))
-                stdout.out()
-
-            stdout.out("Stderr:")
-            if stderr_ := results["stderr"]:
-                sys.stdout.buffer.write(b64decode(stderr_))
-                stdout.out()
-
-            stdout.out()
+            for output in outputs:
+                stdout.print(OutputWrapper(output))
 
 
 def show_execution(execution_id: int):

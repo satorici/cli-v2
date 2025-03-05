@@ -1,3 +1,4 @@
+from base64 import b64decode
 from itertools import groupby
 from math import floor
 from typing import Generic, TypeVar
@@ -5,6 +6,7 @@ from typing import Generic, TypeVar
 from rich.console import Console, ConsoleOptions, RenderResult
 from rich.json import JSON
 from rich.panel import Panel
+from rich.segment import Segment
 from rich.table import Column, Table
 from typing_extensions import TypedDict
 
@@ -157,3 +159,40 @@ class ReportWrapper(Wrapper[list[dict]]):
             table.add_section()
 
         yield table
+
+
+class OutputWrapper(Wrapper[dict]):
+    def __rich_console__(self, console, options):
+        output = self.obj
+        result = output["output"]
+
+        grid = Table.grid("", "", padding=(0, 2))
+        grid.add_row("Command:", output["original"])
+        grid.add_row("Return code:", str(result["return_code"]))
+
+        if output["testcase"]:
+            testcase = Table(
+                Column(style="b"),
+                Column(),
+                show_header=False,
+                show_edge=False,
+                pad_edge=False,
+            )
+
+            for key, value in output["testcase"].items():
+                testcase.add_row(key, b64decode(value).decode(errors="ignore"))
+
+            grid.add_row("Testcase:", testcase)
+
+        if error := result["os_error"]:
+            grid.add_row("Error:", error)
+
+        yield grid
+
+        yield "Stdout:"
+        if stdout := result["stdout"]:
+            yield Segment(b64decode(stdout).decode(errors="ignore"))
+
+        yield "Stderr:"
+        if stderr := result["stderr"]:
+            yield Segment(b64decode(stderr).decode(errors="ignore"))
