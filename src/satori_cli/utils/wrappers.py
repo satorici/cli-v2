@@ -1,4 +1,5 @@
 from base64 import b64decode
+from datetime import datetime
 from itertools import groupby
 from math import floor
 from typing import Generic, TypeVar
@@ -47,6 +48,12 @@ class JobWrapper(Wrapper[dict]):
     def __rich_console__(self, console, options):
         yield f"Job id: {self.obj['id']}"
         yield f"Job type: {self.obj['type']}"
+
+
+class ISODateTime(Wrapper[str]):
+    def __rich_console__(self, console, options):
+        value = self.obj.replace("Z", "+00:00")
+        yield datetime.fromisoformat(value).strftime("%Y-%m-%d %H:%M:%S")
 
 
 @has_json_output
