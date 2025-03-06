@@ -69,10 +69,10 @@ test:
   report:
     # run synchronously a local playbook
     new_sync:
-      - satori run .satori/import/pass.yml -s | grep 'Report ID' | grep -E 'r[a-zA-Z0-9]{15}' -o | tr -d '\n'
+      - satori run .satori/import/pass.yml -s --json | jq '.id'
 
     dont_save:
-      - satori run .satori/import/pass.yml --delete-report --delete-output --report --output | grep 'Report ID' | grep -E 'r[a-zA-Z0-9]{15}' -o | tr -d '\n'
+      - satori run .satori/import/pass.yml --delete-report --delete-output --report --output
 
     # list the reports generated
     list:
