@@ -65,23 +65,23 @@ class ExecutionWrapper(Wrapper[dict]):
         grid = Table.grid(Column(ratio=1), Column(ratio=1), expand=True)
 
         execution_grid = Table.grid(padding=(0, 2))
-        execution_grid.add_row("Status", self.obj["status"])
-        execution_grid.add_row("Visibility", self.obj["visibility"])
+        execution_grid.add_row("Status", self.obj["status"].capitalize())
+        execution_grid.add_row("Visibility", self.obj["visibility"].capitalize())
 
         if region := data.get("region"):
             execution_grid.add_row("Region", region)
 
-        execution_grid.add_row("Created at", self.obj["created_at"])
+        execution_grid.add_row("Created at", ISODateTime(self.obj["created_at"]))
 
         if started_at := data.get("timestamps", {}).get("startedAt"):
-            execution_grid.add_row("Started at", started_at)
+            execution_grid.add_row("Started at", ISODateTime(started_at))
         if stopped_at := data.get("timestamps", {}).get("executionStoppedAt"):
-            execution_grid.add_row("Stopped at", stopped_at)
+            execution_grid.add_row("Stopped at", ISODateTime(stopped_at))
 
         job_grid = Table.grid(padding=(0, 2))
-        job_grid.add_row("Type", job["type"])
-        job_grid.add_row("Visibility", job["visibility"])
-        job_grid.add_row("Created at", job["created_at"])
+        job_grid.add_row("Type", job["type"].capitalize())
+        job_grid.add_row("Visibility", job["visibility"].capitalize())
+        job_grid.add_row("Created at", ISODateTime(job["created_at"]))
 
         grid.add_row(
             execution_grid,
