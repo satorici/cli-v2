@@ -69,7 +69,7 @@ test:
   report:
     # run synchronously a local playbook
     new_sync:
-      - satori run .satori/import/pass.yml -s --json | jq '.id'
+      - satori run .satori/import/pass.yml --report --json | jq '.id'
 
     dont_save:
       - satori run .satori/import/pass.yml --delete-report --delete-output --report --output
