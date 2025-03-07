@@ -5,6 +5,7 @@ from math import floor
 from typing import Generic, TypeVar
 
 from rich.console import Console, ConsoleOptions, RenderResult
+from rich.highlighter import RegexHighlighter
 from rich.json import JSON
 from rich.panel import Panel
 from rich.segment import Segment
@@ -54,6 +55,13 @@ class ISODateTime(Wrapper[str]):
     def __rich_console__(self, console, options):
         value = self.obj.replace("Z", "+00:00")
         yield datetime.fromisoformat(value).strftime("%Y-%m-%d %H:%M:%S")
+
+
+class ResultHighlighter(RegexHighlighter):
+    highlights = [r"(?P<green>Pass)", r"(?P<red>Fail)"]
+
+
+highlight_result = ResultHighlighter()
 
 
 @has_json_output
@@ -158,7 +166,9 @@ class ReportWrapper(Wrapper[list[dict]]):
             for name, valresults in grouped_asserts:
                 values = list(valresults)
                 expected = "\n".join([str(val["expected"]) for val in values])
-                status = "\n".join([str(val["status"]) for val in values])
+                status = highlight_result(
+                    "\n".join([str(val["status"]) for val in values])
+                )
 
                 table.add_row(test_name, name.lstrip("assert"), expected, status)
                 test_name = ""
