@@ -53,10 +53,15 @@ class JobWrapper(Wrapper[dict]):
 
 class ISODateTime(Wrapper[str]):
     def __rich_console__(self, console, options):
+        if self.obj.endswith(("Z", "+00:00")):
+            orig = self.obj
+        else:
+            orig = self.obj + "Z"
+
         try:
-            dt = datetime.strptime(self.obj, "%Y-%m-%dT%H:%M:%S.%f%z")
+            dt = datetime.strptime(orig, "%Y-%m-%dT%H:%M:%S.%f%z")
         except ValueError:
-            dt = datetime.strptime(self.obj, "%Y-%m-%dT%H:%M:%S%z")
+            dt = datetime.strptime(orig, "%Y-%m-%dT%H:%M:%S%z")
 
         yield dt.strftime("%Y-%m-%d %H:%M:%S")
 
