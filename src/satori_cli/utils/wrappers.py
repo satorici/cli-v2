@@ -53,8 +53,12 @@ class JobWrapper(Wrapper[dict]):
 
 class ISODateTime(Wrapper[str]):
     def __rich_console__(self, console, options):
-        value = self.obj.replace("Z", "+00:00")
-        yield datetime.fromisoformat(value).strftime("%Y-%m-%d %H:%M:%S")
+        try:
+            dt = datetime.strptime(self.obj, "%Y-%m-%dT%H:%M:%S.%f%z")
+        except ValueError:
+            dt = datetime.strptime(self.obj, "%Y-%m-%dT%H:%M:%S%z")
+
+        yield dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
 class ResultHighlighter(RegexHighlighter):
