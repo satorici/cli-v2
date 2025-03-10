@@ -141,15 +141,15 @@ class ExecutionListWrapper(Wrapper[dict]):
 
         for execution in self.obj:
             if report := execution["data"].get("report"):
-                result = "FAIL" if report["fails"] else "PASS"
+                result = highlight_result("Fail" if report["fails"] else "Pass")
             else:
                 result = "N/A"
 
             table.add_row(
                 str(execution["id"]),
-                execution["status"],
-                execution["visibility"],
-                execution["job"]["type"],
+                execution["status"].capitalize(),
+                execution["visibility"].capitalize(),
+                execution["job"]["type"].capitalize(),
                 str(execution["job"]["id"]),
                 result,
             )
