@@ -9,13 +9,12 @@ from ..utils import options as opts
 from ..utils.arguments import source_arg
 from ..utils.console import (
     download_execution_files,
-    show_execution,
     show_execution_output,
     stderr,
     stdout,
     wait_job_until_finished,
 )
-from ..utils.wrappers import JobWrapper
+from ..utils.wrappers import JobWrapper, ReportWrapper
 
 
 @click.command()
@@ -109,4 +108,6 @@ def run(
         download_execution_files(execution_id)
 
     if show_report:
-        show_execution(execution_id)
+        res = client.get(f"/executions/{execution_id}")
+        report = res.json()["data"]["report"]["detail"]
+        stdout.print(ReportWrapper(report))
