@@ -47,8 +47,57 @@ def has_json_output(cls: type[W]):
 @has_json_output
 class JobWrapper(Wrapper[dict]):
     def __rich_console__(self, console, options):
-        yield f"Job id: {self.obj['id']}"
-        yield f"Job type: {self.obj['type']}"
+        job = self.obj
+
+        job_grid = Table.grid(padding=(0, 2))
+        job_grid.add_row("Type", job["type"].capitalize())
+        job_grid.add_row("Visibility", job["visibility"].capitalize())
+        job_grid.add_row("Created at", ISODateTime(job["created_at"]))
+
+        if status := job.get("status"):
+            job_grid.add_row("Status", status.capitalize())
+
+            if job["type"] in ("RUN", "SCAN") and status == "FINISHED":
+                result = highlight_result("Fail" if job["failed_reports"] else "Pass")
+            else:
+                result = "N/A"
+
+            if job["type"] == "RUN":
+                job_grid.add_row("Execution count", str(job["count"]))
+                job_grid.add_row("Result", result)
+
+            if job["type"] == "MONITOR":
+                job_grid.add_row("Schedule expression", str(job["expression"]))
+
+        yield Panel(job_grid, title=f"Job {job['id']}", title_align="left")
+
+
+class JobExecutionsWrapper(Wrapper[list]):
+    def __rich_console__(self, console, options):
+        table = Table(expand=True)
+        table.add_column("Execution id")
+        table.add_column("Created at")
+        table.add_column("Region")
+        table.add_column("Status")
+        table.add_column("Visibility")
+        table.add_column("Result")
+
+        for execution in self.obj:
+            if report := execution["data"].get("report"):
+                result = highlight_result("Fail" if report["fails"] else "Pass")
+            else:
+                result = "N/A"
+
+            table.add_row(
+                str(execution["id"]),
+                ISODateTime(execution["created_at"]),
+                execution["data"].get("region", "N/A"),
+                execution["status"].capitalize(),
+                execution["visibility"].capitalize(),
+                result,
+            )
+
+        yield table
 
 
 class ISODateTime(Wrapper[str]):
