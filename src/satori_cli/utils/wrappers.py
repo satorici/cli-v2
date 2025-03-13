@@ -75,7 +75,7 @@ class JobWrapper(Wrapper[dict]):
 class JobExecutionsWrapper(Wrapper[list]):
     def __rich_console__(self, console, options):
         table = Table(expand=True)
-        table.add_column("Execution id")
+        table.add_column("Report id")
         table.add_column("Created at")
         table.add_column("Region")
         table.add_column("Status")
