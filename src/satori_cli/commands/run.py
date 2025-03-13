@@ -14,7 +14,13 @@ from ..utils.console import (
     stdout,
     wait_job_until_finished,
 )
-from ..utils.wrappers import JobWrapper, ReportWrapper
+from ..utils.wrappers import (
+    JobExecutionsWrapper,
+    JobWrapper,
+    PagedWrapper,
+    ReportWrapper,
+    highlight_result,
+)
 
 
 @click.command()
@@ -54,8 +60,6 @@ def run(
         stderr.print("WARNING: Only first execution output will be shown")
     if get_files and count > 1:
         stderr.print("WARNING: Only first execution files will be downloaded")
-    if show_report and count > 1:
-        stderr.print("WARNING: Only first execution report will be shown")
 
     container_settings = {k: v for k, v in {"cpu": cpu, "memory": memory}.items() if v}
 
@@ -108,6 +112,19 @@ def run(
         download_execution_files(execution_id)
 
     if show_report:
-        res = client.get(f"/executions/{execution_id}")
-        report = res.json()["data"]["report"]["detail"]
-        stdout.print(ReportWrapper(report))
+        if count == 1:
+            res = client.get(f"/executions/{execution_id}")
+            report = res.json()["data"]["report"]["detail"]
+            stdout.print(ReportWrapper(report))
+        else:
+            res = client.get("/executions", params={"job_id": run_id})
+            executions = res.json()
+            failed = any(
+                (x["data"]["report"]["fails"] != 0 for x in executions["items"])
+            )
+            stdout.print("Result:", highlight_result("Fail" if failed else "Pass"))
+            stdout.print(
+                PagedWrapper(
+                    executions, 1, len(executions["items"]), JobExecutionsWrapper
+                )
+            )
