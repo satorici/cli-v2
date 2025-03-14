@@ -1,8 +1,10 @@
 import sys
+import time
 from collections.abc import Callable
 from typing import Optional
 
 import rich_click as click
+from rich.live import Live
 
 from ..api import client
 from ..utils import options as opts
@@ -12,14 +14,12 @@ from ..utils.console import (
     show_execution_output,
     stderr,
     stdout,
-    wait_job_until_finished,
 )
 from ..utils.wrappers import (
     JobExecutionsWrapper,
     JobWrapper,
     PagedWrapper,
     ReportWrapper,
-    highlight_result,
 )
 
 
@@ -80,17 +80,7 @@ def run(
         "with_files": bool(upload_data),
     }
 
-    res = client.post("/jobs", json=body)
-
-    run = res.json()
-
-    if show_output or show_report:
-        stderr.print(JobWrapper(run))
-    else:
-        stdout.print(JobWrapper(run))
-
-    if not res.is_success:
-        sys.exit(1)
+    run = client.post("/jobs", json=body).json()
 
     if files_upload := run["files_upload"]:
         upload_data(files_upload)
@@ -98,8 +88,18 @@ def run(
     run_id = run["id"]
 
     if sync or show_output or get_files or show_report:
-        wait_job_until_finished(run_id)
+        live_console = stderr if show_output or show_report else stdout
+
+        with Live(JobWrapper(run), console=live_console) as live:
+            while True:
+                time.sleep(1)
+                run = client.get(f"/jobs/{run_id}").json()
+                live.update(JobWrapper(run))
+
+                if run["status"] in ("FINISHED", "CANCELED"):
+                    break
     else:
+        stdout.print(JobWrapper(run))
         sys.exit(0)
 
     res = client.get("/executions", params={"job_id": run_id})
@@ -119,10 +119,6 @@ def run(
         else:
             res = client.get("/executions", params={"job_id": run_id})
             executions = res.json()
-            failed = any(
-                (x["data"]["report"]["fails"] != 0 for x in executions["items"])
-            )
-            stdout.print("Result:", highlight_result("Fail" if failed else "Pass"))
             stdout.print(
                 PagedWrapper(
                     executions, 1, len(executions["items"]), JobExecutionsWrapper
