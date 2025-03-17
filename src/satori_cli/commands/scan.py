@@ -4,7 +4,7 @@ import rich_click as click
 
 from ..api import client
 from ..utils import options as opts
-from ..utils.arguments import source_arg
+from ..utils.arguments import Source, source_arg
 from ..utils.console import stdout, wait_job_until_finished
 from .job import list_jobs
 
@@ -27,7 +27,7 @@ def list_scans(page: int, quantity: int, visibility: Optional[str]):
 @opts.env_opt
 def scan(
     repository: str,
-    source: dict,
+    source: Source,
     sync: bool,
     region_filter: tuple[str],
     quantity: Optional[int],
@@ -39,7 +39,7 @@ def scan(
     container_settings = {k: v for k, v in {"cpu": cpu, "memory": memory}.items() if v}
 
     body = {
-        "playbook_data": source,
+        "playbook_data": source.playbook_data(),
         "type": "SCAN",
         "parameters": input,
         "regions": list(region_filter),

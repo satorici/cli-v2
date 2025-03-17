@@ -1,6 +1,5 @@
 import sys
 import time
-from collections.abc import Callable
 from typing import Optional
 
 import rich_click as click
@@ -10,7 +9,7 @@ from rich.table import Table
 
 from ..api import client
 from ..utils import options as opts
-from ..utils.arguments import source_arg
+from ..utils.arguments import Source, source_arg
 from ..utils.console import (
     download_execution_files,
     show_execution_output,
@@ -42,7 +41,7 @@ from ..utils.wrappers import (
 @opts.memory_opt
 @opts.json_opt
 def run(
-    source: Callable[[], dict],
+    source: Source,
     region_filter: tuple[str],
     count: int,
     sync: bool,
@@ -65,11 +64,8 @@ def run(
 
     container_settings = {k: v for k, v in {"cpu": cpu, "memory": memory}.items() if v}
 
-    playbook_data = source()
-    upload_data = playbook_data.pop("upload_data", None)
-
     body = {
-        "playbook_data": playbook_data,
+        "playbook_data": source.playbook_data(),
         "type": "RUN",
         "parameters": input,
         "regions": list(region_filter),
@@ -79,13 +75,13 @@ def run(
         "save_output": not delete_output,
         "environment_variables": env,
         "container_settings": container_settings,
-        "with_files": bool(upload_data),
+        "with_files": source.is_dir,
     }
 
     run = client.post("/jobs", json=body).json()
 
     if files_upload := run["files_upload"]:
-        upload_data(files_upload)
+        source.upload_files(files_upload)
 
     run_id = run["id"]
 
