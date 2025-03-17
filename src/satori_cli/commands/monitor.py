@@ -47,7 +47,7 @@ def monitor(
         "description": description,
         "environment_variables": env,
         "container_settings": container_settings,
-        "with_files": bool(source.is_dir),
+        "with_files": bool(source.type == "DIR"),
     }
 
     res = client.post("/jobs", json=body)

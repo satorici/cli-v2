@@ -75,7 +75,7 @@ def run(
         "save_output": not delete_output,
         "environment_variables": env,
         "container_settings": container_settings,
-        "with_files": source.is_dir,
+        "with_files": source.type == "DIR",
     }
 
     run = client.post("/jobs", json=body).json()
