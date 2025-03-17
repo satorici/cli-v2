@@ -4,7 +4,9 @@ from collections.abc import Callable
 from typing import Optional
 
 import rich_click as click
+from rich import progress
 from rich.live import Live
+from rich.table import Table
 
 from ..api import client
 from ..utils import options as opts
@@ -90,11 +92,27 @@ def run(
     if sync or show_output or get_files or show_report:
         live_console = stderr if show_output or show_report else stdout
 
-        with Live(JobWrapper(run), console=live_console) as live:
+        p = progress.Progress(
+            progress.SpinnerColumn("dots2"),
+            progress.TimeElapsedColumn(),
+            console=stderr,
+        )
+        p.add_task("")
+
+        grid = Table.grid("")
+        grid.add_row(JobWrapper(run))
+        grid.add_row(p)
+
+        with Live(grid, console=live_console, refresh_per_second=10) as live:
             while True:
                 time.sleep(1)
                 run = client.get(f"/jobs/{run_id}").json()
-                live.update(JobWrapper(run))
+
+                grid = Table.grid("")
+                grid.add_row(JobWrapper(run))
+                grid.add_row(p)
+
+                live.update(grid)
 
                 if run["status"] in ("FINISHED", "CANCELED"):
                     break
