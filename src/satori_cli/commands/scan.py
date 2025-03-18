@@ -1,3 +1,4 @@
+import os
 from typing import Optional
 
 import rich_click as click
@@ -37,6 +38,14 @@ def scan(
     memory: Optional[int],
 ):
     container_settings = {k: v for k, v in {"cpu": cpu, "memory": memory}.items() if v}
+
+    if playbook := source.playbook:
+        vars = playbook.variables
+
+        if input and (missing_vars := vars - set(input)):
+            input.update({k: [v] for k, v in os.environ.items() if k in missing_vars})
+        else:
+            input = {k: [v] for k, v in os.environ.items() if k in vars}
 
     body = {
         "playbook_data": source.playbook_data(),
