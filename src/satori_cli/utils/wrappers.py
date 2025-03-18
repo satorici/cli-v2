@@ -206,6 +206,7 @@ class ExecutionListWrapper(Wrapper[dict]):
         yield table
 
 
+@has_json_output
 class ReportWrapper(Wrapper[list[dict]]):
     def __rich_console__(self, console, options):
         table = Table(
