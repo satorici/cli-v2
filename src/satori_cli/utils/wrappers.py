@@ -1,4 +1,3 @@
-from base64 import b64decode
 from datetime import datetime
 from itertools import groupby
 from math import floor
@@ -256,7 +255,7 @@ class OutputWrapper(Wrapper[dict]):
             )
 
             for key, value in output["testcase"].items():
-                testcase.add_row(key, b64decode(value).decode(errors="ignore"))
+                testcase.add_row(key, value.decode(errors="ignore"))
 
             grid.add_row("Testcase:", testcase)
 
@@ -267,10 +266,10 @@ class OutputWrapper(Wrapper[dict]):
 
         yield "Stdout:"
         if stdout := result["stdout"]:
-            yield Segment(b64decode(stdout).decode(errors="ignore"))
+            yield Segment(stdout.decode(errors="ignore"))
             yield ""
 
         yield "Stderr:"
         if stderr := result["stderr"]:
-            yield Segment(b64decode(stderr).decode(errors="ignore"))
+            yield Segment(stderr.decode(errors="ignore"))
             yield ""

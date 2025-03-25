@@ -1,8 +1,8 @@
-import json
 import time
 from itertools import groupby
 
 import httpx
+import msgpack
 from rich import progress
 from rich.console import Console
 
@@ -34,7 +34,7 @@ def show_execution_output(execution_id: int):
     with client.stream(
         "GET", f"/executions/{execution_id}/output", follow_redirects=True
     ) as s:
-        loaded = (json.loads(line) for line in s.iter_lines())
+        loaded = msgpack.Unpacker(s.extensions["network_stream"])
         grouped = groupby(loaded, lambda o: o["path"])
 
         for path, outputs in grouped:
