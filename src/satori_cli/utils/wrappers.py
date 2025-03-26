@@ -268,7 +268,9 @@ class OutputWrapper(Wrapper[dict]):
         yield "Stdout:"
         if stdout := result["stdout"]:
             yield Segment(b64decode(stdout).decode(errors="ignore"))
+            yield ""
 
         yield "Stderr:"
         if stderr := result["stderr"]:
             yield Segment(b64decode(stderr).decode(errors="ignore"))
+            yield ""
