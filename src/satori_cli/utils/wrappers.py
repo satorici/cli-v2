@@ -243,7 +243,7 @@ class OutputWrapper(Wrapper[dict]):
         result = output["output"]
 
         grid = Table.grid("", "", padding=(0, 2))
-        grid.add_row("Command:", output["original"])
+        grid.add_row("[green]Command:[/green]", output["original"])
         grid.add_row("Return code:", str(result["return_code"]))
 
         if output["testcase"]:
