@@ -54,7 +54,7 @@ class JobWrapper(Wrapper[dict]):
         job_grid.add_row("Created at", ISODateTime(job["created_at"]))
 
         if status := job.get("status"):
-            job_grid.add_row("Status", status.capitalize())
+            job_grid.add_row("Status", status.capitalize().replace("_", " "))
 
             if job["type"] in ("RUN", "SCAN") and status == "FINISHED":
                 result = highlight_result("Fail" if job["failed_reports"] else "Pass")
@@ -91,7 +91,7 @@ class JobExecutionsWrapper(Wrapper[list]):
                 str(execution["id"]),
                 ISODateTime(execution["created_at"]),
                 execution["data"].get("region", "N/A"),
-                execution["status"].capitalize(),
+                execution["status"].capitalize().replace("_", " "),
                 execution["visibility"].capitalize(),
                 result,
             )
@@ -195,7 +195,7 @@ class ExecutionListWrapper(Wrapper[dict]):
 
             table.add_row(
                 str(execution["id"]),
-                execution["status"].capitalize(),
+                execution["status"].capitalize().replace("_", " "),
                 execution["visibility"].capitalize(),
                 execution["job"]["type"].capitalize(),
                 str(execution["job"]["id"]),
