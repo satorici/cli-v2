@@ -69,10 +69,8 @@ def run(
         k: v for k, v in {"cpu": cpu, "memory": memory, "image": image}.items() if v
     }
 
-    if (playbook := source.playbook) and (vars := playbook.variables):
-        env_params = {k: [v] for k, v in os.environ.items() if k in vars}
-        if final_input := env_params | (input or {}):
-            input = final_input
+    if source.playbook:
+        input = source.playbook.get_inputs_from_env(input)
 
     body = {
         "playbook_data": source.playbook_data(),

@@ -19,6 +19,9 @@ class PlaybookData(TypedDict, total=False):
     bundle_id: str
 
 
+Inputs = dict[str, list[str]]
+
+
 def flatten_dict(d: dict[str, Any], parent_key="") -> dict[str, Any]:
     flat_dict = {}
 
@@ -62,6 +65,24 @@ class Playbook:
     def playbook_data(self) -> PlaybookData:
         res = client.post("/bundles", files={"bundle": make_bundle(self._path)})
         return {"bundle_id": res.text}
+
+    def get_inputs_from_env(self, inputs: Optional[Inputs] = None) -> Optional[Inputs]:
+        """Gets playbook variables values from environment variables
+
+        Args:
+            inputs: Merge with given inputs
+
+        Returns:
+            None: If no variables are found
+        """
+
+        env_params = {k: [v] for k, v in os.environ.items() if k in self.variables}
+
+        if inputs and env_params | inputs:
+            return env_params | inputs
+
+        if env_params:
+            return env_params
 
 
 class Source:
