@@ -100,7 +100,10 @@ class Source:
             self.playbook = Playbook(path)
         elif path.is_dir():
             self.type = "DIR"
-            self.playbook = Playbook(path / ".satori.yml")
+            playbook_path = path / ".satori.yml"
+
+            if playbook_path.is_file():
+                self.playbook = Playbook(playbook_path)
         else:
             raise SatoriError("Source not supported")
 
