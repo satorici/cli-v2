@@ -12,6 +12,7 @@ from .commands.run import run
 from .commands.scan import list_scans, scan
 from .config import config
 from .constants import SATORI_HOME
+from .exceptions import SatoriError
 from .utils.console import stderr
 from .utils.options import profile_opt
 
@@ -70,5 +71,7 @@ def main():
         return
     except HTTPStatusError as e:
         stderr.print_json(e.response.text)
+    except SatoriError as e:
+        stderr.print("ERROR:", e)
 
     return 1
