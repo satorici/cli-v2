@@ -4,6 +4,7 @@ from typing import Optional
 import rich_click as click
 
 from ..api import client
+from ..exceptions import SatoriError
 from ..utils import options as opts
 from ..utils.arguments import Source, source_arg
 from ..utils.console import stdout, wait_job_until_finished
@@ -37,6 +38,9 @@ def scan(
     cpu: Optional[int],
     memory: Optional[int],
 ):
+    if source.type == "DIR":
+        raise SatoriError("Directory sources are not compatible with scan")
+
     container_settings = {k: v for k, v in {"cpu": cpu, "memory": memory}.items() if v}
 
     if (playbook := source.playbook) and (vars := playbook.variables):
