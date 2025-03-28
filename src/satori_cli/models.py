@@ -119,4 +119,4 @@ class Source:
         elif self.playbook:
             return self.playbook.playbook_data()
         else:
-            raise SatoriError
+            raise SatoriError("No playbook provided")
