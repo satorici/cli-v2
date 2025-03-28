@@ -9,6 +9,7 @@ from rich.live import Live
 from rich.table import Table
 
 from ..api import client
+from ..models import Playbook
 from ..utils import options as opts
 from ..utils.arguments import Source, source_arg
 from ..utils.console import (
@@ -27,6 +28,7 @@ from ..utils.wrappers import (
 
 @click.command()
 @source_arg
+@opts.playbook_opt
 @click.option("--count", default=1, show_default=True)
 @opts.sync_opt
 @opts.region_filter_opt
@@ -44,6 +46,7 @@ from ..utils.wrappers import (
 @opts.json_opt
 def run(
     source: Source,
+    playbook: Optional[Playbook],
     region_filter: tuple[str],
     count: int,
     sync: bool,
@@ -69,11 +72,13 @@ def run(
         k: v for k, v in {"cpu": cpu, "memory": memory, "image": image}.items() if v
     }
 
-    if source.playbook:
-        input = source.playbook.get_inputs_from_env(input)
+    if local_playbook := playbook or source.playbook:
+        input = local_playbook.get_inputs_from_env(input)
+
+    playbook_data = playbook.playbook_data() if playbook else source.playbook_data()
 
     body = {
-        "playbook_data": source.playbook_data(),
+        "playbook_data": playbook_data,
         "type": "RUN",
         "parameters": input,
         "regions": list(region_filter),

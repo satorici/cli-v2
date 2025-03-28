@@ -3,6 +3,7 @@ from collections import defaultdict
 import click
 
 from ..config import config
+from ..models import Playbook
 
 
 def _input_callback(ctx, name, inputs: tuple[str]):
@@ -27,6 +28,11 @@ def _json_callback(ctx, name, json_):
     return json_
 
 
+def _playbook_callback(ctx, name, value):
+    if value:
+        return Playbook(value)
+
+
 input_opt = click.option(
     "--data", "-d", "input", multiple=True, callback=_input_callback
 )
@@ -42,3 +48,4 @@ image_opt = click.option("--image")
 json_opt = click.option(
     "--json", "json_", is_flag=True, default=False, callback=_json_callback
 )
+playbook_opt = click.option("--playbook", callback=_playbook_callback)
