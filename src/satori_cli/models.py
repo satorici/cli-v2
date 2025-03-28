@@ -1,3 +1,4 @@
+import os
 import re
 import tarfile
 from pathlib import Path
@@ -108,9 +109,23 @@ class Source:
             raise SatoriError("Source not supported")
 
     def upload_files(self, data: dict):
+        ignore_file = Path(self._arg, ".satorignore")
+
+        if ignore_file.is_file():
+            ignore_list = tuple(i for i in ignore_file.read_text().splitlines() if i)
+        else:
+            ignore_list = None
+
+        def tar_filter(info: tarfile.TarInfo):
+            if ignore_list and info.path != ".":
+                if info.path.removeprefix("./").startswith(ignore_list):
+                    return None
+
+            return info
+
         with SpooledTemporaryFile() as f:
             with tarfile.open(fileobj=f, mode="w:gz") as tf:
-                tf.add(self._arg, ".")
+                tf.add(self._arg, ".", filter=tar_filter)
 
             f.seek(0)
             res = httpx.post(data["url"], data=data["fields"], files={"file": f})
