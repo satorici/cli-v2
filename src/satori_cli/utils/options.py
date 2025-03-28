@@ -38,6 +38,7 @@ sync_opt = click.option("--sync", "-s", is_flag=True, default=False)
 profile_opt = click.option("--profile", default="default")
 cpu_opt = click.option("--cpu", type=int)
 memory_opt = click.option("--memory", type=int)
+image_opt = click.option("--image")
 json_opt = click.option(
     "--json", "json_", is_flag=True, default=False, callback=_json_callback
 )

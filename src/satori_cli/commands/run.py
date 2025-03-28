@@ -40,6 +40,7 @@ from ..utils.wrappers import (
 @click.option("--files", "-f", "get_files", is_flag=True)
 @opts.cpu_opt
 @opts.memory_opt
+@opts.image_opt
 @opts.json_opt
 def run(
     source: Source,
@@ -56,6 +57,7 @@ def run(
     env: Optional[dict[str, str]],
     cpu: Optional[int],
     memory: Optional[int],
+    image: Optional[str],
     **kwargs,
 ):
     if show_output and count > 1:
@@ -63,7 +65,9 @@ def run(
     if get_files and count > 1:
         stderr.print("WARNING: Only first execution files will be downloaded")
 
-    container_settings = {k: v for k, v in {"cpu": cpu, "memory": memory}.items() if v}
+    container_settings = {
+        k: v for k, v in {"cpu": cpu, "memory": memory, "image": image}.items() if v
+    }
 
     if (playbook := source.playbook) and (vars := playbook.variables):
         env_params = {k: [v] for k, v in os.environ.items() if k in vars}
