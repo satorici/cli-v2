@@ -2,7 +2,7 @@ import re
 import tarfile
 from pathlib import Path
 from tempfile import SpooledTemporaryFile
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal, Optional, TypedDict, Union
 
 import httpx
 import yaml
@@ -12,6 +12,11 @@ from .exceptions import SatoriError
 from .utils.bundler import make_bundle
 
 VARIABLE_REGEX = re.compile(r"\${{([\w-]+)}}")
+
+
+class PlaybookData(TypedDict, total=False):
+    playbook_uri: str
+    bundle_id: str
 
 
 def flatten_dict(d: dict[str, Any], parent_key="") -> dict[str, Any]:
@@ -34,6 +39,7 @@ class Playbook:
             self._obj: dict = yaml.safe_load(f)
 
         self._flat = flatten_dict(self._obj)
+        self._path = path
 
     @property
     def variables(self) -> set[str]:
@@ -53,6 +59,10 @@ class Playbook:
 
         return names
 
+    def playbook_data(self) -> PlaybookData:
+        res = client.post("/bundles", files={"bundle": make_bundle(self._path)})
+        return {"bundle_id": res.text}
+
 
 class Source:
     type: Literal["URL", "FILE", "DIR"]
@@ -69,6 +79,7 @@ class Source:
             self.playbook = Playbook(path)
         elif path.is_dir():
             self.type = "DIR"
+            self.playbook = Playbook(path / ".satori.yml")
         else:
             raise SatoriError("Source not supported")
 
@@ -81,17 +92,10 @@ class Source:
             res = httpx.post(data["url"], data=data["fields"], files={"file": f})
             res.raise_for_status()
 
-    def playbook_data(self) -> dict[str, str]:  # type: ignore
-        value = self._arg
-
+    def playbook_data(self) -> PlaybookData:
         if self.type == "URL":
-            return {"playbook_uri": value}
-        elif self.type == "FILE":
-            res = client.post("/bundles", files={"bundle": make_bundle(value)})
-            return {"bundle_id": res.text}
-        elif self.type == "DIR":
-            res = client.post(
-                "/bundles", files={"bundle": make_bundle(Path(value) / ".satori.yml")}
-            )
-
-            return {"bundle_id": res.text}
+            return {"playbook_uri": self._arg}
+        elif self.playbook:
+            return self.playbook.playbook_data()
+        else:
+            raise SatoriError
