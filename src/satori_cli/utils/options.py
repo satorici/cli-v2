@@ -13,7 +13,7 @@ def _input_callback(ctx, name, inputs: tuple[str]):
         for input in inputs:
             k, v = input.split("=", 1)
 
-            parameters[k].append(v)
+            parameters[k].extend(v.splitlines())
 
         return dict(parameters)
 
