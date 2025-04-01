@@ -37,6 +37,8 @@ def login(profile: str):
 
     (profile_path / "access-token").write_text(access_token)
 
+    stderr.print("Login succesful!")
+
 
 @cli.command("config")
 @click.argument("key", required=False)
