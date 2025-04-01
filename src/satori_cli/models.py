@@ -20,6 +20,12 @@ class PlaybookData(TypedDict, total=False):
     bundle_id: str
 
 
+class ContainerSettings(TypedDict):
+    image: Union[str, None]
+    memory: Union[int, None]
+    cpu: Union[int, None]
+
+
 Inputs = dict[str, list[str]]
 
 
@@ -62,6 +68,16 @@ class Playbook:
                 names.update(VARIABLE_REGEX.findall("\n".join(value)))
 
         return names
+
+    @property
+    def container_settings(self) -> ContainerSettings:
+        settings = self._obj.get("settings", {})
+
+        return {
+            "cpu": settings.get("cpu"),
+            "memory": settings.get("memory"),
+            "image": settings.get("image"),
+        }
 
     def playbook_data(self) -> PlaybookData:
         res = client.post("/bundles", files={"bundle": make_bundle(self._path)})

@@ -1,7 +1,6 @@
-import os
 import sys
 import time
-from typing import Optional
+from typing import Mapping, Optional
 
 import rich_click as click
 from rich import progress
@@ -24,6 +23,10 @@ from ..utils.wrappers import (
     PagedWrapper,
     ReportWrapper,
 )
+
+
+def remove_none_values(d: Mapping):
+    return {k: v for k, v in d.items() if v is not None}
 
 
 @click.command()
@@ -68,12 +71,15 @@ def run(
     if get_files and count > 1:
         stderr.print("WARNING: Only first execution files will be downloaded")
 
-    container_settings = {
-        k: v for k, v in {"cpu": cpu, "memory": memory, "image": image}.items() if v
-    }
+    container_settings = {}
 
     if local_playbook := playbook or source.playbook:
         input = local_playbook.get_inputs_from_env(input)
+        container_settings = remove_none_values(local_playbook.container_settings)
+
+    container_settings.update(
+        remove_none_values({"cpu": cpu, "memory": memory, "image": image})
+    )
 
     playbook_data = playbook.playbook_data() if playbook else source.playbook_data()
 
@@ -87,7 +93,7 @@ def run(
         "save_report": not delete_report,
         "save_output": not delete_output,
         "environment_variables": env,
-        "container_settings": container_settings,
+        "container_settings": remove_none_values(container_settings),
         "with_files": source.type == "DIR",
     }
 
