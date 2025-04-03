@@ -7,6 +7,7 @@ from ..exceptions import SatoriError
 from ..utils import options as opts
 from ..utils.arguments import Source, source_arg
 from ..utils.console import stdout, wait_job_until_finished
+from ..utils.misc import remove_none_values
 from .job import list_jobs
 
 
@@ -26,6 +27,9 @@ def list_scans(page: int, quantity: int, visibility: Optional[str]):
 @opts.sync_opt
 @opts.input_opt
 @opts.env_opt
+@opts.memory_opt
+@opts.cpu_opt
+@opts.image_opt
 def scan(
     repository: str,
     source: Source,
@@ -36,14 +40,22 @@ def scan(
     env: Optional[dict[str, str]],
     cpu: Optional[int],
     memory: Optional[int],
+    image: Optional[str],
 ):
     if source.type == "DIR":
         raise SatoriError("Directory sources are not compatible with scan")
 
-    container_settings = {k: v for k, v in {"cpu": cpu, "memory": memory}.items() if v}
+    container_settings = {}
 
-    if source.playbook:
-        input = source.playbook.get_inputs_from_env(input)
+    if local_playbook := source.playbook:
+        input = local_playbook.get_inputs_from_env(input)
+        container_settings = remove_none_values(local_playbook.container_settings)
+
+    container_settings.update(
+        remove_none_values(
+            {"cpu": cpu, "memory": memory, "image": image, "environment_variables": env}
+        )
+    )
 
     body = {
         "playbook_data": source.playbook_data(),
@@ -53,7 +65,7 @@ def scan(
         "repository_data": {"repository": repository},
         "criteria": {"quantity": quantity},
         "environment_variables": env,
-        "container_settings": container_settings,
+        "container_settings": remove_none_values(container_settings),
     }
 
     res = client.post("/jobs", json=body)

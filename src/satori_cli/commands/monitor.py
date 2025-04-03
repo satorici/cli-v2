@@ -3,9 +3,11 @@ from typing import Optional
 import rich_click as click
 
 from ..api import client
+from ..models import Playbook
 from ..utils import options as opts
 from ..utils.arguments import Source, source_arg
 from ..utils.console import stdout
+from ..utils.misc import remove_none_values
 from .job import list_jobs
 
 
@@ -19,6 +21,7 @@ def list_monitors(page: int, quantity: int, visibility: Optional[str]):
 
 @click.command()
 @source_arg
+@opts.playbook_opt
 @click.argument("expression")
 @click.option("--description")
 @opts.region_filter_opt
@@ -26,8 +29,10 @@ def list_monitors(page: int, quantity: int, visibility: Optional[str]):
 @opts.env_opt
 @opts.cpu_opt
 @opts.memory_opt
+@opts.image_opt
 def monitor(
     source: Source,
+    playbook: Optional[Playbook],
     expression: str,
     description: Optional[str],
     region_filter: tuple[str],
@@ -35,21 +40,31 @@ def monitor(
     env: Optional[dict[str, str]],
     cpu: Optional[int],
     memory: Optional[int],
+    image: Optional[str],
 ):
-    container_settings = {k: v for k, v in {"cpu": cpu, "memory": memory}.items() if v}
+    container_settings = {}
 
-    if source.playbook:
-        input = source.playbook.get_inputs_from_env(input)
+    if local_playbook := playbook or source.playbook:
+        input = local_playbook.get_inputs_from_env(input)
+        container_settings = remove_none_values(local_playbook.container_settings)
+
+    container_settings.update(
+        remove_none_values(
+            {"cpu": cpu, "memory": memory, "image": image, "environment_variables": env}
+        )
+    )
+
+    playbook_data = playbook.playbook_data() if playbook else source.playbook_data()
 
     body = {
-        "playbook_data": source.playbook_data(),
+        "playbook_data": playbook_data,
         "type": "MONITOR",
         "parameters": input,
         "regions": list(region_filter),
         "expression": expression,
         "description": description,
         "environment_variables": env,
-        "container_settings": container_settings,
+        "container_settings": remove_none_values(container_settings),
         "with_files": bool(source.type == "DIR"),
     }
 
