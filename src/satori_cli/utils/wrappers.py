@@ -47,16 +47,22 @@ def has_json_output(cls: type[W]):
 class JobWrapper(Wrapper[dict]):
     def __rich_console__(self, console, options):
         job = self.obj
+        job_type = job["type"]
 
         job_grid = Table.grid(padding=(0, 2))
-        job_grid.add_row("Type", job["type"].capitalize())
+        job_grid.add_row("Type", job_type.capitalize())
         job_grid.add_row("Visibility", job["visibility"].capitalize())
         job_grid.add_row("Created at", ISODateTime(job["created_at"]))
 
         if status := job.get("status"):
+            finished_job = job_type in ("RUN", "SCAN") and status == "FINISHED"
+
+            if finished_job and job["finished_at"]:
+                job_grid.add_row("Finished at", ISODateTime(job["finished_at"]))
+
             job_grid.add_row("Status", status.capitalize().replace("_", " "))
 
-            if job["type"] in ("RUN", "SCAN") and status == "FINISHED":
+            if finished_job:
                 result = highlight_result("Fail" if job["failed_reports"] else "Pass")
             else:
                 result = "N/A"
