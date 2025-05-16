@@ -1,4 +1,5 @@
 import time
+from concurrent.futures import ThreadPoolExecutor
 from itertools import groupby
 
 import httpx
@@ -58,9 +59,39 @@ def download_execution_files(execution_id: int):
         total = int(s.headers["Content-Length"])
 
         with progress.Progress(console=stderr) as p:
-            task = p.add_task("Downloading...", total=total)
+            task = p.add_task(
+                f"Downloading execution {execution_id} files...", total=total
+            )
 
             with open(f"satorici-files-{execution_id}.tar.gz", "wb") as f:
                 for chunk in s.iter_raw():
                     p.update(task, advance=len(chunk))
                     f.write(chunk)
+
+
+def export_run_files(run_id: int):
+    ids: list[int] = []
+    page = 1
+
+    while True:
+        res = client.get("/executions", params={"job_id": run_id, "page": page}).json()
+
+        if not res["items"]:
+            break
+
+        ids.extend(item["id"] for item in res["items"])
+
+        page += 1
+
+    with httpx.Client() as c:
+
+        def download(id: int):
+            url = client.get(f"/executions/{id}/files").headers["Location"]
+
+            with c.stream("GET", url) as s:
+                with open(f"satorici-files-{id}.tar.gz", "wb") as f:
+                    for chunk in s.iter_raw():
+                        f.write(chunk)
+
+        with ThreadPoolExecutor() as executor:
+            executor.map(download, ids)
