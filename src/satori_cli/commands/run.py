@@ -11,7 +11,7 @@ from ..api import client
 from ..models import Playbook
 from ..utils import options as opts
 from ..utils.arguments import Source, source_arg
-from ..utils.console import export_run_files, show_execution_output, stderr, stdout
+from ..utils.console import export_job_files, show_execution_output, stderr, stdout
 from ..utils.misc import remove_none_values
 from ..utils.wrappers import (
     JobExecutionsWrapper,
@@ -133,7 +133,7 @@ def run(
         show_execution_output(execution_id)
 
     if get_files:
-        export_run_files(run_id)
+        export_job_files(run_id)
 
     if show_report:
         if count == 1:

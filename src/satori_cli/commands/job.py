@@ -3,7 +3,7 @@ from typing import Optional
 import rich_click as click
 
 from ..api import client
-from ..utils.console import stdout
+from ..utils.console import export_job_files, stdout
 
 job_id_arg = click.argument("job-id", type=int)
 
@@ -58,3 +58,9 @@ def start(job_id: int):
 @job_id_arg
 def cancel(job_id: int):
     client.patch(f"/jobs/{job_id}/cancel")
+
+
+@job.command()
+@job_id_arg
+def files(job_id: int):
+    export_job_files(job_id)

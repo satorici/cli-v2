@@ -69,12 +69,12 @@ def download_execution_files(execution_id: int):
                     f.write(chunk)
 
 
-def export_run_files(run_id: int):
+def export_job_files(job_id: int):
     ids: list[int] = []
     page = 1
 
     while True:
-        res = client.get("/executions", params={"job_id": run_id, "page": page}).json()
+        res = client.get("/executions", params={"job_id": job_id, "page": page}).json()
 
         if not res["items"]:
             break
