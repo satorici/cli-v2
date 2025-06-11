@@ -70,18 +70,21 @@ def download_execution_files(execution_id: int):
 
 
 def export_job_files(job_id: int):
-    ids: list[int] = []
-    page = 1
+    def get_ids():
+        page = 1
 
-    while True:
-        res = client.get("/executions", params={"job_id": job_id, "page": page}).json()
+        while True:
+            res = client.get(
+                "/executions", params={"job_id": job_id, "page": page, "quantity": 100}
+            ).json()
 
-        if not res["items"]:
-            break
+            if not res["items"]:
+                break
 
-        ids.extend(item["id"] for item in res["items"])
+            for item in res["items"]:
+                yield item["id"]
 
-        page += 1
+            page += 1
 
     with httpx.Client() as c:
 
@@ -94,4 +97,4 @@ def export_job_files(job_id: int):
                         f.write(chunk)
 
         with ThreadPoolExecutor() as executor:
-            executor.map(download, ids)
+            executor.map(download, get_ids())
