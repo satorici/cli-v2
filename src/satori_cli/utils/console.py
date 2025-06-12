@@ -70,7 +70,7 @@ def download_execution_files(execution_id: int):
                     f.write(chunk)
 
 
-def export_job_files(job_id: int, region: str | None, dest: str = "."):
+def export_job_files(job_id: int, region: str | None = None, dest: str = "."):
     if not Path(dest).is_dir():
         Path(dest).mkdir(parents=True, exist_ok=True)
 
@@ -88,6 +88,9 @@ def export_job_files(job_id: int, region: str | None, dest: str = "."):
             for item in res["items"]:
                 if region is not None and item["data"].get("region") == region:
                     yield item["id"]
+                    continue
+
+                yield item["id"]
 
             page += 1
 
