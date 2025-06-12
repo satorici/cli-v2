@@ -1,3 +1,4 @@
+from pathlib import Path
 import time
 from concurrent.futures import ThreadPoolExecutor
 from itertools import groupby
@@ -69,7 +70,10 @@ def download_execution_files(execution_id: int):
                     f.write(chunk)
 
 
-def export_job_files(job_id: int):
+def export_job_files(job_id: int, region: str | None, dest: str = "."):
+    if not Path(dest).is_dir():
+        Path(dest).mkdir(parents=True, exist_ok=True)
+
     def get_ids():
         page = 1
 
@@ -82,7 +86,8 @@ def export_job_files(job_id: int):
                 break
 
             for item in res["items"]:
-                yield item["id"]
+                if region is not None and item["data"].get("region") == region:
+                    yield item["id"]
 
             page += 1
 
@@ -92,7 +97,7 @@ def export_job_files(job_id: int):
             url = client.get(f"/executions/{id}/files").headers["Location"]
 
             with c.stream("GET", url) as s:
-                with open(f"satorici-files-{id}.tar.gz", "wb") as f:
+                with Path(dest, f"satorici-files-{id}.tar.gz").open("wb") as f:
                     for chunk in s.iter_raw():
                         f.write(chunk)
 

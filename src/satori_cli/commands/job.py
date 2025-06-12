@@ -62,5 +62,7 @@ def cancel(job_id: int):
 
 @job.command()
 @job_id_arg
-def files(job_id: int):
-    export_job_files(job_id)
+@click.option("--region")
+@click.option("--dest", default=".")
+def files(job_id: int, region: str | None, dest):
+    export_job_files(job_id, region, dest)
