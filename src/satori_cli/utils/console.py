@@ -1,7 +1,7 @@
-from pathlib import Path
 import time
 from concurrent.futures import ThreadPoolExecutor
 from itertools import groupby
+from pathlib import Path
 
 import httpx
 import msgpack
