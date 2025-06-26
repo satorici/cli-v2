@@ -1,17 +1,16 @@
 import os
 import sys
+from pathlib import Path
 
 from deepmerge import always_merger
 from yaml import safe_dump, safe_load
 
-from .constants import SATORI_HOME
-
 
 class Config:
-    CONFIG_FILE = SATORI_HOME / "config.yaml"
+    CONFIG_FILE = Path.home() / ".satori_credentials.yml"
 
     def __init__(self):
-        config = {"default": {"endpoint": "https://api-v2.satori.ci"}}
+        config = {}
 
         self._env_config = {
             k.lstrip("SATORI_").lower(): v

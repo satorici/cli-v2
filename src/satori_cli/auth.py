@@ -21,6 +21,9 @@ def get_token() -> str:
     elif token := os.getenv("SATORI_REFRESH_TOKEN"):
         return refresh_access_token(token)
 
+    if token := config.get("token"):
+        return token
+
     profile_dir = SATORI_HOME / config.profile
     profile_dir.mkdir(exist_ok=True)
     token_path = profile_dir / "access-token"
