@@ -9,6 +9,7 @@ from rich import progress
 from rich.console import Console
 
 from ..api import client
+from ..exceptions import SatoriError
 from ..utils.wrappers import ExecutionWrapper, OutputWrapper
 
 stdout = Console()
@@ -36,6 +37,8 @@ def wait_job_until_finished(job_id: int):
                     break
                 except httpx.TimeoutException:
                     tries += 1
+            else:
+                raise SatoriError("Fetch status failed after 3 retries")
 
             time.sleep(1)
 
