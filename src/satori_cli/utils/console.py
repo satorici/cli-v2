@@ -26,9 +26,17 @@ def wait_job_until_finished(job_id: int):
         task = p.add_task(status)
 
         while status not in ("FINISHED", "CANCELED"):
-            res = client.get(f"jobs/{job_id}")
-            status = res.json()["status"]
-            p.update(task, description=status)
+            tries = 0
+
+            while tries < 4:
+                try:
+                    res = client.get(f"jobs/{job_id}")
+                    status = res.json()["status"]
+                    p.update(task, description=status)
+                    break
+                except httpx.TimeoutException:
+                    tries += 1
+
             time.sleep(1)
 
 
