@@ -1,3 +1,4 @@
+import sys
 from typing import Optional
 
 import rich_click as click
@@ -13,7 +14,7 @@ from .commands.scan import list_scans, scan
 from .config import config
 from .constants import SATORI_HOME
 from .exceptions import SatoriError
-from .utils.console import stderr
+from .utils.console import stderr, stdout
 from .utils.options import profile_opt
 
 
@@ -46,12 +47,19 @@ def login(profile: str):
 @profile_opt
 def config_(key: Optional[str], value: Optional[str], **kwargs):
     if key is None:
-        stderr.print(config)
+        stdout.print(config)
         return
 
     if value is None:
-        stderr.print(config[key])
+        try:
+            stdout.print(config[key])
+        except KeyError:
+            stderr.print(f"'{key}' not found in profile {kwargs['profile']}")
         return
+
+    if key and value == "":
+        stderr.print(f"'{key}' value must not be empty")
+        sys.exit(1)
 
     config.save(key, value, kwargs["profile"])
 
