@@ -44,6 +44,12 @@ def delete(execution_id: int):
 
 @execution.command()
 @execution_id_arg
+def stop(execution_id: int):
+    client.patch(f"/executions/{execution_id}/stop")
+
+
+@execution.command()
+@execution_id_arg
 def output(execution_id: int):
     show_execution_output(execution_id)
 
