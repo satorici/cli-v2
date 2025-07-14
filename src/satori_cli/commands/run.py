@@ -2,10 +2,13 @@ import sys
 import time
 from typing import Optional
 
+import httpx
 import rich_click as click
 from rich import progress
 from rich.live import Live
 from rich.table import Table
+
+from satori_cli.exceptions import SatoriError
 
 from ..api import client
 from ..models import Playbook
@@ -112,7 +115,17 @@ def run(
         with Live(grid, console=live_console, refresh_per_second=10) as live:
             while True:
                 time.sleep(1)
-                run = client.get(f"/jobs/{run_id}").json()
+
+                tries = 0
+
+                while tries < 4:
+                    try:
+                        run = client.get(f"jobs/{run_id}").json()
+                        break
+                    except httpx.TimeoutException:
+                        tries += 1
+                else:
+                    raise SatoriError("Fetch status failed after 3 retries")
 
                 grid = Table.grid("")
                 grid.add_row(JobWrapper(run))
