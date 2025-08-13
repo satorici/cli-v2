@@ -5,7 +5,7 @@
 groups = ["default", "dev"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:beb531b24291dacd3b27a7c5d391550d8d2846c19e714523e9ad5a7f97e58399"
+content_hash = "sha256:0cf54a61e90037130391bc1d954ccd6ee251dd24423c236bd8ebe2677f13833c"
 
 [[metadata.targets]]
 requires_python = ">=3.9"
@@ -303,6 +303,17 @@ files = [
     {file = "PyYAML-6.0.2-cp39-cp39-win32.whl", hash = "sha256:6395c297d42274772abc367baaa79683958044e5d3835486c16da75d2a694631"},
     {file = "PyYAML-6.0.2-cp39-cp39-win_amd64.whl", hash = "sha256:39693e1f8320ae4f43943590b49779ffb98acb81f788220ea932a6b6c51004d8"},
     {file = "pyyaml-6.0.2.tar.gz", hash = "sha256:d584d9ec91ad65861cc08d42e834324ef890a082e591037abe114850ff7bbc3e"},
+]
+
+[[package]]
+name = "repro-zipfile"
+version = "0.4.0"
+requires_python = ">=3.8"
+summary = "A tiny, zero-dependency replacement for Python's zipfile.ZipFile for creating reproducible/deterministic ZIP archives."
+groups = ["default"]
+files = [
+    {file = "repro_zipfile-0.4.0-py3-none-any.whl", hash = "sha256:557ef51e17d583e2bdcaf152517843f176604f1fa9d43cf6d08b0ab152dcb719"},
+    {file = "repro_zipfile-0.4.0.tar.gz", hash = "sha256:fde4cf1300e740f2fd1745708ba8f1366a70853a39af6266e1e04ae81c1231c1"},
 ]
 
 [[package]]

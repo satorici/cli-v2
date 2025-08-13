@@ -10,6 +10,7 @@ dependencies = [
     "deepmerge>=2.0",
     "pyyaml>=6.0.2",
     "msgpack>=1.1.0",
+    "repro-zipfile>=0.4.0",
 ]
 requires-python = ">=3.9"
 readme = "README.md"

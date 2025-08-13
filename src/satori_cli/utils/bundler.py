@@ -2,9 +2,9 @@ from collections.abc import Generator
 from io import BytesIO
 from pathlib import Path
 from typing import Union
-from zipfile import ZipFile
 
 import yaml
+from repro_zipfile import ReproducibleZipFile as ZipFile
 
 
 def dump_file_uris(playbook_obj: dict) -> Generator[str, None, None]:
