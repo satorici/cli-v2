@@ -58,7 +58,6 @@ def monitor(
 
     body = {
         "playbook_data": playbook_data,
-        "type": "MONITOR",
         "parameters": input,
         "regions": list(region_filter),
         "expression": expression,
@@ -68,7 +67,7 @@ def monitor(
         "with_files": bool(source.type == "DIR"),
     }
 
-    res = client.post("/jobs", json=body)
+    res = client.post("/jobs/monitors", json=body)
 
     monitor = res.json()
     stdout.print_json(data=monitor)

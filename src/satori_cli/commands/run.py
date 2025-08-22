@@ -80,7 +80,6 @@ def run(
 
     body = {
         "playbook_data": playbook_data,
-        "type": "RUN",
         "parameters": input,
         "regions": list(region_filter),
         "count": count,
@@ -91,7 +90,7 @@ def run(
         "with_files": source.type == "DIR",
     }
 
-    run = client.post("/jobs", json=body).json()
+    run = client.post("/jobs/runs", json=body).json()
 
     if files_upload := run["files_upload"]:
         source.upload_files(files_upload)

@@ -59,7 +59,6 @@ def scan(
 
     body = {
         "playbook_data": source.playbook_data(),
-        "type": "SCAN",
         "parameters": input,
         "regions": list(region_filter),
         "repository_data": {"repository": repository},
@@ -68,7 +67,7 @@ def scan(
         "container_settings": remove_none_values(container_settings),
     }
 
-    res = client.post("/jobs", json=body)
+    res = client.post("/jobs/scans", json=body)
 
     stdout.print_json(res.text)
 
