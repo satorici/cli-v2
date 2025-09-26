@@ -33,6 +33,7 @@ from ..utils.wrappers import (
 @opts.input_opt
 @opts.env_opt
 @click.option("--output", "-o", "show_output", is_flag=True)
+@click.option("--repository", "repository")
 @click.option("--report", "show_report", is_flag=True)
 @click.option("--save-files", is_flag=True)
 @click.option("--delete-report", is_flag=True)
@@ -55,6 +56,7 @@ def run(
     save_files: bool,
     get_files: bool,
     input: Optional[dict[str, list[str]]],
+    repository: Optional[str],
     env: Optional[dict[str, str]],
     cpu: Optional[int],
     memory: Optional[int],
@@ -88,6 +90,7 @@ def run(
         "save_output": not delete_output,
         "container_settings": remove_none_values(container_settings),
         "with_files": source.type == "DIR",
+        "repository": repository,
     }
 
     run = client.post("/jobs/runs", json=body).json()
