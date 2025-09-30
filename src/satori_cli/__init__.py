@@ -11,6 +11,7 @@ from .commands.monitor import list_monitors, monitor
 from .commands.report import report, reports
 from .commands.run import run
 from .commands.scan import list_scans, scan
+from .commands.search import search
 from .commands.stop import stop
 from .config import config
 from .constants import SATORI_HOME
@@ -75,6 +76,7 @@ cli.add_command(execution)
 cli.add_command(reports)
 cli.add_command(report)
 cli.add_command(stop)
+cli.add_command(search)
 
 
 def main():
