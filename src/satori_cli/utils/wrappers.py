@@ -195,7 +195,7 @@ class ExecutionListWrapper(Wrapper[dict]):
 
         for execution in self.obj:
             if report := execution["data"].get("report"):
-                result = highlight_result("Fail" if report["fails"] else "Pass")
+                result = highlight_result("Fail" if report["total_fails"] else "Pass")
             else:
                 result = "N/A"
 
