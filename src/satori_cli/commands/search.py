@@ -24,6 +24,7 @@ def isodatetime(arg: str):
 @click.option("--visibility", type=click.Choice(["PUBLIC", "PRIVATE", "UNLISTED"]))
 @click.option("--from", type=isodatetime)
 @click.option("--to", type=isodatetime)
+@click.option("--report-status", type=click.Choice(["PASS", "FAIL"]))
 def search(**kwargs):
     params = remove_none_values(kwargs)
 
