@@ -132,6 +132,7 @@ class ExecutionWrapper(Wrapper[dict]):
     def __rich_console__(self, console, options):
         job = self.obj["job"]
         data = self.obj["data"]
+        report = self.obj["report"]
 
         grid = Table.grid(Column(ratio=1), Column(ratio=1), expand=True)
 
@@ -161,7 +162,7 @@ class ExecutionWrapper(Wrapper[dict]):
 
         yield Panel(grid, title=f"Execution {self.obj['id']}", title_align="left")
 
-        if report := data["report"]["detail"]:
+        if report:
             yield ReportWrapper(report)
 
 
@@ -194,7 +195,7 @@ class ExecutionListWrapper(Wrapper[dict]):
         table.add_column("Result")
 
         for execution in self.obj:
-            if report := execution["data"].get("report"):
+            if report := execution["report"]:
                 result = highlight_result("Fail" if report["total_fails"] else "Pass")
             else:
                 result = "N/A"
