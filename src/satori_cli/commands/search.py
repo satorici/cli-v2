@@ -25,6 +25,7 @@ def isodatetime(arg: str):
 @click.option("--from", type=isodatetime)
 @click.option("--to", type=isodatetime)
 @click.option("--report-status", type=click.Choice(["PASS", "FAIL"]))
+@click.option("--severity", type=click.IntRange(min=0, max=5))
 def search(**kwargs):
     params = remove_none_values(kwargs)
 
