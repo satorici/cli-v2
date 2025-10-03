@@ -15,11 +15,6 @@ from .utils.bundler import make_bundle
 VARIABLE_REGEX = re.compile(r"\${{([\w-]+)}}")
 
 
-class PlaybookData(TypedDict, total=False):
-    playbook_uri: str
-    bundle_id: str
-
-
 class ContainerSettings(TypedDict):
     image: Union[str, None]
     memory: Union[int, None]
@@ -79,9 +74,9 @@ class Playbook:
             "image": settings.get("image"),
         }
 
-    def playbook_data(self) -> PlaybookData:
+    def playbook_data(self):
         res = client.post("/bundles", files={"bundle": make_bundle(self._path)})
-        return {"bundle_id": res.text}
+        return f"bundle_id://{res.text}"
 
     def get_inputs_from_env(self, inputs: Optional[Inputs] = None) -> Optional[Inputs]:
         """Gets playbook variables values from environment variables
@@ -147,9 +142,9 @@ class Source:
             res = httpx.post(data["url"], data=data["fields"], files={"file": f})
             res.raise_for_status()
 
-    def playbook_data(self) -> PlaybookData:
+    def playbook_data(self):
         if self.type == "URL":
-            return {"playbook_uri": self._arg}
+            return self._arg
         elif self.playbook:
             return self.playbook.playbook_data()
         else:

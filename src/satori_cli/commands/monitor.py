@@ -57,7 +57,7 @@ def monitor(
     playbook_data = playbook.playbook_data() if playbook else source.playbook_data()
 
     body = {
-        "playbook_data": playbook_data,
+        "playbook_source": playbook_data,
         "parameters": input,
         "regions": list(region_filter),
         "expression": expression,

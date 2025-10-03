@@ -58,7 +58,7 @@ def scan(
     )
 
     body = {
-        "playbook_data": source.playbook_data(),
+        "playbook_source": source.playbook_data(),
         "parameters": input,
         "regions": list(region_filter),
         "repository_data": {"repository": repository},
