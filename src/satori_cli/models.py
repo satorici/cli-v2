@@ -76,7 +76,7 @@ class Playbook:
 
     def playbook_data(self):
         res = client.post("/bundles", files={"bundle": make_bundle(self._path)})
-        return f"bundle_id://{res.text}"
+        return f"bundle://{res.text}"
 
     def get_inputs_from_env(self, inputs: Optional[Inputs] = None) -> Optional[Inputs]:
         """Gets playbook variables values from environment variables
