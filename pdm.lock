@@ -5,7 +5,7 @@
 groups = ["default", "dev"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:0cf54a61e90037130391bc1d954ccd6ee251dd24423c236bd8ebe2677f13833c"
+content_hash = "sha256:f09dbb43af163549012ae831db8b05cd89cd01e42fe27229c2f2331cddc39412"
 
 [[metadata.targets]]
 requires_python = ">=3.9"
@@ -51,6 +51,20 @@ dependencies = [
 files = [
     {file = "click-8.1.7-py3-none-any.whl", hash = "sha256:ae74fb96c20a0277a1d615f1e4d73c8414f5a98db8b799a7931d1582f3390c28"},
     {file = "click-8.1.7.tar.gz", hash = "sha256:ca9853ad459e787e2192211578cc907e7594e294c7ccc834310722b41b9ca6de"},
+]
+
+[[package]]
+name = "click-option-group"
+version = "0.5.8"
+requires_python = ">=3.7"
+summary = "Option groups missing in Click"
+groups = ["default"]
+dependencies = [
+    "click>=7.0",
+]
+files = [
+    {file = "click_option_group-0.5.8-py3-none-any.whl", hash = "sha256:959065a45ccf58fcc48ec22f18fb50c1e59494612f0a1c13c4e714554434b502"},
+    {file = "click_option_group-0.5.8.tar.gz", hash = "sha256:7dc8d534a066382be748b20dd65270e59e0393bc765a7744df86b059d4e00e62"},
 ]
 
 [[package]]
