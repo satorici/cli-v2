@@ -2,16 +2,20 @@ import math
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from io import BytesIO
+from itertools import groupby
 from pathlib import Path
 from typing import Optional
 
+import msgpack
 import rich_click as click
 from click_option_group import MutuallyExclusiveOptionGroup, optgroup
+from rich.console import Console
 
 from ..api import client
 from ..utils.console import stderr, stdout
 from ..utils.misc import remove_none_values
-from ..utils.wrappers import ExecutionListWrapper, PagedWrapper
+from ..utils.wrappers import ExecutionListWrapper, OutputWrapper, PagedWrapper
 
 
 def isodatetime(arg: str):
@@ -50,12 +54,18 @@ def bulk_download(path: Path, params):
     execution_ids = get_execution_ids(params)
 
     def download(id):
-        with client.stream(
-            "GET", f"/executions/{id}/output", follow_redirects=True
-        ) as res:
-            with open(path / f"output-{id}.msgpack", "wb") as f:
-                for data in res.iter_bytes():
-                    f.write(data)
+        res = client.get(f"/executions/{id}/output", follow_redirects=True)
+
+        with (path / f"output-{id}.txt").open("w") as f:
+            console = Console(file=f, width=120)
+            loaded = msgpack.Unpacker(BytesIO(res.content))
+            grouped = groupby(loaded, lambda o: o["path"])
+
+            for test_path, outputs in grouped:
+                console.rule(test_path)
+
+                for output in outputs:
+                    console.print(OutputWrapper(output))
 
     path.mkdir(parents=True, exist_ok=True)
 
