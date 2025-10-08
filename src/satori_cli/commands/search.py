@@ -45,11 +45,11 @@ def get_execution_ids(params):
 
 
 def bulk_download(path: Path, params):
-    if "status" in params and params["status"] != "FINISHED":
+    if params["status"] and params["status"] != ("FINISHED",):
         stderr.print("Only FINISHED executions can be downloaded")
         sys.exit(1)
 
-    params["status"] = "FINISHED"
+    params["status"] = ["FINISHED"]
 
     execution_ids = get_execution_ids(params)
 
@@ -77,11 +77,11 @@ def bulk_download(path: Path, params):
 
 
 def bulk_stop(params):
-    if "status" in params and params["status"] != "RUNNING":
+    if params["status"] and params["status"] != ("RUNNING",):
         stderr.print("Only RUNNING executions can be stopped")
         sys.exit(1)
 
-    params["status"] = "RUNNING"
+    params["status"] = ["RUNNING"]
 
     execution_ids = get_execution_ids(params)
 
@@ -90,6 +90,25 @@ def bulk_stop(params):
             executor.submit(client.patch, f"/executions/{execution_id}/cancel")
 
     stdout.print("Executions stopped")
+
+
+def bulk_delete(params):
+    statuses = params["status"]
+
+    if not statuses:
+        params["status"] = ["CANCELED", "FINISHED"]
+
+    if statuses and set(statuses) != {"CANCELED", "FINISHED"}:
+        stderr.print("Only CANCELED or FINISHED executions can be deleted")
+        sys.exit(1)
+
+    execution_ids = get_execution_ids(params)
+
+    with ThreadPoolExecutor() as executor:
+        for execution_id in execution_ids:
+            executor.submit(client.delete, f"/executions/{execution_id}")
+
+    stdout.print("Executions deleted")
 
 
 @click.command()
@@ -101,8 +120,11 @@ def bulk_stop(params):
 @optgroup.group(cls=MutuallyExclusiveOptionGroup)
 @optgroup.option("--download", type=Path, help="Path to download outputs")
 @optgroup.option("--stop", is_flag=True)
+@optgroup.option("--delete", is_flag=True)
 @click.option(
-    "--status", type=click.Choice(["FINISHED", "CANCELED", "RUNNING", "QUEUED"])
+    "--status",
+    type=click.Choice(["FINISHED", "CANCELED", "RUNNING", "QUEUED"]),
+    multiple=True,
 )
 @click.option("--visibility", type=click.Choice(["PUBLIC", "PRIVATE", "UNLISTED"]))
 @click.option("--from", type=isodatetime)
@@ -110,7 +132,7 @@ def bulk_stop(params):
 @click.option("--report-status", type=click.Choice(["PASS", "FAIL"]))
 @click.option("--severity", type=click.IntRange(min=0, max=5))
 @click.option("--playbook")
-def search(download: Optional[Path], stop: bool, **kwargs):
+def search(download: Optional[Path], stop: bool, delete: bool, **kwargs):
     params = remove_none_values(kwargs)
 
     if download:
@@ -118,6 +140,9 @@ def search(download: Optional[Path], stop: bool, **kwargs):
         return
     if stop:
         bulk_stop(params)
+        return
+    if delete:
+        bulk_delete(params)
         return
 
     res = client.get("/executions", params=params)
