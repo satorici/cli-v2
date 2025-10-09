@@ -7,8 +7,7 @@ from ..exceptions import SatoriError
 from ..utils import options as opts
 from ..utils.arguments import Source, source_arg
 from ..utils.console import stdout, wait_job_until_finished
-from ..utils.misc import remove_none_values
-from .job import list_jobs
+from ..utils.misc import list_jobs, remove_none_values
 
 
 @click.command("scans")
