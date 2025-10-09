@@ -51,6 +51,7 @@ class JobWrapper(Wrapper[dict]):
 
         job_grid = Table.grid(padding=(0, 2))
         job_grid.add_row("Type", job_type.capitalize())
+        job_grid.add_row("Playbook source", job["playbook_source"])
         job_grid.add_row("Visibility", job["visibility"].capitalize())
         job_grid.add_row("Created at", ISODateTime(job["created_at"]))
 
