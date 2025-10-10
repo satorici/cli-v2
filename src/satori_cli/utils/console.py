@@ -2,6 +2,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from itertools import groupby
 from pathlib import Path
+from tempfile import SpooledTemporaryFile
 
 import httpx
 import msgpack
@@ -44,10 +45,12 @@ def wait_job_until_finished(job_id: int):
 
 
 def show_execution_output(execution_id: int):
-    with client.stream(
-        "GET", f"/executions/{execution_id}/output", follow_redirects=True
-    ) as s:
-        loaded = msgpack.Unpacker(s.extensions["network_stream"])
+    with SpooledTemporaryFile() as f:
+        res = client.get(f"/executions/{execution_id}/output", follow_redirects=True)
+        f.write(res.content)
+        f.seek(0)
+
+        loaded = msgpack.Unpacker(f)
         grouped = groupby(loaded, lambda o: o["path"])
 
         for path, outputs in grouped:
