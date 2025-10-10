@@ -43,6 +43,20 @@ def has_json_output(cls: type[W]):
     return cls
 
 
+def command_generator(job: dict):
+    job_type: str = job["type"]
+
+    command = ["satori-v2", job_type.lower(), job["playbook_source"]]
+
+    if job_type == "MONITOR":
+        command.append(job["expression"])
+
+    if job_type == "SCAN":
+        command.append(job["repository_data"]["repository"])
+
+    return " ".join(command)
+
+
 @has_json_output
 class JobWrapper(Wrapper[dict]):
     def __rich_console__(self, console, options):
@@ -50,6 +64,10 @@ class JobWrapper(Wrapper[dict]):
         job_type = job["type"]
 
         job_grid = Table.grid(padding=(0, 2))
+
+        if job_type != "GITHUB":
+            job_grid.add_row("Command", command_generator(job))
+
         job_grid.add_row("Type", job_type.capitalize())
         job_grid.add_row("Playbook source", job["playbook_source"])
         job_grid.add_row("Visibility", job["visibility"].capitalize())
