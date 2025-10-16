@@ -56,7 +56,7 @@ class Config:
         return self.get_all().get(key, default)
 
     def get_all(self):
-        config = self._config["default"]
+        config = self._config.get("default", {})
         config = always_merger.merge(config, self._config.get(self.profile, {}))
         config = always_merger.merge(config, self._env_config)
         config = always_merger.merge(config, self._current_config)
