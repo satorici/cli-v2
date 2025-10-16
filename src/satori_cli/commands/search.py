@@ -114,7 +114,9 @@ def bulk_delete(params):
 @click.command()
 @click.option("--page", default=1)
 @click.option("--quantity", default=10)
-@click.option("--job-type", type=click.Choice(["RUN", "SCAN", "MONITOR", "GITHUB"]))
+@click.option(
+    "--job-type", type=click.Choice(["RUN", "SCAN", "MONITOR", "GITHUB", "LOCAL"])
+)
 @click.option("--job-id", type=int)
 @click.option("--global", is_flag=True)
 @optgroup.group(cls=MutuallyExclusiveOptionGroup)
