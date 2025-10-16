@@ -7,6 +7,7 @@ from httpx import HTTPStatusError
 from .auth import authenticate
 from .commands.execution import execution
 from .commands.job import job
+from .commands.local import local
 from .commands.monitor import list_monitors, monitor
 from .commands.report import report, reports
 from .commands.run import run
@@ -66,6 +67,7 @@ def config_(key: Optional[str], value: Optional[str], **kwargs):
     config.save(key, value, kwargs["profile"])
 
 
+cli.add_command(local)
 cli.add_command(run)
 cli.add_command(scan)
 cli.add_command(list_scans)
