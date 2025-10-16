@@ -9,7 +9,11 @@ from rich.json import JSON
 from rich.panel import Panel
 from rich.segment import Segment
 from rich.table import Column, Table
-from typing_extensions import TypedDict
+
+try:
+    from typing import TypedDict
+except ImportError:
+    from typing_extensions import TypedDict
 
 from ..config import config
 
