@@ -19,10 +19,12 @@ from ..utils.wrappers import JobWrapper
 @source_arg
 @opts.playbook_opt
 @opts.input_opt
+@click.option("--timeout", type=int)
 def local(
     source: Source,
     playbook: Optional[Playbook],
     input: Optional[dict[str, list[str]]],
+    timeout: Optional[int],
     **kwargs,
 ):
     playbook_data = playbook.playbook_data() if playbook else source.playbook_data()
@@ -45,7 +47,7 @@ def local(
 
         async def execute():
             async for cline, result in process_commands(
-                msgpack.Unpacker(recipe), settings
+                msgpack.Unpacker(recipe), settings, timeout
             ):
                 msgpack.pack(cline | {"output": result}, results)
 
