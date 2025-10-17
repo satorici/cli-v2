@@ -20,11 +20,13 @@ from ..utils.wrappers import JobWrapper
 @opts.playbook_opt
 @opts.input_opt
 @click.option("--timeout", type=int)
+@click.option("--run", multiple=True)
 def local(
     source: Source,
     playbook: Optional[Playbook],
     input: Optional[dict[str, list[str]]],
     timeout: Optional[int],
+    run: Optional[tuple[str]],
     **kwargs,
 ):
     playbook_data = playbook.playbook_data() if playbook else source.playbook_data()
@@ -43,12 +45,15 @@ def local(
         recipe.write(res.content)
         recipe.seek(0)
 
+        unpacked = msgpack.Unpacker(recipe)
+
+        if run:
+            unpacked = (cline for cline in unpacked if cline["path"].startswith(run))
+
         settings = httpx.get(local["settings_url"]).json()
 
         async def execute():
-            async for cline, result in process_commands(
-                msgpack.Unpacker(recipe), settings, timeout
-            ):
+            async for cline, result in process_commands(unpacked, settings, timeout):
                 msgpack.pack(cline | {"output": result}, results)
 
         asyncio.run(execute())
