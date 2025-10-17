@@ -13,6 +13,7 @@ from click_option_group import MutuallyExclusiveOptionGroup, optgroup
 from rich.console import Console
 
 from ..api import client
+from ..utils import options as opts
 from ..utils.console import stderr, stdout
 from ..utils.misc import remove_none_values
 from ..utils.wrappers import ExecutionListWrapper, OutputWrapper, PagedWrapper
@@ -128,7 +129,7 @@ def bulk_delete(params):
     type=click.Choice(["FINISHED", "CANCELED", "RUNNING", "QUEUED"]),
     multiple=True,
 )
-@click.option("--visibility", type=click.Choice(["PUBLIC", "PRIVATE", "UNLISTED"]))
+@opts.visibility_opt
 @click.option("--from", type=isodatetime)
 @click.option("--to", type=isodatetime)
 @click.option("--report-status", type=click.Choice(["PASS", "FAIL"]))

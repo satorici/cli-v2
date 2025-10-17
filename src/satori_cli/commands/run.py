@@ -43,6 +43,7 @@ from ..utils.wrappers import (
 @opts.memory_opt
 @opts.image_opt
 @opts.json_opt
+@opts.visibility_opt
 def run(
     source: Source,
     playbook: Optional[Playbook],
@@ -61,6 +62,7 @@ def run(
     cpu: Optional[int],
     memory: Optional[int],
     image: Optional[str],
+    visibility: Optional[str],
     **kwargs,
 ):
     if show_output and count > 1:
@@ -91,6 +93,7 @@ def run(
         "container_settings": remove_none_values(container_settings),
         "with_files": source.type == "DIR",
         "repository": repository,
+        "visibility": visibility or "PRIVATE",
     }
 
     run = client.post("/jobs/runs", json=body).json()

@@ -49,3 +49,6 @@ json_opt = click.option(
     "--json", "json_", is_flag=True, default=False, callback=_json_callback
 )
 playbook_opt = click.option("--playbook", callback=_playbook_callback)
+visibility_opt = click.option(
+    "--visibility", type=click.Choice(["PUBLIC", "PRIVATE", "UNLISTED"])
+)

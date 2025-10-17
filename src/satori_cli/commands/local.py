@@ -21,12 +21,14 @@ from ..utils.wrappers import JobWrapper
 @opts.input_opt
 @click.option("--timeout", type=int)
 @click.option("--run", multiple=True)
+@opts.visibility_opt
 def local(
     source: Source,
     playbook: Optional[Playbook],
     input: Optional[dict[str, list[str]]],
     timeout: Optional[int],
     run: Optional[tuple[str]],
+    visibility: Optional[str],
     **kwargs,
 ):
     playbook_data = playbook.playbook_data() if playbook else source.playbook_data()
@@ -34,6 +36,7 @@ def local(
     body = {
         "playbook_source": playbook_data,
         "parameters": input,
+        "visibility": visibility or "PRIVATE",
     }
 
     local = client.post("/jobs/locals", json=body).json()
