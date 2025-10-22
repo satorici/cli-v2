@@ -1,3 +1,4 @@
+import sys
 from datetime import datetime
 from itertools import groupby
 from math import floor
@@ -9,7 +10,11 @@ from rich.json import JSON
 from rich.panel import Panel
 from rich.segment import Segment
 from rich.table import Column, Table
-from typing_extensions import TypedDict
+
+if sys.version_info < (3, 11):
+    from typing_extensions import TypedDict
+else:
+    from typing import TypedDict
 
 from ..config import config
 
