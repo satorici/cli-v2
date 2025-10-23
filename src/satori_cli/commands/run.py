@@ -32,6 +32,7 @@ from ..utils.wrappers import (
 @opts.region_filter_opt
 @opts.input_opt
 @opts.env_opt
+@click.option("--tag", "-t", "tags", multiple=True, type=(str, str))
 @click.option("--output", "-o", "show_output", is_flag=True)
 @click.option("--repository", "repository")
 @click.option("--report", "show_report", is_flag=True)
@@ -63,6 +64,7 @@ def run(
     memory: Optional[int],
     image: Optional[str],
     visibility: Optional[str],
+    tags: Optional[tuple[tuple[str, str]]],
     **kwargs,
 ):
     if show_output and count > 1:
@@ -82,6 +84,11 @@ def run(
 
     playbook_data = playbook.playbook_data() if playbook else source.playbook_data()
 
+    if tags:
+        tags_obj = {k: v for k, v in tags}
+    else:
+        tags_obj = None
+
     body = {
         "playbook_source": playbook_data,
         "parameters": input,
@@ -94,6 +101,7 @@ def run(
         "with_files": source.type == "DIR",
         "repository": repository,
         "visibility": visibility or "PRIVATE",
+        "tags": tags_obj,
     }
 
     run = client.post("/jobs/runs", json=body).json()

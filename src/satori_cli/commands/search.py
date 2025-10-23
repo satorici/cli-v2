@@ -136,6 +136,7 @@ def bulk_delete(params):
 @click.option("--severity", type=click.IntRange(min=0, max=5))
 @click.option("--playbook")
 @click.option("--q")
+@click.option("--tag", "-t", "tags", multiple=True)
 def search(download: Optional[Path], stop: bool, delete: bool, **kwargs):
     params = remove_none_values(kwargs)
 
