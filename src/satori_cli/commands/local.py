@@ -22,6 +22,7 @@ from ..utils.wrappers import JobWrapper
 @click.option("--timeout", type=int)
 @click.option("--run", multiple=True)
 @opts.visibility_opt
+@click.option("--tag", "-t", "tags", multiple=True, type=(str, str))
 def local(
     source: Source,
     playbook: Optional[Playbook],
@@ -29,14 +30,21 @@ def local(
     timeout: Optional[int],
     run: Optional[tuple[str]],
     visibility: Optional[str],
+    tags: Optional[tuple[tuple[str, str]]],
     **kwargs,
 ):
     playbook_data = playbook.playbook_data() if playbook else source.playbook_data()
+
+    if tags:
+        tags_obj = {k: v for k, v in tags}
+    else:
+        tags_obj = None
 
     body = {
         "playbook_source": playbook_data,
         "parameters": input,
         "visibility": visibility or "PRIVATE",
+        "tags": tags_obj,
     }
 
     local = client.post("/jobs/locals", json=body).json()
