@@ -87,7 +87,7 @@ def run(
     if tags:
         tags_obj = {k: v for k, v in tags}
     else:
-        tags_obj = None
+        tags_obj = {}
 
     body = {
         "playbook_source": playbook_data,
