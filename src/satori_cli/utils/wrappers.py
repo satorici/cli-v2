@@ -205,7 +205,7 @@ class PagedWrapper(Wrapper[PagedResponse[W]]):
 
     def __rich_console__(self, console, options):
         yield self._wrapper(self.obj["items"])
-        yield f"Page {self.page} of {floor(self.obj['total'] / self.quantity)}"
+        yield f"Page {self.page} of {floor(self.obj['total'] / self.quantity)} | Total: {self.obj['total']}"
 
 
 class ExecutionListWrapper(Wrapper[dict]):
