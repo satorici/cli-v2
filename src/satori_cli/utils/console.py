@@ -44,20 +44,24 @@ def wait_job_until_finished(job_id: int):
             time.sleep(1)
 
 
+def format_raw_results(file):
+    loaded = msgpack.Unpacker(file)
+    grouped = groupby(loaded, lambda o: o["path"])
+
+    for path, outputs in grouped:
+        stdout.rule(path)
+
+        for output in outputs:
+            stdout.print(OutputWrapper(output))
+
+
 def show_execution_output(execution_id: int):
     with SpooledTemporaryFile() as f:
         res = client.get(f"/executions/{execution_id}/output", follow_redirects=True)
         f.write(res.content)
         f.seek(0)
 
-        loaded = msgpack.Unpacker(f)
-        grouped = groupby(loaded, lambda o: o["path"])
-
-        for path, outputs in grouped:
-            stdout.rule(path)
-
-            for output in outputs:
-                stdout.print(OutputWrapper(output))
+        format_raw_results(f)
 
 
 def show_execution(execution_id: int):

@@ -10,7 +10,7 @@ from ..api import client
 from ..models import Playbook
 from ..utils import options as opts
 from ..utils.arguments import Source, source_arg
-from ..utils.console import stdout
+from ..utils.console import format_raw_results, stdout
 from ..utils.execution.runner import process_commands
 from ..utils.wrappers import JobWrapper
 
@@ -23,6 +23,7 @@ from ..utils.wrappers import JobWrapper
 @click.option("--run", multiple=True)
 @opts.visibility_opt
 @click.option("--tag", "-t", "tags", multiple=True, type=(str, str))
+@click.option("--output", "-o", "show_output", is_flag=True)
 def local(
     source: Source,
     playbook: Optional[Playbook],
@@ -31,6 +32,7 @@ def local(
     run: Optional[tuple[str]],
     visibility: Optional[str],
     tags: Optional[tuple[tuple[str, str]]],
+    show_output: bool,
     **kwargs,
 ):
     playbook_data = playbook.playbook_data() if playbook else source.playbook_data()
@@ -72,3 +74,7 @@ def local(
         results.seek(0)
 
         client.put(f"/jobs/locals/{local['id']}", files={"results": results})
+
+        if show_output:
+            results.seek(0)
+            format_raw_results(results)
