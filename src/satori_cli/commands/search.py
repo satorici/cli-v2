@@ -105,6 +105,11 @@ def bulk_delete(params):
 
     execution_ids = get_execution_ids(params)
 
+    if not Confirm.ask(
+        f"About to delete {len(execution_ids)} executions", console=stderr
+    ):
+        sys.exit()
+
     with ThreadPoolExecutor() as executor:
         for execution_id in execution_ids:
             executor.submit(client.delete, f"/executions/{execution_id}")
