@@ -11,6 +11,7 @@ import msgpack
 import rich_click as click
 from click_option_group import MutuallyExclusiveOptionGroup, optgroup
 from rich.console import Console
+from rich.prompt import Confirm
 
 from ..api import client
 from ..utils import options as opts
