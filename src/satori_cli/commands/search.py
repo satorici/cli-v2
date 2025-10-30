@@ -1,6 +1,6 @@
 import math
 import sys
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime
 from io import BytesIO
 from itertools import groupby
@@ -25,8 +25,9 @@ def isodatetime(arg: str):
 
 
 def get_execution_ids(params):
+    executions_per_request = 500
     params["page"] = 1
-    params["quantity"] = 100
+    params["quantity"] = executions_per_request
 
     res = client.get("/executions", params=params)
     body = res.json()
@@ -34,14 +35,22 @@ def get_execution_ids(params):
     total = body["total"]
     execution_ids = [item["id"] for item in body["items"]]
 
-    if total > 100:
-        pages = math.ceil(total / 100)
+    def fetch_ids(page: int):
+        res = client.get("/executions", params=params | {"page": page})
+        body = res.json()
 
-        for page in range(2, pages + 1):
-            res = client.get("/executions", params=params | {"page": page})
-            body = res.json()
+        return [item["id"] for item in body["items"]]
 
-            execution_ids.extend(item["id"] for item in body["items"])
+    if total > executions_per_request:
+        pages = math.ceil(total / executions_per_request)
+        futures: list[Future[list[int]]] = []
+
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            for page in range(2, pages + 1):
+                futures.append(executor.submit(fetch_ids, page))
+
+        for future in futures:
+            execution_ids.extend(future.result())
 
     return execution_ids
 
