@@ -73,7 +73,14 @@ def local(
 
         results.seek(0)
 
-        client.put(f"/jobs/locals/{local['id']}", files={"results": results})
+        results_upload = local["results_upload"]
+
+        res = httpx.post(
+            results_upload["url"],
+            data=results_upload["fields"],
+            files={"file": results},
+        )
+        res.raise_for_status()
 
         if show_output:
             results.seek(0)
