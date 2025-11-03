@@ -1,5 +1,5 @@
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from itertools import groupby
 from math import floor
 from typing import Generic, TypeVar
@@ -229,14 +229,16 @@ class ExecutionListWrapper(Wrapper[dict]):
             job = execution["job"]
 
             timestamps: dict[str, int] = execution["data"].get("timestamps", {})
-            run_time = ""
+            run_time = "N/A"
 
             if timestamps.get("execution_started_at") and timestamps.get(
                 "execution_finished_at"
             ):
                 run_time = str(
-                    timestamps["execution_finished_at"]
-                    - timestamps["execution_started_at"]
+                    timedelta(
+                        seconds=timestamps["execution_finished_at"]
+                        - timestamps["execution_started_at"]
+                    )
                 )
 
             table.add_row(
