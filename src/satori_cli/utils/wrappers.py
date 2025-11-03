@@ -212,11 +212,13 @@ class ExecutionListWrapper(Wrapper[dict]):
     def __rich_console__(self, console, options):
         table = Table(expand=True)
         table.add_column("Id")
+        table.add_column("Playbook source")
         table.add_column("Status")
         table.add_column("Visibility")
         table.add_column("Job type")
-        table.add_column("Job id")
         table.add_column("Result")
+        table.add_column("Run time")
+        table.add_column("Created at")
 
         for execution in self.obj:
             if report := execution["report"]:
@@ -224,13 +226,28 @@ class ExecutionListWrapper(Wrapper[dict]):
             else:
                 result = "N/A"
 
+            job = execution["job"]
+
+            timestamps: dict[str, int] = execution["data"].get("timestamps", {})
+            run_time = ""
+
+            if timestamps.get("execution_started_at") and timestamps.get(
+                "execution_finished_at"
+            ):
+                run_time = str(
+                    timestamps["execution_finished_at"]
+                    - timestamps["execution_started_at"]
+                )
+
             table.add_row(
                 str(execution["id"]),
+                job["playbook_source"],
                 execution["status"].capitalize().replace("_", " "),
                 execution["visibility"].capitalize(),
-                execution["job"]["type"].capitalize(),
-                str(execution["job"]["id"]),
+                job["type"].capitalize(),
                 result,
+                run_time,
+                ISODateTime(execution["created_at"]),
             )
 
         yield table
