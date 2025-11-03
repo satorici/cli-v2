@@ -178,6 +178,7 @@ class ExecutionWrapper(Wrapper[dict]):
         job_grid.add_row("Type", job["type"].capitalize())
         job_grid.add_row("Visibility", job["visibility"].capitalize())
         job_grid.add_row("Created at", ISODateTime(job["created_at"]))
+        job_grid.add_row("Playbook source", job["playbook_source"])
 
         grid.add_row(
             execution_grid,
@@ -186,8 +187,8 @@ class ExecutionWrapper(Wrapper[dict]):
 
         yield Panel(grid, title=f"Execution {self.obj['id']}", title_align="left")
 
-        if report:
-            yield ReportWrapper(report)
+        if report["detail"]:
+            yield ReportWrapper(report["detail"])
 
 
 class PagedResponse(Generic[T], TypedDict):
