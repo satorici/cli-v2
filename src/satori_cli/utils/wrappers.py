@@ -313,6 +313,8 @@ class OutputWrapper(Wrapper[dict]):
         if error := result["os_error"]:
             grid.add_row("Error:", error)
 
+        grid.add_row("Time:", str(timedelta(seconds=result["time"])))
+
         yield grid
 
         yield "Stdout:"
