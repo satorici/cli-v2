@@ -14,6 +14,7 @@ from .commands.run import run
 from .commands.scan import list_scans, scan
 from .commands.search import search
 from .commands.stop import stop
+from .commands.update import update
 from .config import config
 from .constants import SATORI_HOME
 from .exceptions import SatoriError
@@ -79,6 +80,7 @@ cli.add_command(reports)
 cli.add_command(report)
 cli.add_command(stop)
 cli.add_command(search)
+cli.add_command(update)
 
 
 def main():
