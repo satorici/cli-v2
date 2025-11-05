@@ -1,14 +1,11 @@
 import sys
-import time
 from typing import Optional
 
-import httpx
 import rich_click as click
+from httpx_sse import connect_sse
 from rich import progress
 from rich.live import Live
 from rich.table import Table
-
-from satori_cli.exceptions import SatoriError
 
 from ..api import client
 from ..models import Playbook
@@ -126,30 +123,17 @@ def run(
         grid.add_row(p)
 
         with Live(grid, console=live_console, refresh_per_second=10) as live:
-            while True:
-                time.sleep(5)
+            with connect_sse(
+                client, "GET", f"jobs/runs/{run_id}/status", timeout=None
+            ) as es:
+                for sse in es.iter_sse():
+                    run["status"] = sse.data
 
-                tries = 0
-                time_to_wait = 2
+                    grid = Table.grid("")
+                    grid.add_row(JobWrapper(run))
+                    grid.add_row(p)
 
-                while tries < 4:
-                    try:
-                        run = client.get(f"jobs/{run_id}").json()
-                        break
-                    except httpx.TimeoutException:
-                        tries += 1
-                        time_to_wait *= 2
-                else:
-                    raise SatoriError("Fetch status failed after 3 retries")
-
-                grid = Table.grid("")
-                grid.add_row(JobWrapper(run))
-                grid.add_row(p)
-
-                live.update(grid)
-
-                if run["status"] in ("FINISHED", "CANCELED"):
-                    break
+                    live.update(grid)
     else:
         stdout.print(JobWrapper(run))
         sys.exit(0)

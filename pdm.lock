@@ -5,7 +5,7 @@
 groups = ["default", "dev"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:e44b3dda69acf8089bffb08c5c700617424030181b4db348581b49f511d83d8c"
+content_hash = "sha256:aa52a57fc2f0f77de1f6583a4ddd4bfbb8facc05b9ecc0e23b2cfb8be08be58d"
 
 [[metadata.targets]]
 requires_python = ">=3.9"
@@ -161,6 +161,17 @@ dependencies = [
 files = [
     {file = "httpx-0.27.2-py3-none-any.whl", hash = "sha256:7bb2708e112d8fdd7829cd4243970f0c223274051cb35ee80c03301ee29a3df0"},
     {file = "httpx-0.27.2.tar.gz", hash = "sha256:f7c2be1d2f3c3c3160d441802406b206c2b76f5947b11115e6df10c6c65e66c2"},
+]
+
+[[package]]
+name = "httpx-sse"
+version = "0.4.3"
+requires_python = ">=3.9"
+summary = "Consume Server-Sent Event (SSE) messages with HTTPX."
+groups = ["default"]
+files = [
+    {file = "httpx_sse-0.4.3-py3-none-any.whl", hash = "sha256:0ac1c9fe3c0afad2e0ebb25a934a59f4c7823b60792691f779fad2c5568830fc"},
+    {file = "httpx_sse-0.4.3.tar.gz", hash = "sha256:9b1ed0127459a66014aec3c56bebd93da3c1bc8bb6618c8082039a44889a755d"},
 ]
 
 [[package]]
