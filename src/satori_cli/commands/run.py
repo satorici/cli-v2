@@ -127,9 +127,10 @@ def run(
 
         with Live(grid, console=live_console, refresh_per_second=10) as live:
             while True:
-                time.sleep(1)
+                time.sleep(5)
 
                 tries = 0
+                time_to_wait = 2
 
                 while tries < 4:
                     try:
@@ -137,6 +138,7 @@ def run(
                         break
                     except httpx.TimeoutException:
                         tries += 1
+                        time_to_wait *= 2
                 else:
                     raise SatoriError("Fetch status failed after 3 retries")
 
