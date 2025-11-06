@@ -69,7 +69,10 @@ def local(
             async for cline, result in process_commands(unpacked, settings, timeout):
                 msgpack.pack(cline | {"output": result}, results)
 
-        asyncio.run(execute())
+        try:
+            asyncio.run(execute())
+        except asyncio.TimeoutError:
+            pass
 
         results.seek(0)
 
