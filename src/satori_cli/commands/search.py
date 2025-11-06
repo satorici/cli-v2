@@ -96,10 +96,7 @@ def bulk_stop(params):
 
     execution_ids = get_execution_ids(params)
 
-    with ThreadPoolExecutor() as executor:
-        for execution_id in execution_ids:
-            executor.submit(client.patch, f"/executions/{execution_id}/cancel")
-
+    client.post("/executions/cancel", json=execution_ids)
     stdout.print("Executions stopped")
 
 
