@@ -127,6 +127,9 @@ def run(
                 client, "GET", f"jobs/runs/{run_id}/status", timeout=None
             ) as es:
                 for sse in es.iter_sse():
+                    if sse.event == "ping":
+                        continue
+
                     run["status"] = sse.data
 
                     grid = Table.grid("")
