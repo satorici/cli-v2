@@ -120,10 +120,7 @@ def bulk_delete(params):
     ):
         sys.exit()
 
-    with ThreadPoolExecutor() as executor:
-        for execution_id in execution_ids:
-            executor.submit(client.delete, f"/executions/{execution_id}")
-
+    client.post("/executions/delete", json=execution_ids)
     stdout.print("Executions deleted")
 
 
