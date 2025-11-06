@@ -96,6 +96,10 @@ def bulk_stop(params):
 
     execution_ids = get_execution_ids(params)
 
+    if not execution_ids:
+        stdout.print("There are no reports to stop that match your search")
+        sys.exit()
+
     client.post("/executions/cancel", json=execution_ids)
     stdout.print("Executions stopped")
 
@@ -111,6 +115,10 @@ def bulk_delete(params):
         sys.exit(1)
 
     execution_ids = get_execution_ids(params)
+
+    if not execution_ids:
+        stdout.print("There are no reports to delete that match your search")
+        sys.exit()
 
     if not Confirm.ask(
         f"About to delete {len(execution_ids)} executions", console=stderr
