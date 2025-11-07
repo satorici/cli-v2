@@ -129,19 +129,18 @@ class JobExecutionsWrapper(Wrapper[list]):
         yield table
 
 
+def to_datetime(s: str):
+    orig = s if s.endswith(("Z", "+00:00")) else s + "Z"
+
+    try:
+        return datetime.strptime(orig, "%Y-%m-%dT%H:%M:%S.%f%z")
+    except ValueError:
+        return datetime.strptime(orig, "%Y-%m-%dT%H:%M:%S%z")
+
+
 class ISODateTime(Wrapper[str]):
     def __rich_console__(self, console, options):
-        if self.obj.endswith(("Z", "+00:00")):
-            orig = self.obj
-        else:
-            orig = self.obj + "Z"
-
-        try:
-            dt = datetime.strptime(orig, "%Y-%m-%dT%H:%M:%S.%f%z")
-        except ValueError:
-            dt = datetime.strptime(orig, "%Y-%m-%dT%H:%M:%S%z")
-
-        yield dt.strftime("%Y-%m-%d %H:%M:%S")
+        yield to_datetime(self.obj).strftime("%Y-%m-%d %H:%M:%S")
 
 
 class ResultHighlighter(RegexHighlighter):
