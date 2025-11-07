@@ -241,6 +241,14 @@ class ExecutionListWrapper(Wrapper[dict]):
                     )
                 )
 
+            if job["type"] == "LOCAL" and "results_uploaded_at" in timestamps:
+                run_time = str(
+                    timedelta(
+                        seconds=timestamps["results_uploaded_at"]
+                        - to_datetime(job["created_at"]).timestamp()
+                    )
+                )
+
             table.add_row(
                 str(execution["id"]),
                 job["playbook_source"],
