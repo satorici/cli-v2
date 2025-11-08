@@ -11,7 +11,7 @@ from ..models import Playbook
 from ..utils import options as opts
 from ..utils.arguments import Source, source_arg
 from ..utils.console import format_raw_results, stdout
-from ..utils.execution.runner import process_commands
+from ..utils.execution.runner import TimedOut, process_commands
 from ..utils.wrappers import JobWrapper
 
 
@@ -71,8 +71,8 @@ def local(
 
         try:
             asyncio.run(execute())
-        except asyncio.TimeoutError:
-            pass
+        except TimedOut:
+            stdout.print("Execution timed out")
 
         results.seek(0)
 
