@@ -4,7 +4,6 @@ from typing import Optional
 import rich_click as click
 from httpx import HTTPStatusError
 
-from .auth import authenticate
 from .commands.execution import execution
 from .commands.job import job
 from .commands.local import local
@@ -16,7 +15,6 @@ from .commands.search import search
 from .commands.stop import stop
 from .commands.update import update
 from .config import config
-from .constants import SATORI_HOME
 from .exceptions import SatoriError
 from .utils.console import stderr, stdout
 from .utils.options import profile_opt
@@ -25,24 +23,6 @@ from .utils.options import profile_opt
 @click.group()
 def cli():
     pass
-
-
-@cli.command()
-@profile_opt
-def login(profile: str):
-    credentials = authenticate()
-
-    access_token = credentials["access_token"]
-    refresh_token = credentials["refresh_token"]
-
-    config.save("refresh_token", refresh_token, profile)
-
-    profile_path = SATORI_HOME / f"{profile}"
-    profile_path.mkdir(exist_ok=True)
-
-    (profile_path / "access-token").write_text(access_token)
-
-    stderr.print("Login succesful!")
 
 
 @cli.command("config")
