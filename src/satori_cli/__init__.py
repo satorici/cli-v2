@@ -1,3 +1,7 @@
+import time
+from datetime import datetime
+from importlib.metadata import version
+
 import rich_click as click
 from httpx import HTTPStatusError
 
@@ -14,6 +18,8 @@ from .commands.stop import stop
 from .commands.update import update
 from .exceptions import SatoriError
 from .utils.console import stderr
+
+VERSION = version("satori-cli")
 
 
 @click.group()
@@ -38,6 +44,9 @@ cli.add_command(update)
 
 
 def main():
+    now = datetime.fromtimestamp(int(time.time()))
+    stderr.print(f"Satori CLI {VERSION} - Started on {now}")
+
     try:
         cli()
         return
