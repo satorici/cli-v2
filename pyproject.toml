@@ -12,7 +12,6 @@ dependencies = [
     "msgpack>=1.1.0",
     "repro-zipfile>=0.4.0",
     "click-option-group>=0.5.8",
-    "async-timeout>=5.0.1",
     "httpx-sse>=0.4.3",
 ]
 requires-python = ">=3.9"
