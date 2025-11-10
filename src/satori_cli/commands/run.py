@@ -37,6 +37,7 @@ from ..utils.wrappers import (
 @click.option("--delete-report", is_flag=True)
 @click.option("--delete-output", is_flag=True)
 @click.option("--files", "-f", "get_files", is_flag=True)
+@click.option("--timeout", type=int)
 @opts.cpu_opt
 @opts.memory_opt
 @opts.image_opt
@@ -62,6 +63,7 @@ def run(
     image: Optional[str],
     visibility: Optional[str],
     tags: Optional[tuple[tuple[str, str]]],
+    timeout: Optional[int],
     **kwargs,
 ):
     if show_output and count > 1:
@@ -99,6 +101,7 @@ def run(
         "repository": repository,
         "visibility": visibility or "PRIVATE",
         "tags": tags_obj,
+        "timeout": timeout,
     }
 
     run = client.post("/jobs/runs", json=body).json()
