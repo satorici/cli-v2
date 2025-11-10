@@ -1,6 +1,6 @@
 import time
 from datetime import datetime
-from importlib.metadata import version
+from importlib.metadata import distribution, version
 
 import rich_click as click
 from httpx import HTTPStatusError
@@ -19,7 +19,22 @@ from .commands.update import update
 from .exceptions import SatoriError
 from .utils.console import stderr
 
-VERSION = version("satori-cli")
+PACKAGE_NAME = "satori-cli"
+VERSION = version(PACKAGE_NAME)
+
+
+def get_installed_commit():
+    try:
+        dist = distribution(PACKAGE_NAME)
+
+        if text := dist.read_text("direct_url.json"):
+            import json
+
+            data = json.loads(text)
+
+            return data.get("vcs_info", {}).get("commit_id")
+    except Exception:
+        pass
 
 
 @click.group()
@@ -45,7 +60,12 @@ cli.add_command(update)
 
 def main():
     now = datetime.fromtimestamp(int(time.time()))
-    stderr.print(f"Satori CLI {VERSION} - Started on {now}")
+    full_version = VERSION
+
+    if commit_sha := get_installed_commit():
+        full_version += f" {commit_sha[:7]}"
+
+    stderr.print(f"Satori CLI {full_version} - Started on {now}")
 
     try:
         cli()
