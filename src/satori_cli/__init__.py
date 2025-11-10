@@ -1,9 +1,7 @@
-import sys
-from typing import Optional
-
 import rich_click as click
 from httpx import HTTPStatusError
 
+from .commands.config import config_
 from .commands.execution import execution
 from .commands.job import job
 from .commands.local import local
@@ -14,10 +12,8 @@ from .commands.scan import list_scans, scan
 from .commands.search import search
 from .commands.stop import stop
 from .commands.update import update
-from .config import config
 from .exceptions import SatoriError
-from .utils.console import stderr, stdout
-from .utils.options import profile_opt
+from .utils.console import stderr
 
 
 @click.group()
@@ -25,29 +21,7 @@ def cli():
     pass
 
 
-@cli.command("config")
-@click.argument("key", required=False)
-@click.argument("value", required=False)
-@profile_opt
-def config_(key: Optional[str], value: Optional[str], **kwargs):
-    if key is None:
-        stdout.print(config)
-        return
-
-    if value is None:
-        try:
-            stdout.print(config[key])
-        except KeyError:
-            stderr.print(f"'{key}' not found in profile {kwargs['profile']}")
-        return
-
-    if key and value == "":
-        stderr.print(f"'{key}' value must not be empty")
-        sys.exit(1)
-
-    config.save(key, value, kwargs["profile"])
-
-
+cli.add_command(config_)
 cli.add_command(local)
 cli.add_command(run)
 cli.add_command(scan)
