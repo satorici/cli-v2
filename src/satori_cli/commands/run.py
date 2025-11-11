@@ -101,7 +101,7 @@ def run(
         "repository": repository,
         "visibility": visibility or "PRIVATE",
         "tags": tags_obj,
-        "timeout": timeout,
+        "execution_timeout": timeout,
     }
 
     run = client.post("/jobs/runs", json=body).json()
