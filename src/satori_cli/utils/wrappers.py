@@ -213,6 +213,7 @@ class ExecutionListWrapper(Wrapper[dict]):
         table = Table(expand=True)
         table.add_column("Id")
         table.add_column("Playbook source")
+        table.add_column("Parameters")
         table.add_column("Status")
         table.add_column("Visibility")
         table.add_column("Job type")
@@ -249,9 +250,17 @@ class ExecutionListWrapper(Wrapper[dict]):
                     )
                 )
 
+            parameters = ""
+
+            if job["parameters"] is not None:
+                parameters = " ".join(
+                    f"{k}={','.join(v)}" for k, v in job["parameters"].items()
+                )
+
             table.add_row(
                 str(execution["id"]),
                 job["playbook_source"],
+                parameters,
                 execution["status"].capitalize().replace("_", " "),
                 execution["visibility"].capitalize(),
                 job["type"].capitalize(),
