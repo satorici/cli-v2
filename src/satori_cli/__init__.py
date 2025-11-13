@@ -10,6 +10,7 @@ from .commands.execution import execution
 from .commands.job import job
 from .commands.local import local
 from .commands.monitor import list_monitors, monitor
+from .commands.output import output
 from .commands.report import report, reports
 from .commands.run import run
 from .commands.scan import list_scans, scan
@@ -56,6 +57,7 @@ cli.add_command(report)
 cli.add_command(stop)
 cli.add_command(search)
 cli.add_command(update)
+cli.add_command(output)
 
 
 def main():
