@@ -69,9 +69,12 @@ def local(
             async for cline, result in process_commands(unpacked, settings, timeout):
                 msgpack.pack(cline | {"output": result}, results)
 
+        fields = {"x-amz-meta-status": "FINISHED"}
+
         try:
             asyncio.run(execute())
         except TimedOut:
+            fields["x-amz-meta-status"] = "CANCELED"
             stdout.print("Execution timed out")
 
         results.seek(0)
@@ -80,7 +83,7 @@ def local(
 
         res = httpx.post(
             results_upload["url"],
-            data=results_upload["fields"],
+            data=results_upload["fields"] | fields,
             files={"file": results},
         )
         res.raise_for_status()
