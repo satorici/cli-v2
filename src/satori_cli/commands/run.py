@@ -148,6 +148,7 @@ def run(
     execution_id = res.json()["items"][0]["id"]
 
     if show_output:
+        stdout.print(f"Execution {execution_id} output:")
         show_execution_output(execution_id)
 
     if get_files:
