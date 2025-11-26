@@ -1,12 +1,16 @@
 import os
 import re
 import tarfile
+import time
+from hashlib import sha1
 from pathlib import Path
 from tempfile import SpooledTemporaryFile
 from typing import Any, Literal, Optional, TypedDict, Union
 
 import httpx
 import yaml
+
+from satori_cli.constants import SATORI_HOME
 
 from .api import client
 from .exceptions import SatoriError
@@ -36,6 +40,33 @@ def flatten_dict(d: dict[str, Any], parent_key="") -> dict[str, Any]:
             flat_dict[new_key] = v
 
     return flat_dict
+
+
+class BundleCache:
+    CACHE_DIR = SATORI_HOME / "bundle_cache"
+    VALID_TIME = 24 * 60 * 60
+
+    @classmethod
+    def get_bundle_id(cls, bundle_sha1: str):
+        cls.CACHE_DIR.mkdir(exist_ok=True)
+
+        cutoff_time = time.time() - cls.VALID_TIME
+
+        for file_path in cls.CACHE_DIR.iterdir():
+            if file_path.is_file() and file_path.stat().st_mtime < cutoff_time:
+                file_path.unlink()
+
+        try:
+            return (cls.CACHE_DIR / bundle_sha1).read_text()
+        except FileNotFoundError:
+            return
+
+    @classmethod
+    def set_bundle_id(cls, bundle_sha1: str, bundle_id: str):
+        cls.CACHE_DIR.mkdir(exist_ok=True)
+
+        with (cls.CACHE_DIR / bundle_sha1).open("w") as f:
+            f.write(bundle_id)
 
 
 class Playbook:
@@ -75,8 +106,15 @@ class Playbook:
         }
 
     def playbook_data(self):
-        res = client.post("/bundles", files={"bundle": make_bundle(self._path)})
-        return f"bundle://{res.text}"
+        bundle = make_bundle(self._path)
+        bundle_sha1 = sha1(bundle).hexdigest()
+
+        if not (bundle_id := BundleCache.get_bundle_id(bundle_sha1)):
+            res = client.post("/bundles", files={"bundle": bundle})
+            bundle_id = res.text
+            BundleCache.set_bundle_id(bundle_sha1, bundle_id)
+
+        return f"bundle://{bundle_id}"
 
     def get_inputs_from_env(self, inputs: Optional[Inputs] = None) -> Optional[Inputs]:
         """Gets playbook variables values from environment variables
