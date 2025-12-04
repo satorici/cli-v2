@@ -1,4 +1,5 @@
 import asyncio
+import os
 from tempfile import SpooledTemporaryFile
 from typing import Optional
 
@@ -66,6 +67,9 @@ def local(
         settings = httpx.get(local["settings_url"]).json()
 
         async def execute():
+            if source.type == "DIR":
+                os.chdir(source._arg)
+
             async for cline, result in process_commands(unpacked, settings, timeout):
                 msgpack.pack(cline | {"output": result}, results)
 
