@@ -70,15 +70,24 @@ class BundleCache:
 
 
 class Playbook:
-    def __init__(self, path: Union[str, Path]):
-        with open(path) as f:
-            self._obj: dict = yaml.safe_load(f)
+    def __init__(self, arg: str):
+        self._arg = arg
 
-        self._flat = flatten_dict(self._obj)
-        self._path = path
+        if "://" not in arg:
+            self.type = "FILE"
+
+            with open(arg) as f:
+                self._obj: dict = yaml.safe_load(f)
+
+            self._flat = flatten_dict(self._obj)
+        else:
+            self.type = "URL"
 
     @property
     def variables(self) -> set[str]:
+        if self.type == "FILE":
+            return set()
+
         names: set[str] = set()
 
         def is_cmd_group(value):
@@ -97,7 +106,7 @@ class Playbook:
 
     @property
     def container_settings(self) -> ContainerSettings:
-        settings = self._obj.get("settings", {})
+        settings = self._obj.get("settings", {}) if self.type == "FILE" else {}
 
         return {
             "cpu": settings.get("cpu"),
@@ -106,7 +115,10 @@ class Playbook:
         }
 
     def playbook_data(self):
-        bundle = make_bundle(self._path)
+        if self.type == "URL":
+            return self._arg
+
+        bundle = make_bundle(self._arg)
         bundle_sha1 = sha1(bundle).hexdigest()
 
         if not (bundle_id := BundleCache.get_bundle_id(bundle_sha1)):
@@ -145,15 +157,16 @@ class Source:
 
         if "://" in arg:
             self.type = "URL"
+            self.playbook = Playbook(arg)
         elif path.is_file():
             self.type = "FILE"
-            self.playbook = Playbook(path)
+            self.playbook = Playbook(arg)
         elif path.is_dir():
             self.type = "DIR"
             playbook_path = path / ".satori.yml"
 
             if playbook_path.is_file():
-                self.playbook = Playbook(playbook_path)
+                self.playbook = Playbook(str(playbook_path))
         else:
             raise SatoriError("Source not supported")
 
