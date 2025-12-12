@@ -87,6 +87,24 @@ def bulk_download(path: Path, params):
     stdout.print("Executions downloaded")
 
 
+def bulk_get_reports(path: Path, params):
+    execution_ids = get_execution_ids(params)
+
+    def download(id):
+        res = client.get(f"/executions/{id}")
+
+        with (path / f"report-{id}.json").open("wb") as f:
+            f.write(res.content)
+
+    path.mkdir(parents=True, exist_ok=True)
+
+    with ThreadPoolExecutor() as executor:
+        for execution_id in execution_ids:
+            executor.submit(download, execution_id)
+
+    stdout.print("Reports downloaded")
+
+
 def bulk_stop(params):
     if params["status"] and params["status"] != ("RUNNING",):
         stderr.print("Only RUNNING executions can be stopped")
@@ -139,6 +157,7 @@ def bulk_delete(params):
 @click.option("--global", is_flag=True)
 @optgroup.group(cls=MutuallyExclusiveOptionGroup)
 @optgroup.option("--download", type=Path, help="Path to download outputs")
+@optgroup.option("--reports", type=Path, help="Path to download reports")
 @optgroup.option("--stop", is_flag=True)
 @optgroup.option("--delete", is_flag=True)
 @click.option(
@@ -154,7 +173,13 @@ def bulk_delete(params):
 @click.option("--playbook")
 @click.option("--q")
 @click.option("--tag", "-t", "tags", multiple=True)
-def search(download: Optional[Path], stop: bool, delete: bool, **kwargs):
+def search(
+    download: Optional[Path],
+    stop: bool,
+    delete: bool,
+    reports: Optional[Path],
+    **kwargs,
+):
     params = remove_none_values(kwargs)
 
     if download:
@@ -165,6 +190,9 @@ def search(download: Optional[Path], stop: bool, delete: bool, **kwargs):
         return
     if delete:
         bulk_delete(params)
+        return
+    if reports:
+        bulk_get_reports(reports, params)
         return
 
     res = client.get("/executions", params=params)
