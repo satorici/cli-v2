@@ -166,6 +166,9 @@ class ExecutionWrapper(Wrapper[dict]):
         if region := data.get("region"):
             execution_grid.add_row("Region", region)
 
+        if estimated_cost := data.get("estimated_cost"):
+            execution_grid.add_row("Est. cost", f"USD {estimated_cost:.6f}")
+
         execution_grid.add_row("Created at", ISODateTime(self.obj["created_at"]))
 
         if started_at := data.get("timestamps", {}).get("startedAt"):
