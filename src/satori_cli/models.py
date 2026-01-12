@@ -23,6 +23,7 @@ class ContainerSettings(TypedDict):
     image: Union[str, None]
     memory: Union[int, None]
     cpu: Union[int, None]
+    storage: Union[int, None]
 
 
 Inputs = dict[str, list[str]]
@@ -112,6 +113,7 @@ class Playbook:
             "cpu": settings.get("cpu"),
             "memory": settings.get("memory"),
             "image": settings.get("image"),
+            "storage": settings.get("storage"),
         }
 
     def playbook_data(self):
