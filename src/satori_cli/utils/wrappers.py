@@ -98,6 +98,9 @@ class JobWrapper(Wrapper[dict]):
             if job["type"] == "MONITOR":
                 job_grid.add_row("Schedule expression", str(job["expression"]))
 
+        if estimated_cost := job.get("estimated_cost"):
+            job_grid.add_row("Estimated cost", f"USD {estimated_cost:.6f}")
+
         yield Panel(job_grid, title=f"Job {job['id']}", title_align="left")
 
 
