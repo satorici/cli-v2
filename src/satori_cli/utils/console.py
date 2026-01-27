@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from itertools import groupby
 from pathlib import Path
 from tempfile import SpooledTemporaryFile
+from typing import Literal
 
 import httpx
 import msgpack
@@ -53,6 +54,16 @@ def format_raw_results(file):
 
         for output in outputs:
             stdout.print(OutputWrapper(output))
+
+
+def show_raw_output(execution_id: int, stream: Literal["stdout", "stderr"]):
+    with SpooledTemporaryFile() as f:
+        res = client.get(f"/executions/{execution_id}/output", follow_redirects=True)
+        f.write(res.content)
+        f.seek(0)
+
+        for output in msgpack.Unpacker(f):
+            stdout.print(output["output"][stream].decode(errors="ignore"))
 
 
 def show_execution_output(execution_id: int):

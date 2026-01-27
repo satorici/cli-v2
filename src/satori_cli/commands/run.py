@@ -11,7 +11,13 @@ from ..api import client
 from ..models import Playbook
 from ..utils import options as opts
 from ..utils.arguments import Source, source_arg
-from ..utils.console import export_job_files, show_execution_output, stderr, stdout
+from ..utils.console import (
+    export_job_files,
+    show_execution_output,
+    show_raw_output,
+    stderr,
+    stdout,
+)
 from ..utils.misc import remove_none_values
 from ..utils.wrappers import (
     JobExecutionsWrapper,
@@ -33,6 +39,8 @@ from ..utils.wrappers import (
 @click.option("--output", "-o", "show_output", is_flag=True)
 @click.option("--repository", "repository")
 @click.option("--report", "show_report", is_flag=True)
+@click.option("--stdout", "show_stdout", is_flag=True)
+@click.option("--stderr", "show_stderr", is_flag=True)
 @click.option("--save-files", is_flag=True)
 @click.option("--delete-report", is_flag=True)
 @click.option("--delete-output", is_flag=True)
@@ -51,6 +59,8 @@ def run(
     sync: bool,
     show_output: bool,
     show_report: bool,
+    show_stdout: bool,
+    show_stderr: bool,
     delete_report: bool,
     delete_output: bool,
     save_files: bool,
@@ -111,8 +121,12 @@ def run(
 
     run_id = run["id"]
 
-    if sync or show_output or get_files or show_report:
-        live_console = stderr if show_output or show_report else stdout
+    if sync or show_output or get_files or show_report or show_stderr or show_stdout:
+        live_console = (
+            stderr
+            if show_output or show_report or show_stderr or show_stdout
+            else stdout
+        )
 
         p = progress.Progress(
             progress.SpinnerColumn("dots2"),
@@ -146,6 +160,14 @@ def run(
 
     res = client.get("/executions", params={"job_id": run_id})
     execution_id = res.json()["items"][0]["id"]
+
+    if show_stdout:
+        stderr.print(f"Execution {execution_id} stdout:")
+        show_raw_output(execution_id, "stdout")
+
+    if show_stderr:
+        stderr.print(f"Execution {execution_id} stderr:")
+        show_raw_output(execution_id, "stderr")
 
     if show_output:
         stderr.print(f"Execution {execution_id} output:")
