@@ -13,6 +13,7 @@ dependencies = [
     "repro-zipfile>=0.4.0",
     "click-option-group>=0.5.8",
     "httpx-sse>=0.4.3",
+    "paramiko>=4.0.0",
 ]
 requires-python = ">=3.9"
 readme = "README.md"

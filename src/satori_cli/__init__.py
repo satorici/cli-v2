@@ -15,6 +15,7 @@ from .commands.report import report, reports
 from .commands.run import run
 from .commands.scan import list_scans, scan
 from .commands.search import search
+from .commands.shell import shell
 from .commands.stop import stop
 from .commands.update import update
 from .exceptions import SatoriError
@@ -58,6 +59,7 @@ cli.add_command(stop)
 cli.add_command(search)
 cli.add_command(update)
 cli.add_command(output)
+cli.add_command(shell)
 
 
 def main():
