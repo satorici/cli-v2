@@ -5,10 +5,10 @@
 groups = ["default", "dev"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:0365867042e92a1387011f72cb273ad9df8471f22a44032a352765558df4aaf1"
+content_hash = "sha256:18a89cce612909cf23d0c5880e61eef3301f1bfe028f0c423c8a3b2c1f8bcd38"
 
 [[metadata.targets]]
-requires_python = ">=3.9"
+requires_python = ">=3.10"
 
 [[package]]
 name = "anyio"
