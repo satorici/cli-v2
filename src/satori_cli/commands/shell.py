@@ -5,12 +5,16 @@ import signal
 import struct
 import sys
 import termios
+import time
 import tty
 
 import paramiko
 import rich_click as click
+from rich.progress import Progress
 
 from ..api import client
+from ..utils import options as opts
+from ..utils.misc import remove_none_values
 
 
 def get_terminal_size():
@@ -19,7 +23,11 @@ def get_terminal_size():
     return cols, rows
 
 
-def interactive_shell(ssh_client: paramiko.SSHClient):
+def interactive_shell(host: str, token: str):
+    ssh_client = paramiko.SSHClient()
+    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy)
+    ssh_client.connect(hostname=host, username="root", password=token)
+
     cols, rows = get_terminal_size()
     channel = ssh_client.invoke_shell(term="xterm-256color", width=cols, height=rows)
 
@@ -59,16 +67,40 @@ def interactive_shell(ssh_client: paramiko.SSHClient):
         ssh_client.close()
 
 
-execution_id_arg = click.argument("execution-id", type=int)
-
-
 @click.command()
-@execution_id_arg
-def shell(execution_id: int):
-    data = client.get(f"/executions/{execution_id}/ssh").json()
+@click.argument("execution-id", type=int, required=False)
+@opts.cpu_opt
+@opts.memory_opt
+@opts.image_opt
+@opts.region_filter_opt
+def shell(execution_id: int | None, cpu, memory, image, region_filter):
+    if execution_id is not None:
+        data = client.get(f"/executions/{execution_id}/ssh").json()
 
-    ssh_client = paramiko.SSHClient()
-    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy)
-    ssh_client.connect(hostname=data["host"], username="root", password=data["token"])
+        interactive_shell(data["host"], data["token"])
+    else:
+        container_settings = remove_none_values(
+            {"cpu": cpu, "memory": memory, "image": image}
+        )
 
-    interactive_shell(ssh_client)
+        res = client.post(
+            "/ssh_sessions",
+            json={
+                "regions": list(region_filter),
+                "container_settings": container_settings,
+            },
+        )
+        id = res.json()["id"]
+
+        with Progress(transient=True) as progress:
+            progress.add_task("Waiting for host", total=None)
+
+            while True:
+                try:
+                    res = client.get(f"/ssh_sessions/{id}")
+                    session_data = res.json()
+                    break
+                except Exception:
+                    time.sleep(2)
+
+        interactive_shell(session_data["host"], session_data["token"])
