@@ -180,7 +180,7 @@ class Source:
         if self.type == "SCRIPT":
             with SpooledTemporaryFile() as f:
                 with tarfile.open(fileobj=f, mode="w:gz") as tf:
-                    tf.add(self._arg, "script.sh")
+                    tf.add(self._arg, Path(self._arg).name)
 
                 f.seek(0)
                 res = httpx.post(data["url"], data=data["fields"], files={"file": f})
@@ -217,7 +217,7 @@ class Source:
             obj = BytesIO()
 
             with ZipFile(obj, "x") as zf:
-                zf.writestr(".satori.yml", "{ cmd: [ sh script.sh ] }")
+                zf.writestr(".satori.yml", f"{{ cmd: [ sh {Path(self._arg).name} ] }}")
 
             bundle_sha1 = sha1(obj.getvalue()).hexdigest()
 
