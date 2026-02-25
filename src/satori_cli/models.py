@@ -3,12 +3,14 @@ import re
 import tarfile
 import time
 from hashlib import sha1
+from io import BytesIO
 from pathlib import Path
 from tempfile import SpooledTemporaryFile
 from typing import Any, Literal, Optional, TypedDict, Union
 
 import httpx
 import yaml
+from repro_zipfile import ReproducibleZipFile as ZipFile
 
 from satori_cli.constants import SATORI_HOME
 
@@ -150,7 +152,7 @@ class Playbook:
 
 
 class Source:
-    type: Literal["URL", "FILE", "DIR"]
+    type: Literal["URL", "FILE", "DIR", "SCRIPT"]
     playbook: Optional[Playbook] = None
 
     def __init__(self, arg: str):
@@ -160,9 +162,11 @@ class Source:
         if "://" in arg:
             self.type = "URL"
             self.playbook = Playbook(arg)
-        elif path.is_file():
+        elif path.is_file() and path.name.endswith((".yml", ".yaml")):
             self.type = "FILE"
             self.playbook = Playbook(arg)
+        elif path.is_file() and path.name.endswith(".sh"):
+            self.type = "SCRIPT"
         elif path.is_dir():
             self.type = "DIR"
             playbook_path = path / ".satori.yml"
@@ -173,6 +177,17 @@ class Source:
             raise SatoriError("Source not supported")
 
     def upload_files(self, data: dict):
+        if self.type == "SCRIPT":
+            with SpooledTemporaryFile() as f:
+                with tarfile.open(fileobj=f, mode="w:gz") as tf:
+                    tf.add(self._arg, "script.sh")
+
+                f.seek(0)
+                res = httpx.post(data["url"], data=data["fields"], files={"file": f})
+                res.raise_for_status()
+
+            return
+
         ignore_file = Path(self._arg, ".satorignore")
 
         if ignore_file.is_file():
@@ -198,6 +213,20 @@ class Source:
     def playbook_data(self):
         if self.type == "URL":
             return self._arg
+        elif self.type == "SCRIPT":
+            obj = BytesIO()
+
+            with ZipFile(obj, "x") as zf:
+                zf.writestr(".satori.yml", "{ cmd: [ sh script.sh ] }")
+
+            bundle_sha1 = sha1(obj.getvalue()).hexdigest()
+
+            if not (bundle_id := BundleCache.get_bundle_id(bundle_sha1)):
+                res = client.post("/bundles", files={"bundle": obj.getvalue()})
+                bundle_id = res.text
+                BundleCache.set_bundle_id(bundle_sha1, bundle_id)
+
+            return f"bundle://{bundle_id}"
         elif self.playbook:
             return self.playbook.playbook_data()
         else:

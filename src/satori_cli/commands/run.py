@@ -107,7 +107,7 @@ def run(
         "save_report": not delete_report,
         "save_output": not delete_output,
         "container_settings": remove_none_values(container_settings),
-        "with_files": source.type == "DIR",
+        "with_files": source.type in ("DIR", "SCRIPT"),
         "repository": repository,
         "visibility": visibility or "PRIVATE",
         "tags": tags_obj,
