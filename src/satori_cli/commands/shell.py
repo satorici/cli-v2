@@ -10,6 +10,7 @@ import tty
 
 import paramiko
 import rich_click as click
+from paramiko.ssh_exception import NoValidConnectionsError
 from rich.progress import Progress
 
 from ..api import client
@@ -26,7 +27,29 @@ def get_terminal_size():
 def interactive_shell(host: str, token: str):
     ssh_client = paramiko.SSHClient()
     ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy)
-    ssh_client.connect(hostname=host, username="root", password=token)
+
+    tries = 0
+
+    while tries < 3:
+        try:
+            ssh_client.connect(
+                hostname=host,
+                username="root",
+                password=token,
+                look_for_keys=False,
+                allow_agent=False,
+            )
+            break
+        except NoValidConnectionsError:
+            time.sleep(1)
+            tries += 1
+
+    if tries >= 3:
+        print("Can't connect to host")
+        sys.exit(1)
+
+    if transport := ssh_client.get_transport():
+        transport.set_keepalive(30)
 
     cols, rows = get_terminal_size()
     channel = ssh_client.invoke_shell(term="xterm-256color", width=cols, height=rows)
