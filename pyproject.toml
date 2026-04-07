@@ -39,3 +39,5 @@ extend-select = ["I"]
 dev = [
     "ruff>=0.9.7",
 ]
+
+[tool.pyrefly]
