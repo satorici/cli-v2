@@ -35,7 +35,7 @@ def make_bundle(playbook_path: Union[str, Path]) -> bytes:
             zf.writestr(".satori.yml", playbook_raw)
 
             for path in dump_file_uris(playbook_obj):
-                path = path.lstrip("file://")
+                path = path[7:]
                 zf.write(playbook_dir / path, path)
 
         return obj.getvalue()
