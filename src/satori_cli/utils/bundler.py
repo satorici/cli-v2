@@ -36,6 +36,8 @@ def make_bundle(playbook_path: Union[str, Path]) -> bytes:
 
             for path in dump_file_uris(playbook_obj):
                 path = path[7:]
-                zf.write(playbook_dir / path, path)
+
+                if path not in zf.namelist():
+                    zf.write(playbook_dir / path, path)
 
         return obj.getvalue()
