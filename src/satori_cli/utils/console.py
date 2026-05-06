@@ -1,3 +1,4 @@
+import io
 import time
 from concurrent.futures import ThreadPoolExecutor
 from itertools import groupby
@@ -45,15 +46,15 @@ def wait_job_until_finished(job_id: int):
             time.sleep(1)
 
 
-def format_raw_results(file):
+def format_raw_results(file, console=None):
     loaded = msgpack.Unpacker(file)
     grouped = groupby(loaded, lambda o: o["path"])
 
     for path, outputs in grouped:
-        stdout.rule(path)
+        (console or stdout).rule(path)
 
         for output in outputs:
-            stdout.print(OutputWrapper(output))
+            (console or stdout).print(OutputWrapper(output))
 
 
 def show_raw_output(execution_id: int, stream: Literal["stdout", "stderr"]):
@@ -66,13 +67,27 @@ def show_raw_output(execution_id: int, stream: Literal["stdout", "stderr"]):
             stdout.print(output["output"][stream].decode(errors="ignore"))
 
 
-def show_execution_output(execution_id: int):
-    with SpooledTemporaryFile() as f:
-        res = client.get(f"/executions/{execution_id}/output", follow_redirects=True)
-        f.write(res.content)
-        f.seek(0)
+def show_execution_output(execution_id: int, console=None):
+    class HttpxStreamFile(io.RawIOBase):
+        def __init__(self, response: httpx.Response):
+            self._iter = response.iter_bytes()
 
-        format_raw_results(f)
+        def readable(self):
+            return True
+
+        def readinto(self, b):
+            try:
+                chunk = next(self._iter)
+                n = len(chunk)
+                b[:n] = chunk
+                return n
+            except StopIteration:
+                return 0
+
+    with client.stream(
+        "GET", f"/executions/{execution_id}/output", follow_redirects=True, timeout=None
+    ) as stream:
+        format_raw_results(HttpxStreamFile(stream), console)
 
 
 def show_execution(execution_id: int):

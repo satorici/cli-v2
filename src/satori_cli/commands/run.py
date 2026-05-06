@@ -1,4 +1,6 @@
 import sys
+import threading
+import time
 from typing import Optional
 
 import rich_click as click
@@ -37,6 +39,7 @@ from ..utils.wrappers import (
 @opts.env_opt
 @click.option("--tag", "-t", "tags", multiple=True, type=(str, str))
 @click.option("--output", "-o", "show_output", is_flag=True)
+@click.option("--live-output", is_flag=True)
 @click.option("--repository", "repository")
 @click.option("--report", "show_report", is_flag=True)
 @click.option("--stdout", "show_stdout", is_flag=True)
@@ -58,6 +61,7 @@ def run(
     count: int,
     sync: bool,
     show_output: bool,
+    live_output: bool,
     show_report: bool,
     show_stdout: bool,
     show_stderr: bool,
@@ -76,7 +80,7 @@ def run(
     timeout: Optional[int],
     **kwargs,
 ):
-    if show_output and count > 1:
+    if (show_output or live_output) and count > 1:
         stderr.print("WARNING: Only first execution output will be shown")
 
     container_settings = {}
@@ -121,7 +125,15 @@ def run(
 
     run_id = run["id"]
 
-    if sync or show_output or get_files or show_report or show_stderr or show_stdout:
+    if (
+        sync
+        or show_output
+        or get_files
+        or show_report
+        or show_stderr
+        or show_stdout
+        or live_output
+    ):
         live_console = (
             stderr
             if show_output or show_report or show_stderr or show_stdout
@@ -140,6 +152,27 @@ def run(
         grid.add_row(p)
 
         with Live(grid, console=live_console, refresh_per_second=10) as live:
+
+            def show_live_output():
+                execution_id = None
+
+                while True:
+                    res = client.get(
+                        "/executions", params={"job_id": run_id, "quantity": 1}
+                    )
+
+                    if items := res.json()["items"]:
+                        execution_id = items[0]["id"]
+                        break
+
+                    time.sleep(5)
+
+                show_execution_output(execution_id, live.console)
+
+            if live_output:
+                output_thread = threading.Thread(target=show_live_output, daemon=True)
+                output_thread.start()
+
             with connect_sse(
                 client, "GET", f"jobs/runs/{run_id}/status", timeout=None
             ) as es:
