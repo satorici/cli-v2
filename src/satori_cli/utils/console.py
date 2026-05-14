@@ -48,7 +48,8 @@ def wait_job_until_finished(job_id: int):
 
 def format_raw_results(file, console=None):
     loaded = msgpack.Unpacker(file)
-    grouped = groupby(loaded, lambda o: o["path"])
+    filtered = (line for line in loaded if line)
+    grouped = groupby(filtered, lambda o: o["path"])
 
     for path, outputs in grouped:
         (console or stdout).rule(path)
