@@ -192,7 +192,7 @@ class ExecutionWrapper(Wrapper[dict]):
 
         yield Panel(grid, title=f"Execution {self.obj['id']}", title_align="left")
 
-        if report["detail"]:
+        if report and report.get("detail"):
             yield ReportWrapper(report["detail"])
 
 
