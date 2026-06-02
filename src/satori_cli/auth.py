@@ -1,4 +1,3 @@
-import os
 from typing import Generator
 
 from httpx import Auth, Request, Response
@@ -8,9 +7,6 @@ from .exceptions import AuthError
 
 
 def get_token() -> str:
-    if token := os.getenv("SATORI_TOKEN"):
-        return token
-
     if token := config.get("token"):
         return token
 
