@@ -13,7 +13,7 @@ class Config:
         config = {}
 
         self._env_config = {
-            k.lstrip("SATORI_").lower(): v
+            k[len("SATORI_"):].lower(): v
             for k, v in os.environ.items()
             if k.startswith("SATORI_")
         }
