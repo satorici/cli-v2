@@ -1,3 +1,4 @@
+import json
 import sys
 from datetime import datetime, timedelta
 from itertools import groupby
@@ -6,7 +7,6 @@ from typing import Generic, TypeVar
 
 from rich.console import Console, ConsoleOptions, RenderResult
 from rich.highlighter import RegexHighlighter
-from rich.json import JSON
 from rich.panel import Panel
 from rich.segment import Segment
 from rich.table import Column, Table
@@ -39,7 +39,7 @@ def has_json_output(cls: type[W]):
 
     def __rich_console__(self: W, console: Console, options: ConsoleOptions):
         if config.get("json"):
-            yield JSON.from_data(self.obj)
+            console.out(json.dumps(self.obj, indent=2))
         else:
             yield from orig(self, console, options)
 
