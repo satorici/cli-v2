@@ -1,5 +1,5 @@
 settings:
-  name: "Satori CLI Tests"
+  name: "Satori CLI V2 Tests"
   log: slack
   image: public.ecr.aws/docker/library/python:3.10-slim-bullseye
   timeout: 3000
