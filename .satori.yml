@@ -55,7 +55,7 @@ test:
     setParallel: true
     # execute a Satori CI playbook locally and show the report once its done
     local_report:
-      - satori-v2 local ./ -p .satori/import/pass.yml --report
+      - satori-v2 local ./ --playbook .satori/import/pass.yml --report
 
     # execute a Satori CI playbook locally on a directory with a .satori.yml playbook
     import_sync:
@@ -63,7 +63,7 @@ test:
 
     # execute a public Satori CI playbook locally
     public_output:
-      - satori-v2 local ./ -p satori://secrets/semgrep.yml --output
+      - satori-v2 local ./ --playbook satori://secrets/semgrep.yml --output
 
     # define inputs on your playbook and execute it with different combination of parameters
     input:
@@ -99,21 +99,21 @@ test:
       - satori-v2 run .satori/import/pass.yml -s 2>&1 | grep 'Report ID' | grep -E 'r[a-zA-Z0-9]{15}' -o | tr -d '\n'
 
     dont_save:
-      - satori-v2 run .satori/import/pass.yml --save-report 'False' --save-output 'False' --report --output 2>&1 | grep 'Report ID' | grep -E 'r[a-zA-Z0-9]{15}' -o | tr -d '\n'
+      - satori-v2 run .satori/import/pass.yml --delete-report --delete-output --report --output 2>&1 | grep 'Report ID' | grep -E 'r[a-zA-Z0-9]{15}' -o | tr -d '\n'
 
     # list the reports generated
     list:
       - satori-v2 reports
 
     search:
-      - satori-v2 reports search | tail
+      - satori-v2 search | tail
 
     download:
       - satori-v2 reports download --visibility public
 
     # search the reports running
     filter:
-      - satori-v2 reports search --status=running
+      - satori-v2 search --status RUNNING
 
     parallel:
       setParallel: true
@@ -135,11 +135,11 @@ test:
 
       # show the output associated to a report
       output:
-        - satori-v2 report ${{test.report.new_sync.stdout}} output
+        - satori-v2 output ${{test.report.new_sync.stdout}}
 
       # download the files associated to a report
       files:
-        - satori-v2 report ${{test.report.new_sync.stdout}} files
+        - satori-v2 execution files ${{test.report.new_sync.stdout}}
 
       filter_test:
         - satori-v2 report ${{test.report.new_sync.stdout}} output --test tests.positive.echo
@@ -152,7 +152,7 @@ test:
 
     # delete the files, the output and the report
     delete:
-      - satori-v2 report ${{test.report.new_sync.stdout}} delete
+      - satori-v2 execution delete ${{test.report.new_sync.stdout}}
 
     # run asynchronously a local playbook
     new_async: # new report for stop is needed because the first one is already stopped
@@ -160,7 +160,7 @@ test:
 
     # stop a running report
     stop: # wait until start
-      - sleep 10; echo ${{test.report.new_async.stdout}}; satori-v2 report ${{test.report.new_async.stdout}} stop
+      - sleep 10; echo ${{test.report.new_async.stdout}}; satori-v2 execution stop ${{test.report.new_async.stdout}}
 
   playbook:
     list:
@@ -448,7 +448,7 @@ negative_test:
 
     deleted_output:
       #- satori-v2 report ${{test.report.dont_save.stdout.trim()}} output
-      - satori-v2 report ${{test.report.dont_save.stdout}} output
+      - satori-v2 output ${{test.report.dont_save.stdout}}
 
     deleted_monitor:
       - satori-v2 monitor ${{test.monitor.new.stdout}}
