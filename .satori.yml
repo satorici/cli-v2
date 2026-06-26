@@ -95,10 +95,10 @@ test:
   report:
     # run synchronously a local playbook
     new_sync:
-      - satori-v2 run .satori/import/pass.yml -s 2>&1 | grep 'Report ID' | grep -E 'r[a-zA-Z0-9]{15}' -o | tr -d '\n'
+      - satori-v2 run .satori/import/pass.yml -s 2>&1 | grep 'Report ID' | grep -Eo '[0-9]+' | tr -d '\n'
 
     dont_save:
-      - satori-v2 run .satori/import/pass.yml --delete-report --delete-output --report --output 2>&1 | grep 'Report ID' | grep -E 'r[a-zA-Z0-9]{15}' -o | tr -d '\n'
+      - satori-v2 run .satori/import/pass.yml --delete-report --delete-output --report --output 2>&1 | grep 'Report ID' | grep -Eo '[0-9]+' | tr -d '\n'
 
     # list the reports generated
     list:
@@ -155,7 +155,7 @@ test:
 
     # run asynchronously a local playbook
     new_async: # new report for stop is needed because the first one is already stopped
-      - satori-v2 run .satori/import/pass.yml 2>&1 | grep 'Report ID' | grep -E 'r[a-zA-Z0-9]{15}' -o | tr -d '\n'
+      - satori-v2 run .satori/import/pass.yml 2>&1 | grep 'Report ID' | grep -Eo '[0-9]+' | tr -d '\n'
 
     # stop a running report
     stop: # wait until start
@@ -304,7 +304,7 @@ test:
 
     # Run the .satori.yml playbook with a certain coverage on the repo
     run:
-      - satori-v2 scan satoridev01/hello_world -c 50 | grep 'id:' | grep -Eo 's[a-zA-Z0-9]{15}' | tr -d '\n'
+      - satori-v2 scan satoridev01/hello_world -c 50 | grep 'id:' | grep -Eo '[0-9]+' | tr -d '\n'
 
     # What's the status of the current scanning
     status:
