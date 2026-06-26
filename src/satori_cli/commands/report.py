@@ -4,7 +4,11 @@ import rich_click as click
 
 from ..api import client
 from ..utils import options as opts
-from ..utils.console import stdout
+from ..utils.console import (
+    download_execution_files,
+    show_execution_output,
+    stdout,
+)
 from ..utils.wrappers import ExecutionListWrapper, ExecutionWrapper, PagedWrapper
 
 
@@ -31,9 +35,31 @@ def reports(
     stdout.print(PagedWrapper(res.json(), page, quantity, ExecutionListWrapper))
 
 
-@click.command()
+@click.group(invoke_without_command=True)
 @click.argument("execution-id", type=int)
 @opts.json_opt
-def report(execution_id: int, **kwargs):
-    res = client.get(f"/executions/{execution_id}")
-    stdout.print(ExecutionWrapper(res.json()))
+@click.pass_context
+def report(ctx, execution_id: int, **kwargs):
+    ctx.obj = execution_id
+    if ctx.invoked_subcommand is None:
+        res = client.get(f"/executions/{execution_id}")
+        stdout.print(ExecutionWrapper(res.json()))
+
+
+# Aliases for report command
+@report.command(name="output")
+@click.pass_obj
+def report_output(execution_id: int):
+    show_execution_output(execution_id)
+
+
+@report.command(name="files")
+@click.pass_obj
+def report_files(execution_id: int):
+    download_execution_files(execution_id)
+
+
+@report.command(name="delete")
+@click.pass_obj
+def report_delete(execution_id: int):
+    client.delete(f"/executions/{execution_id}")

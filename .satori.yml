@@ -105,14 +105,14 @@ test:
       - satori-v2 reports
 
     search:
-      - satori-v2 search | tail
+      - satori-v2 reports search | tail
 
     download:
       - satori-v2 reports download --visibility public
 
     # search the reports running
     filter:
-      - satori-v2 search --status RUNNING
+      - satori-v2 reports search --status=running
 
     parallel:
       setParallel: true
@@ -134,11 +134,11 @@ test:
 
       # show the output associated to a report
       output:
-        - satori-v2 output ${{test.report.new_sync.stdout}}
+        - satori-v2 report ${{test.report.new_sync.stdout}} output
 
       # download the files associated to a report
       files:
-        - satori-v2 execution files ${{test.report.new_sync.stdout}}
+        - satori-v2 report ${{test.report.new_sync.stdout}} files
 
       filter_test:
         - satori-v2 report ${{test.report.new_sync.stdout}} output --test tests.positive.echo
@@ -151,7 +151,7 @@ test:
 
     # delete the files, the output and the report
     delete:
-      - satori-v2 execution delete ${{test.report.new_sync.stdout}}
+      - satori-v2 report ${{test.report.new_sync.stdout}} delete
 
     # run asynchronously a local playbook
     new_async: # new report for stop is needed because the first one is already stopped
@@ -159,7 +159,7 @@ test:
 
     # stop a running report
     stop: # wait until start
-      - sleep 10; echo ${{test.report.new_async.stdout}}; satori-v2 execution stop ${{test.report.new_async.stdout}}
+      - sleep 10; echo ${{test.report.new_async.stdout}}; satori-v2 report ${{test.report.new_async.stdout}} stop
 
   playbook:
     list:
@@ -447,7 +447,7 @@ negative_test:
 
     deleted_output:
       #- satori-v2 report ${{test.report.dont_save.stdout.trim()}} output
-      - satori-v2 output ${{test.report.dont_save.stdout}}
+      - satori-v2 report ${{test.report.dont_save.stdout}} output
 
     deleted_monitor:
       - satori-v2 monitor ${{test.monitor.new.stdout}}
