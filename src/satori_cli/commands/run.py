@@ -212,8 +212,14 @@ def run(
     if show_report:
         if count == 1:
             res = client.get(f"/executions/{execution_id}")
-            report = res.json()["data"]["report"]["detail"]
-            stdout.print(ReportWrapper(report))
+            execution = res.json()
+            if report := execution.get("report"):
+                if detail := report.get("detail"):
+                    stdout.print(ReportWrapper(detail))
+                else:
+                    stderr.print("No report detail available for this execution.")
+            else:
+                stderr.print("No report available for this execution.")
         else:
             res = client.get("/executions", params={"job_id": run_id})
             executions = res.json()
