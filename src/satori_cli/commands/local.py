@@ -11,7 +11,7 @@ from ..api import client
 from ..models import Playbook
 from ..utils import options as opts
 from ..utils.arguments import Source, source_arg
-from ..utils.console import format_raw_results, stderr, stdout, wait_job_until_finished
+from ..utils.console import format_raw_results, stderr, stdout
 from ..utils.execution.runner import TimedOut, process_commands
 from ..utils.wrappers import JobWrapper, ReportWrapper
 
@@ -99,8 +99,6 @@ def local(
             format_raw_results(results)
 
     if show_report:
-        wait_job_until_finished(local["id"])
-
         res = client.get("/executions", params={"job_id": local["id"], "quantity": 1})
         execution_id = res.json()["items"][0]["id"]
         res = client.get(f"/executions/{execution_id}")
