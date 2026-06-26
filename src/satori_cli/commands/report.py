@@ -63,3 +63,13 @@ def report_files(execution_id: int):
 @click.pass_obj
 def report_delete(execution_id: int):
     client.delete(f"/executions/{execution_id}")
+
+
+@report.command(name="visibility")
+@click.argument(
+    "value", type=click.Choice(["PUBLIC", "PRIVATE", "UNLISTED"], case_sensitive=False)
+)
+@click.pass_obj
+def report_visibility(execution_id: int, value: str):
+    client.patch(f"/executions/{execution_id}", json={"visibility": value.upper()})
+    stdout.print(f"Report visibility set to {value.upper()}")
