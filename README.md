@@ -26,17 +26,57 @@ repository directory to use the CLI.
 
 ## Authentication
 
-Run this command:
+Set your API token:
 
 ```
-satori login
+satori config token YOUR_TOKEN
 ```
 
-Visit the URL displayed, where you can login using GitHub. After that, return to
-the terminal and you should see a login confirmation. To verify, run:
+Use `--profile` to store tokens for different profiles (default is `default`).
+
+To verify, run:
 
 ```
 satori config
 ```
 
 It will display your current configuration, token included.
+
+## Commands
+
+| Command | Description |
+| --- | --- |
+| `config [key] [value]` | View or set config values for a profile |
+| `local` | Run a playbook locally against the Satori API |
+| `run` | Submit and run a playbook job remotely |
+| `scan` | Start a repository scan job |
+| `scans` | List scan jobs (paginated) |
+| `monitor` | Create a monitor job with a cron expression |
+| `monitors` | List monitor jobs (paginated) |
+| `job` | Show job details and last 5 executions |
+| `execution` | Group for execution management (see subcommands below) |
+| `reports` | List executions/reports with filters |
+| `report` | Show a single execution report |
+| `stop` | Group for stopping runs (see subcommands below) |
+| `search` | Search executions; supports bulk download/stop/delete |
+| `update` | Reinstall the CLI from GitHub via pip |
+| `output` | Show or stream raw output for an execution |
+| `shell` | Open an interactive SSH shell for an execution or new session |
+
+### `execution` subcommands
+
+| Subcommand | Description |
+| --- | --- |
+| `execution get <execution-id>` | Show execution details |
+| `execution list` | List executions (paginated) |
+| `execution delete <execution-id>` | Delete an execution |
+| `execution stop <execution-id>` | Cancel a running execution |
+| `execution output <execution-id>` | Show execution output |
+| `execution files <execution-id>` | Download execution files |
+
+### `stop` subcommands
+
+| Subcommand | Description |
+| --- | --- |
+| `stop run <run-id>` | Stop a specific run |
+| `stop all` | Stop all queued and running runs |
