@@ -58,7 +58,7 @@ test:
 
     # execute a Satori CI playbook locally on a directory with a .satori.yml playbook
     import_sync:
-      - satori-v2 local .satori/import --sync
+      - satori-v2 local .satori/import
 
     # execute a public Satori CI playbook locally
     public_output:

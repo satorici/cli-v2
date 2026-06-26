@@ -11,9 +11,9 @@ from ..api import client
 from ..models import Playbook
 from ..utils import options as opts
 from ..utils.arguments import Source, source_arg
-from ..utils.console import format_raw_results, stdout
+from ..utils.console import format_raw_results, stdout, wait_job_until_finished
 from ..utils.execution.runner import TimedOut, process_commands
-from ..utils.wrappers import JobWrapper
+from ..utils.wrappers import JobWrapper, ReportWrapper
 
 
 @click.command()
@@ -25,6 +25,7 @@ from ..utils.wrappers import JobWrapper
 @opts.visibility_opt
 @click.option("--tag", "-t", "tags", multiple=True, type=(str, str))
 @click.option("--output", "-o", "show_output", is_flag=True)
+@click.option("--report", "show_report", is_flag=True)
 def local(
     source: Source,
     playbook: Optional[Playbook],
@@ -34,6 +35,7 @@ def local(
     visibility: Optional[str],
     tags: Optional[tuple[tuple[str, str]]],
     show_output: bool,
+    show_report: bool,
     **kwargs,
 ):
     playbook_data = playbook.playbook_data() if playbook else source.playbook_data()
@@ -95,3 +97,12 @@ def local(
         if show_output:
             results.seek(0)
             format_raw_results(results)
+
+    if show_report:
+        wait_job_until_finished(local["id"])
+
+        res = client.get("/executions", params={"job_id": local["id"], "quantity": 1})
+        execution_id = res.json()["items"][0]["id"]
+        res = client.get(f"/executions/{execution_id}")
+        report = res.json()["data"]["report"]["detail"]
+        stdout.print(ReportWrapper(report))
