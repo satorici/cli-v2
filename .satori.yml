@@ -46,7 +46,7 @@ test:
   # show the user's dashboard
   dashboard:
     private:
-      - satori
+      - satori-v2
     public:
       - satori-v2 --public
 
