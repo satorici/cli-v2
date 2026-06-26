@@ -11,6 +11,11 @@ def _input_callback(ctx, name, inputs: tuple[str]):
         parameters = defaultdict(list)
 
         for input in inputs:
+            if "=" not in input:
+                raise click.BadParameter(
+                    f"invalid format '{input}', expected KEY=VALUE"
+                )
+
             k, v = input.split("=", 1)
 
             parameters[k].extend(v.splitlines())

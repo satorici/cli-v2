@@ -243,16 +243,22 @@ class ExecutionListWrapper(Wrapper[dict]):
             ):
                 run_time = str(
                     timedelta(
-                        seconds=timestamps["execution_finished_at"]
-                        - timestamps["execution_started_at"]
+                        seconds=max(
+                            0,
+                            timestamps["execution_finished_at"]
+                            - timestamps["execution_started_at"],
+                        )
                     )
                 )
 
             if job["type"] == "LOCAL" and "results_uploaded_at" in timestamps:
                 run_time = str(
                     timedelta(
-                        seconds=timestamps["results_uploaded_at"]
-                        - to_datetime(job["created_at"]).timestamp()
+                        seconds=max(
+                            0,
+                            timestamps["results_uploaded_at"]
+                            - to_datetime(job["created_at"]).timestamp(),
+                        )
                     )
                 )
 

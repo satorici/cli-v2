@@ -79,8 +79,14 @@ class Playbook:
         if "://" not in arg:
             self.type = "FILE"
 
-            with open(arg) as f:
-                self._obj: dict = yaml.safe_load(f)
+            try:
+                with open(arg) as f:
+                    self._obj: dict = yaml.safe_load(f)
+            except (yaml.YAMLError, UnicodeDecodeError):
+                raise SatoriError(f"Could not parse playbook '{arg}': invalid format")
+
+            if not isinstance(self._obj, dict):
+                raise SatoriError(f"Playbook '{arg}' is empty or invalid")
 
             self._flat = flatten_dict(self._obj)
         else:

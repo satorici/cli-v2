@@ -29,3 +29,4 @@ def config_(key: Optional[str], value: Optional[str], **kwargs):
         sys.exit(1)
 
     config.save(key, value, kwargs["profile"])
+    stdout.print(f"{key} updated")
