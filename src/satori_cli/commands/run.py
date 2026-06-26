@@ -210,6 +210,9 @@ def run(
                     grid.add_row(p)
 
                     live.update(grid)
+
+                    if run["status"] in ("FINISHED", "CANCELED"):
+                        break
     else:
         stdout.print(JobWrapper(run))
         sys.exit(0)

@@ -95,10 +95,10 @@ test:
   report:
     # run synchronously a local playbook
     new_sync:
-      - satori-v2 run .satori/import/pass.yml -s 2>&1 | grep 'Report ID' | grep -Eo '[0-9]+' | tr -d '\n'
+      - satori-v2 run .satori/import/pass.yml -s 2>&1 | grep 'Job ' | grep -Eo '[0-9]+' | tr -d '\n'
 
     dont_save:
-      - satori-v2 run .satori/import/pass.yml --delete-report --delete-output --report --output 2>&1 | grep 'Report ID' | grep -Eo '[0-9]+' | tr -d '\n'
+      - satori-v2 run .satori/import/pass.yml --delete-report --delete-output --report --output 2>&1 | grep 'Job ' | grep -Eo '[0-9]+' | tr -d '\n'
 
     # list the reports generated
     list:
