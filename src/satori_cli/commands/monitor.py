@@ -3,11 +3,12 @@ from typing import Optional
 import rich_click as click
 
 from ..api import client
-from ..models import Playbook
 from ..utils import options as opts
-from ..utils.arguments import Source, source_arg
 from ..utils.console import stdout
-from ..utils.misc import list_jobs, remove_none_values
+from ..utils.misc import list_jobs
+from ..utils.wrappers import JobWrapper
+
+monitor_id_arg = click.argument("monitor-id", type=int)
 
 
 @click.command("monitors")
@@ -18,58 +19,78 @@ def list_monitors(page: int, quantity: int, visibility: Optional[str]):
     return list_jobs(page, quantity, "MONITOR", visibility)
 
 
-@click.command()
-@source_arg
-@opts.playbook_opt
-@click.argument("expression")
-@click.option("--description")
-@opts.region_filter_opt
-@opts.input_opt
-@opts.env_opt
-@opts.cpu_opt
-@opts.memory_opt
-@opts.image_opt
-def monitor(
-    source: Source,
-    playbook: Optional[Playbook],
-    expression: str,
-    description: Optional[str],
-    region_filter: tuple[str],
-    input: Optional[dict[str, list[str]]],
-    env: Optional[dict[str, str]],
-    cpu: Optional[int],
-    memory: Optional[int],
-    image: Optional[str],
-):
-    container_settings = {}
+@click.group(invoke_without_command=True)
+@monitor_id_arg
+@opts.json_opt
+@click.pass_context
+def monitor(ctx, monitor_id: int, **kwargs):
+    ctx.obj = monitor_id
 
-    if local_playbook := playbook or source.playbook:
-        input = local_playbook.get_inputs_from_env(input)
-        container_settings = remove_none_values(local_playbook.container_settings)
+    if ctx.invoked_subcommand is None:
+        res = client.get(f"/jobs/{monitor_id}")
+        stdout.print(JobWrapper(res.json()))
 
-    container_settings.update(
-        remove_none_values(
-            {"cpu": cpu, "memory": memory, "image": image, "environment_variables": env}
+
+@monitor.command(name="visibility")
+@click.argument(
+    "value", type=click.Choice(["PUBLIC", "PRIVATE", "UNLISTED"], case_sensitive=False)
+)
+@click.pass_obj
+def monitor_visibility(monitor_id: int, value: str):
+    client.patch(f"/jobs/{monitor_id}", json={"visibility": value.upper()})
+    stdout.print(f"Monitor visibility set to {value.upper()}")
+
+
+@monitor.command(name="start")
+@click.pass_obj
+def monitor_start(monitor_id: int):
+    client.patch(f"/jobs/monitors/{monitor_id}", json={"status": "RUNNING"})
+    stdout.print("Monitor started")
+
+
+@monitor.command(name="pause")
+@click.pass_obj
+def monitor_pause(monitor_id: int):
+    client.patch(f"/jobs/monitors/{monitor_id}", json={"status": "PAUSED"})
+    stdout.print("Monitor paused")
+
+
+# `stop` is an alias of `pause`
+monitor.add_command(monitor_pause, name="stop")
+
+
+@monitor.command(name="clean")
+@click.pass_obj
+def monitor_clean(monitor_id: int):
+    execution_ids: list[int] = []
+    page = 1
+
+    while True:
+        res = client.get(
+            "/executions",
+            params={"job_id": monitor_id, "quantity": 100, "page": page},
         )
-    )
+        data = res.json()
+        items = data["items"]
 
-    playbook_data = playbook.playbook_data() if playbook else source.playbook_data()
+        if not items:
+            break
 
-    body = {
-        "playbook_source": playbook_data,
-        "parameters": input,
-        "regions": list(region_filter),
-        "expression": expression,
-        "description": description,
-        "environment_variables": env,
-        "container_settings": remove_none_values(container_settings),
-        "with_files": bool(source.type == "DIR"),
-    }
+        execution_ids.extend(item["id"] for item in items)
 
-    res = client.post("/jobs/monitors", json=body)
+        if len(execution_ids) >= data["total"]:
+            break
 
-    monitor = res.json()
-    stdout.print_json(data=monitor)
+        page += 1
 
-    if files_upload := monitor["files_upload"]:
-        source.upload_files(files_upload)
+    if execution_ids:
+        client.post("/executions/delete", json=execution_ids)
+
+    stdout.print(f"Deleted {len(execution_ids)} reports")
+
+
+@monitor.command(name="delete")
+@click.pass_obj
+def monitor_delete(monitor_id: int):
+    client.delete(f"/jobs/{monitor_id}")
+    stdout.print("Monitor deleted")

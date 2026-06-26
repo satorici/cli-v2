@@ -124,6 +124,34 @@ class Playbook:
             "storage": settings.get("storage"),
         }
 
+    @property
+    def monitor_expression(self) -> Optional[str]:
+        """Returns the AWS EventBridge schedule expression for a monitor playbook.
+
+        Reads ``settings.rate``/``settings.cron`` (wrapping them in
+        ``rate(...)``/``cron(...)``) or an already-formatted ``settings.monitor``
+        expression. Returns ``None`` for non-monitor playbooks.
+        """
+
+        if self.type != "FILE":
+            return None
+
+        settings = self._obj.get("settings", {})
+
+        if not isinstance(settings, dict):
+            return None
+
+        if monitor := settings.get("monitor"):
+            return str(monitor)
+
+        if rate := settings.get("rate"):
+            return f"rate({rate})"
+
+        if cron := settings.get("cron"):
+            return f"cron({cron})"
+
+        return None
+
     def playbook_data(self):
         if self.type == "URL":
             return self._arg

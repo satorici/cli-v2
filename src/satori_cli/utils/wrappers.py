@@ -51,10 +51,10 @@ def has_json_output(cls: type[W]):
 def command_generator(job: dict):
     job_type: str = job["type"]
 
-    command = ["satori-v2", job_type.lower(), job["playbook_source"]]
-
     if job_type == "MONITOR":
-        command.append(job["expression"])
+        return f"satori-v2 run {job['playbook_source']}"
+
+    command = ["satori-v2", job_type.lower(), job["playbook_source"]]
 
     if job_type == "SCAN":
         command.append(job["repository_data"]["repository"])

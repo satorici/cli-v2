@@ -102,6 +102,29 @@ def run(
     else:
         tags_obj = {}
 
+    if (local_playbook := playbook or source.playbook) and (
+        expression := local_playbook.monitor_expression
+    ):
+        monitor_body = {
+            "playbook_source": playbook_data,
+            "parameters": input,
+            "regions": list(region_filter),
+            "expression": expression,
+            "container_settings": remove_none_values(container_settings),
+            "with_files": source.type in ("DIR", "SCRIPT"),
+            "visibility": visibility or "PRIVATE",
+            "tags": tags_obj,
+            "execution_timeout": timeout,
+        }
+
+        monitor = client.post("/jobs/monitors", json=monitor_body).json()
+
+        if files_upload := monitor.get("files_upload"):
+            source.upload_files(files_upload)
+
+        stdout.print(JobWrapper(monitor))
+        sys.exit(0)
+
     body = {
         "playbook_source": playbook_data,
         "parameters": input,

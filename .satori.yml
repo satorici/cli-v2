@@ -250,9 +250,9 @@ test:
         - satori-v2 repo satoridev01/Hello_C_World playbook del satori://test
 
   monitor:
-    # run a new monitor
+    # run a new monitor (a playbook with a rate/cron schedule creates a monitor)
     new:
-      - satori-v2 run .satori/monitor.yml -s | grep 'Monitor ID' | grep -oE 'm[a-zA-Z0-9]{15}' | tr -d '\n'
+      - satori-v2 run .satori/monitor.yml --json | jq -r '.id' | tr -d '\n'
 
     # list the monitors
     list:
@@ -269,11 +269,15 @@ test:
     public: #
       - satori-v2 monitor ${{test.monitor.new.stdout}} visibility public
 
-    # stop a monitor
+    # start a monitor
     start:
       - satori-v2 monitor ${{test.monitor.new.stdout}} start
 
-    # start a monitor
+    # pause a monitor
+    pause:
+      - satori-v2 monitor ${{test.monitor.new.stdout}} pause
+
+    # stop a monitor (alias of pause)
     stop:
       - satori-v2 monitor ${{test.monitor.new.stdout}} stop
 
