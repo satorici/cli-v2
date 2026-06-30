@@ -94,7 +94,7 @@ class Playbook:
 
     @property
     def variables(self) -> set[str]:
-        if self.type == "FILE":
+        if self.type == "URL":
             return set()
 
         names: set[str] = set()
