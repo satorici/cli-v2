@@ -121,6 +121,9 @@ test:
       list_public:
         - satori-v2 reports --public
 
+      echo_id:
+        - echo ${{test.report.new_sync.stdout}}
+
       # show a report
       single:
         - satori-v2 report ${{test.report.new_sync.stdout}}
