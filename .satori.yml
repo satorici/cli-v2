@@ -256,7 +256,7 @@ test:
   monitor:
     # run a new monitor (a playbook with a rate/cron schedule creates a monitor)
     new:
-      - satori-v2 run .satori/monitor.yml --json | jq -r '.id' | tr -d '\n'
+      - satori-v2 run .satori/monitor.yml --json | jq -r '.id'
 
     # list the monitors
     list:

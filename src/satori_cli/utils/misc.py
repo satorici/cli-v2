@@ -3,6 +3,7 @@ from typing import Optional
 
 from ..api import client
 from .console import stdout
+from .wrappers import JobListWrapper, PagedWrapper
 
 
 def remove_none_values(d: Mapping):
@@ -13,4 +14,4 @@ def list_jobs(page: int, quantity: int, type: Optional[str], visibility: Optiona
     params = {k: v for k, v in locals().items() if v is not None}
 
     res = client.get("/jobs", params=params)
-    stdout.print_json(res.text)
+    stdout.print(PagedWrapper(res.json(), page, quantity, JobListWrapper))

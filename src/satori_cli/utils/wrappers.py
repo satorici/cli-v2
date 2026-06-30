@@ -132,6 +132,39 @@ class JobExecutionsWrapper(Wrapper[list]):
         yield table
 
 
+class JobListWrapper(Wrapper[list]):
+    def __rich_console__(self, console, options):
+        table = Table(expand=True)
+        table.add_column("Id")
+        table.add_column("Playbook source")
+        table.add_column("Schedule")
+        table.add_column("Repository")
+        table.add_column("Status")
+        table.add_column("Visibility")
+        table.add_column("Created at")
+
+        for job in self.obj:
+            job_type = job["type"]
+            schedule = job.get("expression", "N/A") if job_type == "MONITOR" else "N/A"
+            repository = (
+                job["repository_data"]["repository"]
+                if job_type == "SCAN" and job.get("repository_data")
+                else "N/A"
+            )
+
+            table.add_row(
+                str(job["id"]),
+                job["playbook_source"],
+                schedule,
+                repository,
+                job["status"].capitalize().replace("_", " "),
+                job["visibility"].capitalize(),
+                ISODateTime(job["created_at"]),
+            )
+
+        yield table
+
+
 def to_datetime(s: str):
     orig = s if s.endswith(("Z", "+00:00")) else s + "Z"
 

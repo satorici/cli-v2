@@ -15,7 +15,8 @@ monitor_id_arg = click.argument("monitor-id", type=int)
 @click.option("--page", default=1)
 @click.option("--quantity", default=10)
 @click.option("--public", "visibility", flag_value="PUBLIC")
-def list_monitors(page: int, quantity: int, visibility: Optional[str]):
+@opts.json_opt
+def list_monitors(page: int, quantity: int, visibility: Optional[str], **kwargs):
     return list_jobs(page, quantity, "MONITOR", visibility)
 
 

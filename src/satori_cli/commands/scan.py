@@ -14,7 +14,8 @@ from ..utils.misc import list_jobs, remove_none_values
 @click.option("--page", default=1)
 @click.option("--quantity", default=10)
 @click.option("--public", "visibility", flag_value="PUBLIC")
-def list_scans(page: int, quantity: int, visibility: Optional[str]):
+@opts.json_opt
+def list_scans(page: int, quantity: int, visibility: Optional[str], **kwargs):
     return list_jobs(page, quantity, "SCAN", visibility)
 
 
