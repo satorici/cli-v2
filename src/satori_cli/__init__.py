@@ -11,6 +11,7 @@ from .commands.job import job
 from .commands.local import local
 from .commands.monitor import list_monitors, monitor
 from .commands.output import output
+from .commands.playbook import playbook, playbooks
 from .commands.report import report, reports
 from .commands.run import run
 from .commands.scan import list_scans, scan
@@ -49,6 +50,8 @@ cli.add_command(local)
 cli.add_command(run)
 cli.add_command(scan)
 cli.add_command(list_scans)
+cli.add_command(playbooks)
+cli.add_command(playbook)
 cli.add_command(monitor)
 cli.add_command(list_monitors)
 cli.add_command(job)

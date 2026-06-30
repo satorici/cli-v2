@@ -390,3 +390,53 @@ class OutputWrapper(Wrapper[dict]):
         if stderr := result["stderr"]:
             yield Segment(stderr.decode(errors="ignore"))
             yield ""
+
+
+@has_json_output
+class PlaybookCatalogWrapper(Wrapper[dict]):
+    def __rich_console__(self, console, options):
+        yield f"[b]Playbooks[/b] ({self.obj['count']}) — synced {self.obj['synced_at']} @ {self.obj['commit'][:7]}"
+
+        table = Table(expand=True)
+        table.add_column("Id")
+        table.add_column("Name")
+        table.add_column("Category")
+        table.add_column("Image")
+        # table.add_column("Description")
+
+        for playbook in self.obj["playbooks"]:
+            table.add_row(
+                "satori://" + playbook["id"],
+                playbook["name"],
+                playbook["category"],
+                playbook.get("image") or "",
+                # playbook.get("description") or "",
+            )
+
+        yield table
+
+
+@has_json_output
+class PlaybookDetailWrapper(Wrapper[dict]):
+    def __rich_console__(self, console, options):
+        grid = Table.grid("", "", padding=(0, 2))
+        grid.add_row("[b]Id[/b]", self.obj["id"])
+        grid.add_row("[b]Name[/b]", self.obj["name"])
+        grid.add_row("[b]URI[/b]", self.obj["uri"])
+        grid.add_row("[b]Category[/b]", self.obj["category"])
+        grid.add_row("[b]Image[/b]", self.obj.get("image") or "")
+        grid.add_row("[b]Description[/b]", self.obj.get("description") or "")
+
+        if parameters := self.obj.get("parameters"):
+            grid.add_row("[b]Parameters[/b]", ", ".join(parameters))
+
+        if authors := self.obj.get("author"):
+            grid.add_row("[b]Author[/b]", ", ".join(authors))
+
+        if example := self.obj.get("example"):
+            grid.add_row("[b]Example[/b]", example)
+
+        yield grid
+
+        if content := self.obj.get("content"):
+            yield Panel(content, title="Content", border_style="dim")
