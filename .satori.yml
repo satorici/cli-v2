@@ -14,8 +14,8 @@ test:
   assertReturnCode: 0
   assertStderrNotContains: Traceback
   install:
-      - apt update >/dev/null && apt install -qy --no-install-recommends git jq >/dev/null
-      - pip install . --disable-pip-version-check --root-user-action=ignore
+    - apt update >/dev/null && apt install -qy --no-install-recommends git jq >/dev/null
+    - pip install . --disable-pip-version-check --root-user-action=ignore
 
   # the -P or --profile parameters allows you to use different Satori CI API Tokens
   token_saved:
@@ -32,11 +32,11 @@ test:
 
     # test setting width via config command
     set_width:
-    - satori-v2 config width 145
+      - satori-v2 config width 145
 
     # test that width was set correctly
     check_width_set:
-    - satori-v2 config width
+      - satori-v2 config width
 
   import_output:
     check_token:

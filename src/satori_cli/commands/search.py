@@ -24,6 +24,32 @@ def isodatetime(arg: str):
     return datetime.fromisoformat(arg)
 
 
+def search_filter_options(f):
+    f = click.option("--page", default=1)(f)
+    f = click.option("--quantity", default=10)(f)
+    f = click.option(
+        "--job-type", type=click.Choice(["RUN", "SCAN", "MONITOR", "GITHUB", "LOCAL"])
+    )(f)
+    f = click.option("--job-id", type=int)(f)
+    f = click.option("--global", is_flag=True)(f)
+    f = click.option(
+        "--status",
+        type=click.Choice(
+            ["FINISHED", "CANCELED", "RUNNING", "QUEUED"], case_sensitive=False
+        ),
+        multiple=True,
+    )(f)
+    f = opts.visibility_opt(f)
+    f = click.option("--from", type=isodatetime)(f)
+    f = click.option("--to", type=isodatetime)(f)
+    f = click.option("--report-status", type=click.Choice(["PASS", "FAIL"]))(f)
+    f = click.option("--severity", type=click.IntRange(min=0, max=5))(f)
+    f = click.option("--playbook")(f)
+    f = click.option("--q")(f)
+    f = click.option("--tag", "-t", "tags", multiple=True)(f)
+    return f
+
+
 def get_execution_ids(params):
     executions_per_request = 500
     params["page"] = 1
@@ -56,7 +82,7 @@ def get_execution_ids(params):
 
 
 def bulk_download(path: Path, params):
-    if params["status"] and params["status"] != ("FINISHED",):
+    if params.get("status") and params["status"] != ("FINISHED",):
         stderr.print("Only FINISHED executions can be downloaded")
         sys.exit(1)
 
@@ -106,7 +132,7 @@ def bulk_get_reports(path: Path, params):
 
 
 def bulk_stop(params):
-    if params["status"] and params["status"] != ("RUNNING",):
+    if params.get("status") and params["status"] != ("RUNNING",):
         stderr.print("Only RUNNING executions can be stopped")
         sys.exit(1)
 
@@ -123,7 +149,7 @@ def bulk_stop(params):
 
 
 def bulk_delete(params):
-    statuses = params["status"]
+    statuses = params.get("status")
 
     if not statuses:
         params["status"] = ["CANCELED", "FINISHED"]
@@ -147,32 +173,50 @@ def bulk_delete(params):
     stdout.print("Executions deleted")
 
 
+def search_list(**kwargs):
+    params = remove_none_values(kwargs)
+
+    res = client.get("/executions", params=params)
+
+    stdout.print(
+        PagedWrapper(
+            res.json(), params["page"], params["quantity"], ExecutionListWrapper
+        )
+    )
+
+
 @click.command()
-@click.option("--page", default=1)
-@click.option("--quantity", default=10)
-@click.option(
-    "--job-type", type=click.Choice(["RUN", "SCAN", "MONITOR", "GITHUB", "LOCAL"])
-)
-@click.option("--job-id", type=int)
-@click.option("--global", is_flag=True)
+@search_filter_options
+def reports_search(**kwargs):
+    search_list(**kwargs)
+
+
+@click.command()
+@search_filter_options
+@click.option("--path", "-n", type=click.Path(path_type=Path), default=".")
+def reports_download(path: Path, **kwargs):
+    bulk_download(path, remove_none_values(kwargs))
+
+
+@click.command()
+@search_filter_options
+def reports_stop(**kwargs):
+    bulk_stop(remove_none_values(kwargs))
+
+
+@click.command()
+@search_filter_options
+def reports_delete(**kwargs):
+    bulk_delete(remove_none_values(kwargs))
+
+
+@click.command()
+@search_filter_options
 @optgroup.group(cls=MutuallyExclusiveOptionGroup)
 @optgroup.option("--download", type=Path, help="Path to download outputs")
 @optgroup.option("--reports", type=Path, help="Path to download reports")
 @optgroup.option("--stop", is_flag=True)
 @optgroup.option("--delete", is_flag=True)
-@click.option(
-    "--status",
-    type=click.Choice(["FINISHED", "CANCELED", "RUNNING", "QUEUED"]),
-    multiple=True,
-)
-@opts.visibility_opt
-@click.option("--from", type=isodatetime)
-@click.option("--to", type=isodatetime)
-@click.option("--report-status", type=click.Choice(["PASS", "FAIL"]))
-@click.option("--severity", type=click.IntRange(min=0, max=5))
-@click.option("--playbook")
-@click.option("--q")
-@click.option("--tag", "-t", "tags", multiple=True)
 def search(
     download: Optional[Path],
     stop: bool,
@@ -195,10 +239,4 @@ def search(
         bulk_get_reports(reports, params)
         return
 
-    res = client.get("/executions", params=params)
-
-    stdout.print(
-        PagedWrapper(
-            res.json(), params["page"], params["quantity"], ExecutionListWrapper
-        )
-    )
+    search_list(**params)

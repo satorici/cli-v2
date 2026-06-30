@@ -10,29 +10,52 @@ from ..utils.console import (
     stdout,
 )
 from ..utils.wrappers import ExecutionListWrapper, ExecutionWrapper, PagedWrapper
+from .search import reports_delete, reports_download, reports_search, reports_stop
 
 
-@click.command()
-@click.argument("job-id", type=int, required=False)
+class JobIdGroup(click.Group):
+    def parse_args(self, ctx, args):
+        if args and args[0] not in self.commands and args[0].isdigit():
+            ctx.job_id = int(args.pop(0))
+        return super().parse_args(ctx, args)
+
+
+@click.group(cls=JobIdGroup, invoke_without_command=True)
 @click.option("--page", default=1)
 @click.option("--quantity", default=10)
 @click.option(
-    "--status", type=click.Choice(["FINISHED", "CANCELED", "RUNNING", "QUEUED"])
+    "--status",
+    type=click.Choice(
+        ["FINISHED", "CANCELED", "RUNNING", "QUEUED"], case_sensitive=False
+    ),
 )
 @click.option("--public", "visibility", flag_value="PUBLIC")
 @opts.json_opt
+@click.pass_context
 def reports(
-    job_id: Optional[int],
+    ctx,
     page: int,
     quantity: int,
     status: str,
     visibility: str,
     **kwargs,
 ):
-    params = {k: v for k, v in locals().items() if v is not None and k != "kwargs"}
+    if ctx.invoked_subcommand is None:
+        job_id: Optional[int] = getattr(ctx, "job_id", None)
+        params = {
+            k: v
+            for k, v in locals().items()
+            if v is not None and k not in ("kwargs", "ctx")
+        }
 
-    res = client.get("/executions", params=params)
-    stdout.print(PagedWrapper(res.json(), page, quantity, ExecutionListWrapper))
+        res = client.get("/executions", params=params)
+        stdout.print(PagedWrapper(res.json(), page, quantity, ExecutionListWrapper))
+
+
+reports.add_command(reports_search, name="search")
+reports.add_command(reports_download, name="download")
+reports.add_command(reports_stop, name="stop")
+reports.add_command(reports_delete, name="delete")
 
 
 @click.group(invoke_without_command=True)
