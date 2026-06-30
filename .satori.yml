@@ -51,7 +51,7 @@ test:
       - satori-v2 --public
 
   local:
-    setParallel: true
+    setParallel: false
     # execute a Satori CI playbook locally and show the report once its done
     local_report:
       - satori-v2 local ./ --playbook .satori/import/pass.yml --report
@@ -75,7 +75,7 @@ test:
     - echo waiting...
 
   run:
-    setParallel: true
+    setParallel: false
     # execute a Satori CI playbook and show the report once its done with 4 CPUs
     pass_report:
       - satori-v2 run .satori/import/pass.yml --report --cpu 256 --memory 512
@@ -116,7 +116,7 @@ test:
       - satori-v2 reports search --status=running
 
     parallel:
-      setParallel: true
+      setParallel: false
 
       list_public:
         - satori-v2 reports --public
@@ -164,7 +164,7 @@ test:
 
   playbook:
     list:
-      setParallel: true
+      setParallel: false
       private:
         - satori-v2 playbooks
 
@@ -175,7 +175,7 @@ test:
       - satori-v2 playbooks --public
 
     read:
-      setParallel: true
+      setParallel: false
       private_playbook_by_report_id:
         - echo ${{test.report.new_async.stdout}}; satori-v2 playbook ${{test.report.new_async.stdout}}
 
@@ -230,7 +230,7 @@ test:
 
     playbooks:
       parallel:
-        setParallel: true
+        setParallel: false
 
         list:
           - satori-v2 repos playbook list
@@ -339,7 +339,7 @@ test:
       - satori-v2 team test_team create
 
     parallel:
-      setParallel: true
+      setParallel: false
       # list the repos associated to the 'test_team' and their team members
       single:
         - satori-v2 team test_team
@@ -412,7 +412,7 @@ negative_test:
     - "codec can\\'t decode byte"
 
   parallel:
-    setParallel: true
+    setParallel: false
 
     xss:
       assertStdoutNotContains: "XSS_TRIGGERED"
