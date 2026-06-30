@@ -97,6 +97,9 @@ test:
     new_sync:
       - satori-v2 run .satori/import/pass.yml -s 2>&1 | grep 'Job ' | grep -Eo '[0-9]+' | tr -d '\n'
 
+    execution_id:
+      - satori-v2 execution list --job-id ${{test.report.new_sync.stdout}}  --quantity 1 | jq -r '.items[0].id'
+
     # TODO: fix this test
     # dont_save:
     #   - satori-v2 run .satori/import/pass.yml --delete-report --delete-output --report --output 2>&1 | grep 'Job ' | grep -Eo '[0-9]+' | tr -d '\n'
@@ -122,36 +125,36 @@ test:
         - satori-v2 reports --public
 
       echo_id:
-        - echo ${{test.report.new_sync.stdout}}
+        - echo ${{test.report.execution_id.stdout}}
 
       # show a report
       single:
-        - satori-v2 report ${{test.report.new_sync.stdout}}
+        - satori-v2 report ${{test.report.execution_id.stdout}}
 
       # show a json report
       json:
-        - satori-v2 report ${{test.report.new_sync.stdout}} --json
+        - satori-v2 report ${{test.report.execution_id.stdout}} --json
 
       # make a report public
       public:
-        - satori-v2 report ${{test.report.new_sync.stdout}} visibility public
+        - satori-v2 report ${{test.report.execution_id.stdout}} visibility public
 
       # show the output associated to a report
       output:
-        - satori-v2 report ${{test.report.new_sync.stdout}} output
+        - satori-v2 report ${{test.report.execution_id.stdout}} output
 
       # download the files associated to a report
       files:
-        - satori-v2 report ${{test.report.new_sync.stdout}} files
+        - satori-v2 report ${{test.report.execution_id.stdout}} files
 
       filter_test:
-        - satori-v2 report ${{test.report.new_sync.stdout}} output --test tests.positive.echo
+        - satori-v2 report ${{test.report.execution_id.stdout}} output --test tests.positive.echo
 
       filter_test2:
-        - satori-v2 report ${{test.report.new_sync.stdout}} output --test tests.positive.echo.stdout
+        - satori-v2 report ${{test.report.execution_id.stdout}} output --test tests.positive.echo.stdout
 
       filter_format:
-        - satori-v2 report ${{test.report.new_sync.stdout}} output --test tests.positive.echo.stdout --format md
+        - satori-v2 report ${{test.report.execution_id.stdout}} output --test tests.positive.echo.stdout --format md
 
     # delete the files, the output and the report
     delete:
