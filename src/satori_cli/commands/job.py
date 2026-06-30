@@ -1,10 +1,23 @@
+from typing import Optional
+
 import rich_click as click
 
 from ..api import client
+from ..utils import options as opts
 from ..utils.console import stdout
+from ..utils.misc import list_jobs
 from ..utils.wrappers import ExecutionListWrapper, JobWrapper
 
 job_id_arg = click.argument("job-id", type=int)
+
+
+@click.command("jobs")
+@click.option("--page", default=1)
+@click.option("--quantity", default=10)
+@click.option("--public", "visibility", flag_value="PUBLIC")
+@opts.json_opt
+def jobs(page: int, quantity: int, visibility: Optional[str], **kwargs):
+    return list_jobs(page, quantity, None, visibility)
 
 
 @click.command()

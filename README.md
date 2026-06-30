@@ -44,8 +44,12 @@ It will display your current configuration, token included.
 
 ## Commands
 
+Running `satori` with no subcommand lists your jobs (dashboard). Use `--public` to list public jobs.
+
 | Command | Description |
 | --- | --- |
+| *(default)* | List jobs (dashboard); supports `--page`, `--quantity`, `--public`, `--json` |
+| `jobs` | List jobs (paginated); alias of the default action |
 | `config [key] [value]` | View or set config values for a profile |
 | `local` | Run a playbook locally against the Satori API |
 | `run` | Submit and run a playbook job remotely |
