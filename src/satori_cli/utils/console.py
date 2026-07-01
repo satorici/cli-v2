@@ -1,7 +1,6 @@
 import io
 import time
 from concurrent.futures import ThreadPoolExecutor
-from itertools import groupby
 from pathlib import Path
 from tempfile import SpooledTemporaryFile
 from typing import Literal
@@ -13,6 +12,7 @@ from rich.console import Console
 
 from ..api import client
 from ..exceptions import SatoriError
+from ..utils.output_filter import run_test_filter
 from ..utils.wrappers import ExecutionWrapper, OutputWrapper
 
 stdout = Console()
@@ -46,16 +46,33 @@ def wait_job_until_finished(job_id: int):
             time.sleep(1)
 
 
-def format_raw_results(file, console=None):
-    loaded = msgpack.Unpacker(file)
-    filtered = (line for line in loaded if line)
-    grouped = groupby(filtered, lambda o: o["path"])
+def _print_output_entry(output: dict, console: Console, current_path: str) -> str:
+    if result := output.get("filtered_result"):
+        value = output["output"].get(result)
+        if value is not None:
+            if isinstance(value, bytes):
+                value = value.decode(errors="ignore")
+            console.print(value, highlight=False, markup=False, soft_wrap=True)
+        return current_path
 
-    for path, outputs in grouped:
-        (console or stdout).rule(path)
+    if current_path != output["path"]:
+        console.rule(output["path"])
+        current_path = output["path"]
 
-        for output in outputs:
-            (console or stdout).print(OutputWrapper(output))
+    console.print(OutputWrapper(output))
+    return current_path
+
+
+def format_raw_results(file, console=None, filter_tests: list[str] | None = None):
+    console = console or stdout
+    outputs = [line for line in msgpack.Unpacker(file) if line]
+
+    if filter_tests:
+        outputs = run_test_filter(filter_tests, outputs)
+
+    current_path = ""
+    for output in outputs:
+        current_path = _print_output_entry(output, console, current_path)
 
 
 def show_raw_output(execution_id: int, stream: Literal["stdout", "stderr"]):
@@ -68,7 +85,9 @@ def show_raw_output(execution_id: int, stream: Literal["stdout", "stderr"]):
             stdout.print(output["output"][stream].decode(errors="ignore"))
 
 
-def show_execution_output(execution_id: int, console=None):
+def show_execution_output(
+    execution_id: int, console=None, filter_tests: list[str] | None = None
+):
     class HttpxStreamFile(io.RawIOBase):
         def __init__(self, response: httpx.Response):
             self._iter = response.iter_bytes()
@@ -88,7 +107,7 @@ def show_execution_output(execution_id: int, console=None):
     with client.stream(
         "GET", f"/executions/{execution_id}/output", follow_redirects=True, timeout=None
     ) as stream:
-        format_raw_results(HttpxStreamFile(stream), console)
+        format_raw_results(HttpxStreamFile(stream), console, filter_tests)
 
 
 def show_execution(execution_id: int):

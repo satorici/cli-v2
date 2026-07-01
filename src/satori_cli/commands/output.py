@@ -11,7 +11,8 @@ execution_id_arg = click.argument("execution-id", type=int)
 @click.command()
 @execution_id_arg
 @click.option("--raw", help="Pipe encoded results to stdout", is_flag=True)
-def output(execution_id: int, raw: bool):
+@click.option("--test", "filter_tests", multiple=True)
+def output(execution_id: int, raw: bool, filter_tests: tuple[str, ...]):
     if raw:
         with client.stream(
             "GET",
@@ -24,4 +25,6 @@ def output(execution_id: int, raw: bool):
 
         return
 
-    show_execution_output(execution_id)
+    show_execution_output(
+        execution_id, filter_tests=list(filter_tests) or None
+    )

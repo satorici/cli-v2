@@ -71,9 +71,12 @@ def report(ctx, execution_id: int, **kwargs):
 
 # Aliases for report command
 @report.command(name="output")
+@click.option("--test", "filter_tests", multiple=True)
 @click.pass_obj
-def report_output(execution_id: int):
-    show_execution_output(execution_id)
+def report_output(execution_id: int, filter_tests: tuple[str, ...]):
+    show_execution_output(
+        execution_id, filter_tests=list(filter_tests) or None
+    )
 
 
 @report.command(name="files")

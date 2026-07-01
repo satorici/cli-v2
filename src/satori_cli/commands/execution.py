@@ -50,8 +50,11 @@ def stop(execution_id: int):
 
 @execution.command()
 @execution_id_arg
-def output(execution_id: int):
-    show_execution_output(execution_id)
+@click.option("--test", "filter_tests", multiple=True)
+def output(execution_id: int, filter_tests: tuple[str, ...]):
+    show_execution_output(
+        execution_id, filter_tests=list(filter_tests) or None
+    )
 
 
 @execution.command()
