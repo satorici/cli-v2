@@ -72,8 +72,10 @@ def report(ctx, execution_id: int, **kwargs):
 # Aliases for report command
 @report.command(name="output")
 @click.option("--test", "filter_tests", multiple=True)
+@opts.format_opt
+@opts.json_opt
 @click.pass_obj
-def report_output(execution_id: int, filter_tests: tuple[str, ...]):
+def report_output(execution_id: int, filter_tests: tuple[str, ...], **kwargs):
     show_execution_output(
         execution_id, filter_tests=list(filter_tests) or None
     )

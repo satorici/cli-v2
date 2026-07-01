@@ -99,7 +99,7 @@ test:
       - satori-v2 run .satori/import/pass.yml -s 2>&1 | grep 'Job ' | grep -Eo '[0-9]+' | tr -d '\n'
 
     execution_id:
-      - satori-v2 execution list --job-id ${{test.report.new_sync.stdout}}  --quantity 1 | jq -r '.items[0].id'
+      - satori-v2 execution list --job-id ${{test.report.new_sync.stdout}} --quantity 1 | jq -r '.items[0].id'
 
     # TODO: fix this test
     # dont_save:

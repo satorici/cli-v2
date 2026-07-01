@@ -2,7 +2,7 @@ import json
 
 import rich_click as click
 
-from ..config import config
+from ..utils.format import is_json_output
 from ..exceptions import SatoriError
 from ..playbooks_api import client as playbooks_client
 from ..utils import options as opts
@@ -15,7 +15,7 @@ from ..utils.wrappers import PlaybookCatalogWrapper, PlaybookDetailWrapper
 def playbooks(**kwargs):
     res = playbooks_client.get("/playbooks")
     data = res.json()
-    if config.get("json"):
+    if is_json_output():
         stdout.out(json.dumps(data["playbooks"], indent=2))
     else:
         stdout.print(PlaybookCatalogWrapper(data))

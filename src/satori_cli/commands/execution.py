@@ -3,6 +3,7 @@ from typing import Optional
 import rich_click as click
 
 from ..api import client
+from ..utils import options as opts
 from ..utils.console import (
     download_execution_files,
     show_execution,
@@ -51,7 +52,8 @@ def stop(execution_id: int):
 @execution.command()
 @execution_id_arg
 @click.option("--test", "filter_tests", multiple=True)
-def output(execution_id: int, filter_tests: tuple[str, ...]):
+@opts.format_opt
+def output(execution_id: int, filter_tests: tuple[str, ...], **kwargs):
     show_execution_output(
         execution_id, filter_tests=list(filter_tests) or None
     )

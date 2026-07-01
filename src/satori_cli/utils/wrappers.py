@@ -16,7 +16,7 @@ if sys.version_info < (3, 11):
 else:
     from typing import TypedDict
 
-from ..config import config
+from ..utils.format import is_json_output
 
 T = TypeVar("T")
 
@@ -38,7 +38,7 @@ def has_json_output(cls: type[W]):
     orig = cls.__rich_console__
 
     def __rich_console__(self: W, console: Console, options: ConsoleOptions):
-        if config.get("json"):
+        if is_json_output():
             console.out(json.dumps(self.obj, indent=2))
         else:
             yield from orig(self, console, options)

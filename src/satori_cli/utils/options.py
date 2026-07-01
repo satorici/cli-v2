@@ -30,7 +30,15 @@ def _env_callback(ctx, name, envs):
 
 def _json_callback(ctx, name, json_):
     config["json"] = json_
+    if json_:
+        config["format"] = "json"
     return json_
+
+
+def _format_callback(ctx, name, value):
+    if value:
+        config["format"] = value
+    return value
 
 
 def _playbook_callback(ctx, name, value):
@@ -53,6 +61,20 @@ image_opt = click.option("--image")
 json_opt = click.option(
     "--json", "json_", is_flag=True, default=False, callback=_json_callback
 )
+format_opt = click.option(
+    "--format",
+    type=click.Choice(["json", "md"], case_sensitive=False),
+    default=None,
+    callback=_format_callback,
+)
+
+
+def output_format_opts(fn):
+    fn = format_opt(fn)
+    fn = json_opt(fn)
+    return fn
+
+
 playbook_opt = click.option("--playbook", callback=_playbook_callback)
 visibility_opt = click.option(
     "--visibility", type=click.Choice(["PUBLIC", "PRIVATE", "UNLISTED"])

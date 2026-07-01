@@ -9,9 +9,11 @@ import httpx
 import msgpack
 from rich import progress
 from rich.console import Console
+from rich.markdown import Markdown
 
 from ..api import client
 from ..exceptions import SatoriError
+from ..utils.format import OutputFormat, get_output_format
 from ..utils.output_filter import run_test_filter
 from ..utils.wrappers import ExecutionWrapper, OutputWrapper
 
@@ -46,13 +48,49 @@ def wait_job_until_finished(job_id: int):
             time.sleep(1)
 
 
-def _print_output_entry(output: dict, console: Console, current_path: str) -> str:
+def _decode_value(value):
+    if isinstance(value, bytes):
+        return value.decode(errors="ignore")
+    if isinstance(value, dict):
+        return {k: _decode_value(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_decode_value(v) for v in value]
+    return value
+
+
+def _get_stream_text(output: dict, stream: str) -> str | None:
+    value = output.get(stream)
+    if value is None:
+        return None
+    if isinstance(value, bytes):
+        return value.decode(errors="ignore")
+    return value
+
+
+def _print_output_entry(
+    output: dict,
+    console: Console,
+    current_path: str,
+    output_format: OutputFormat,
+) -> str:
     if result := output.get("filtered_result"):
-        value = output["output"].get(result)
+        value = _get_stream_text(output["output"], result)
         if value is not None:
-            if isinstance(value, bytes):
-                value = value.decode(errors="ignore")
-            console.print(value, highlight=False, markup=False, soft_wrap=True)
+            if output_format == "md":
+                console.print(Markdown(value))
+            else:
+                console.print(value, highlight=False, markup=False, soft_wrap=True)
+        return current_path
+
+    if output_format == "md":
+        if current_path != output["path"]:
+            console.print(f"## {output['path']}")
+            current_path = output["path"]
+
+        if text := _get_stream_text(output["output"], "stdout"):
+            console.print(Markdown(text))
+        if text := _get_stream_text(output["output"], "stderr"):
+            console.print(Markdown(text))
         return current_path
 
     if current_path != output["path"]:
@@ -63,16 +101,26 @@ def _print_output_entry(output: dict, console: Console, current_path: str) -> st
     return current_path
 
 
-def format_raw_results(file, console=None, filter_tests: list[str] | None = None):
+def format_raw_results(
+    file,
+    console=None,
+    filter_tests: list[str] | None = None,
+    output_format: OutputFormat | None = None,
+):
     console = console or stdout
+    output_format = output_format or get_output_format()
     outputs = [line for line in msgpack.Unpacker(file) if line]
 
     if filter_tests:
         outputs = run_test_filter(filter_tests, outputs)
 
+    if output_format == "json":
+        console.print_json(data=[_decode_value(output) for output in outputs])
+        return
+
     current_path = ""
     for output in outputs:
-        current_path = _print_output_entry(output, console, current_path)
+        current_path = _print_output_entry(output, console, current_path, output_format)
 
 
 def show_raw_output(execution_id: int, stream: Literal["stdout", "stderr"]):
