@@ -91,6 +91,7 @@ def report_files(execution_id: int):
 @click.pass_obj
 def report_delete(execution_id: int):
     client.delete(f"/executions/{execution_id}")
+    stdout.print(f"Report {execution_id} deleted")
 
 
 @report.command(name="visibility")
