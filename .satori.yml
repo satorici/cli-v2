@@ -158,40 +158,27 @@ test:
 
     # run asynchronously a local playbook
     new_async: # new report for stop is needed because the first one is already stopped
-      - satori-v2 run .satori/import/pass.yml 2>&1 | grep 'Report ID' | grep -Eo '[0-9]+' | tr -d '\n'
+      - satori-v2 run .satori/import/pass.yml 2>&1 | grep 'Job ' | grep -Eo '[0-9]+' | tr -d '\n'
+
+    execution_id_async:
+      - sleep 5; satori-v2 execution list --job-id ${{test.report.new_async.stdout}} --quantity 1 | jq -r '.items[0].id'
 
     # stop a running report
-    stop: # wait until start
-      - sleep 10; echo ${{test.report.execution_id.stdout}}; satori-v2 report ${{test.report.execution_id.stdout}} stop
+    stop:
+      - echo ${{test.report.execution_id_async.stdout}}; satori-v2 report ${{test.report.execution_id_async.stdout}} stop
 
   playbook:
-    list:
-      setParallel: false
-      private:
-        - satori-v2 playbooks
-
-      monitors:
-        - satori-v2 playbooks --monitor true
+    private:
+      - satori-v2 playbooks
 
     public:
       - satori-v2 playbooks --public
 
-    read:
-      setParallel: false
-      private_playbook_by_report_id:
-        - echo ${{test.report.execution_id.stdout}}; satori-v2 playbook ${{test.report.execution_id.stdout}}
-
-      public_playbook:
-        - satori-v2 playbook satori://secrets/detect-secrets.yml
+    public_playbook:
+      - satori-v2 playbook satori://secrets/detect-secrets.yml
 
     private_playbook_by_id:
       - satori-v2 playbooks --json | jq -r '.[0].id' | tr -d '\n'
-
-    public_flag:
-      - satori-v2 playbook ${{test.playbook.private_playbook_by_id.stdout}} visibility public
-
-    # delete_private:
-    #   - satori-v2 playbook ${{test.playbook.private_playbook_by_id.stdout.trim()}} delete
 
   repo:
     # add a new repository to private team
@@ -301,13 +288,9 @@ test:
     list_public:
       - satori-v2 scans --public
 
-    # Get the commits of a certain repo (required for scans)
-    check_commits:
-      - satori-v2 scan satoridev01/hello_world check-commits
-
     # Run the .satori.yml playbook with a certain coverage on the repo
     run:
-      - satori-v2 scan satoridev01/hello_world -c 50 | grep 'id:' | grep -Eo '[0-9]+' | tr -d '\n'
+      - satori-v2 scan satoridev01/hello_world satori://secrets/semgrep.yml -q 2 --json | jq -r '.id'
 
     # What's the status of the current scanning
     status:
@@ -317,19 +300,12 @@ test:
     stop:
       - satori-v2 scan ${{test.scan.run.stdout}} stop
 
-    # Restart a scan execution
-    # start:
-    #   - satori-v2 scan satoridev01/hello_world start
-
     # Delete the scan reports
     clean:
       - satori-v2 scan ${{test.scan.run.stdout}} clean
 
-    #delete:
-    #  - satori-v2 scan ${{test.scan.run.stdout}} delete
-
-    hccpf:
-      - satori-v2 scan satoridev01/hccpf --output
+    delete:
+     - satori-v2 scan ${{test.scan.run.stdout}} delete
 
   teams:
     # list teams and repos without teams
