@@ -2,7 +2,7 @@ settings:
   name: "Satori CLI V2 Tests"
   log: slack
   image: public.ecr.aws/docker/library/python:3.10-slim-bullseye
-  timeout: 3000
+  timeout: 1200
   redacted:
     - TOKEN
   example: satori-v2 run ./ -d TOKEN=$SATORI_TOKEN --output --report
@@ -13,7 +13,6 @@ import:
 test:
   assertReturnCode: 0
   assertStderrNotContains: Traceback
-  setCommandTimeout: 90
   install:
     - apt update >/dev/null && apt install -qy --no-install-recommends git jq >/dev/null
     - pip install . --disable-pip-version-check --root-user-action=ignore
@@ -101,9 +100,8 @@ test:
     execution_id:
       - satori-v2 execution list --job-id ${{test.report.new_sync.stdout}} --quantity 1 | jq -r '.items[0].id'
 
-    # TODO: fix this test
-    # dont_save:
-    #   - satori-v2 run .satori/import/pass.yml --delete-report --delete-output --report --output 2>&1 | grep 'Job ' | grep -Eo '[0-9]+' | tr -d '\n'
+    dont_save:
+      - satori-v2 run .satori/import/pass.yml --delete-report --delete-output --report --output 2>&1 | grep 'Job ' | grep -Eo '[0-9]+' | tr -d '\n'
 
     # list the reports generated
     list:
