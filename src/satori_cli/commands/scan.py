@@ -8,6 +8,7 @@ from ..utils import options as opts
 from ..utils.arguments import Source, source_arg
 from ..utils.console import stdout, wait_job_until_finished
 from ..utils.misc import list_jobs, remove_none_values
+from ..utils.wrappers import JobWrapper
 
 
 @click.command("scans")
@@ -30,6 +31,7 @@ def list_scans(page: int, quantity: int, visibility: Optional[str], **kwargs):
 @opts.memory_opt
 @opts.cpu_opt
 @opts.image_opt
+@opts.json_opt
 def scan(
     repository: str,
     source: Source,
@@ -41,6 +43,7 @@ def scan(
     cpu: Optional[int],
     memory: Optional[int],
     image: Optional[str],
+    **kwargs,
 ):
     if source.type == "DIR":
         raise SatoriError("Directory sources are not compatible with scan")
@@ -68,9 +71,9 @@ def scan(
     }
 
     res = client.post("/jobs/scans", json=body)
+    scan_job = res.json()
 
-    stdout.print_json(res.text)
+    stdout.print(JobWrapper(scan_job))
 
     if sync:
-        scan_id = res.json()["id"]
-        wait_job_until_finished(scan_id)
+        wait_job_until_finished(scan_job["id"])
