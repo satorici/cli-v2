@@ -17,6 +17,7 @@ from .commands.report import report, reports
 from .commands.run import run
 from .commands.scan import list_scans, scan
 from .commands.search import search
+from .commands.shards import shards
 from .commands.shell import shell
 from .commands.stop import stop
 from .commands.update import update
@@ -76,6 +77,7 @@ cli.add_command(reports)
 cli.add_command(report)
 cli.add_command(stop)
 cli.add_command(search)
+cli.add_command(shards)
 cli.add_command(update)
 cli.add_command(output)
 cli.add_command(shell)
