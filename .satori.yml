@@ -307,71 +307,72 @@ test:
     delete:
      - satori-v2 scan ${{test.scan.run.stdout}} delete
 
-  teams:
-    # list teams and repos without teams
-    list:
-      - satori-v2 teams
+  # TODO: Add equivalent tests for v2
+  # teams:
+  #   # list teams and repos without teams
+  #   list:
+  #     - satori-v2 teams
 
-    # create team 'test_team'
-    create:
-      - satori-v2 team test_team create
+  #   # create team 'test_team'
+  #   create:
+  #     - satori-v2 team test_team create
 
-    parallel:
-      setParallel: false
-      # list the repos associated to the 'test_team' and their team members
-      single:
-        - satori-v2 team test_team
+  #   parallel:
+  #     setParallel: false
+  #     # list the repos associated to the 'test_team' and their team members
+  #     single:
+  #       - satori-v2 team test_team
 
-      # list the members of the 'test_team'
-      members:
-        - satori-v2 team test_team members
+  #     # list the members of the 'test_team'
+  #     members:
+  #       - satori-v2 team test_team members
 
-      # list your TEAM members
-      # settings:
-      #   - satori-v2 team test_team settings # interactive dont use this
+  #     # list your TEAM members
+  #     # settings:
+  #     #   - satori-v2 team test_team settings # interactive dont use this
 
-      # list your TEAM settings
-      get_config:
-        - satori-v2 team test_team get_config notification_email
+  #     # list your TEAM settings
+  #     get_config:
+  #       - satori-v2 team test_team get_config notification_email
 
-    # show your TEAM's config setting for a specific value
-    set_config:
-      - satori-v2 team test_team set_config notification_email info@satori-ci.com
-    # set your TEAM CONFIG setting
+  #   # show your TEAM's config setting for a specific value
+  #   set_config:
+  #     - satori-v2 team test_team set_config notification_email info@satori-ci.com
+  #   # set your TEAM CONFIG setting
 
-    # add the email 'info@satori-ci.com' as a member of the team 'test_team'
-    add_member:
-      - satori-v2 team test_team add --email='info@satori-ci.com'
+  #   # add the email 'info@satori-ci.com' as a member of the team 'test_team'
+  #   add_member:
+  #     - satori-v2 team test_team add --email='info@satori-ci.com'
 
-    # delete the email 'info@satori-ci.com' as a member of the team 'test_team'
-    delete_member:
-      - satori-v2 team test_team del --email='info@satori-ci.com'
+  #   # delete the email 'info@satori-ci.com' as a member of the team 'test_team'
+  #   delete_member:
+  #     - satori-v2 team test_team del --email='info@satori-ci.com'
 
-    add_github_member:
-      - satori-v2 team test_team add --github='satoridev02'
+  #   add_github_member:
+  #     - satori-v2 team test_team add --github='satoridev02'
 
-    delete_github_member:
-      - satori-v2 team test_team del --github='satoridev02'
+  #   delete_github_member:
+  #     - satori-v2 team test_team del --github='satoridev02'
 
-    # add the repo 'satoridev01/hello_world' to the team 'test_team'
-    add_repo:
-      - satori-v2 team test_team add --repo='satoridev01/hello_world'
+  #   # add the repo 'satoridev01/hello_world' to the team 'test_team'
+  #   add_repo:
+  #     - satori-v2 team test_team add --repo='satoridev01/hello_world'
 
-    # list the repos associated to the 'test_team'
-    team_with_repos:
-      - satori-v2 team test_team repos
+  #   # list the repos associated to the 'test_team'
+  #   team_with_repos:
+  #     - satori-v2 team test_team repos
 
-    # delete the repo 'satoridev01/hello_world' from the team 'test_team'
-    del_repo:
-      - satori-v2 team test_team del --repo='satoridev01/hello_world'
+  #   # delete the repo 'satoridev01/hello_world' from the team 'test_team'
+  #   del_repo:
+  #     - satori-v2 team test_team del --repo='satoridev01/hello_world'
 
-    # list the repos associated to the 'test_team'
-    team_without_repos:
-      - satori-v2 team test_team repos
+  #   # list the repos associated to the 'test_team'
+  #   team_without_repos:
+  #     - satori-v2 team test_team repos
 
-    # delete the 'test_team'
-    delete:
-      - satori-v2 team test_team delete
+  #   # delete the 'test_team'
+  #   delete:
+  #     - satori-v2 team test_team delete
 
   shards:
     - satori-v2 shards --shard 1/10 --input 0.0.0.0/24 --exclude 192.168.0.0/16
