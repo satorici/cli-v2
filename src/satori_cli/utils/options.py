@@ -77,5 +77,6 @@ def output_format_opts(fn):
 
 playbook_opt = click.option("--playbook", callback=_playbook_callback)
 visibility_opt = click.option(
-    "--visibility", type=click.Choice(["PUBLIC", "PRIVATE", "UNLISTED"])
+    "--visibility",
+    type=click.Choice(["PUBLIC", "PRIVATE", "UNLISTED"], case_sensitive=False),
 )
