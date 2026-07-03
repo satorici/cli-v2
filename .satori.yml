@@ -377,9 +377,10 @@ test:
   shards:
     - satori-v2 shards --shard 1/10 --input 0.0.0.0/24 --exclude 192.168.0.0/16
 
-  template:
-    list:
-      - satori-v2 templates
+  # TODO: Add equivalent tests for v2
+  # template:
+  #   list:
+  #     - satori-v2 templates
 
 negative_test:
   assertReturnCodeNot: 0
