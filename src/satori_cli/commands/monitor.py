@@ -54,8 +54,15 @@ def monitor_pause(monitor_id: int):
     stdout.print("Monitor paused")
 
 
-# `stop` is an alias of `pause`
-monitor.add_command(monitor_pause, name="stop")
+@monitor.command(name="cancel")
+@click.pass_obj
+def monitor_cancel(monitor_id: int):
+    client.patch(f"/jobs/monitors/{monitor_id}", json={"status": "CANCELED"})
+    stdout.print("Monitor canceled")
+
+
+# `stop` is an alias of `cancel`
+monitor.add_command(monitor_cancel, name="stop")
 
 
 @monitor.command(name="clean")

@@ -267,7 +267,7 @@ test:
     pause:
       - satori-v2 monitor ${{test.monitor.new.stdout}} pause
 
-    # stop a monitor (alias of pause)
+    # stop a monitor (alias of cancel)
     stop:
       - satori-v2 monitor ${{test.monitor.new.stdout}} stop
 
