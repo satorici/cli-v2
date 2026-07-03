@@ -165,7 +165,7 @@ test:
 
     # stop a running report
     stop:
-      - echo ${{test.report.execution_id_async.stdout}}; satori-v2 report ${{test.report.execution_id_async.stdout}} stop
+      - satori-v2 report ${{test.report.execution_id_async.stdout}} stop
 
   playbook:
     private:
