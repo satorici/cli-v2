@@ -5,10 +5,9 @@ import rich_click as click
 from ..api import client
 from ..utils import options as opts
 from ..utils.console import stdout
+from ..utils.groups import IdGroup
 from ..utils.misc import list_jobs
 from ..utils.wrappers import JobWrapper
-
-monitor_id_arg = click.argument("monitor-id", type=int)
 
 
 @click.command("monitors")
@@ -20,15 +19,14 @@ def list_monitors(page: int, quantity: int, visibility: Optional[str], **kwargs)
     return list_jobs(page, quantity, "MONITOR", visibility)
 
 
-@click.group(invoke_without_command=True)
-@monitor_id_arg
+@click.group(cls=IdGroup, invoke_without_command=True)
 @opts.json_opt
 @click.pass_context
-def monitor(ctx, monitor_id: int, **kwargs):
-    ctx.obj = monitor_id
-
+def monitor(ctx, **kwargs):
     if ctx.invoked_subcommand is None:
-        res = client.get(f"/jobs/{monitor_id}")
+        if ctx.obj is None:
+            raise click.UsageError("Missing argument 'MONITOR-ID'.")
+        res = client.get(f"/jobs/{ctx.obj}")
         stdout.print(JobWrapper(res.json()))
 
 

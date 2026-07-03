@@ -9,15 +9,14 @@ from ..utils.console import (
     show_execution_output,
     stdout,
 )
+from ..utils.groups import IdGroup
 from ..utils.wrappers import ExecutionListWrapper, ExecutionWrapper, PagedWrapper
 from .search import reports_delete, reports_download, reports_search, reports_stop
 
 
-class JobIdGroup(click.Group):
-    def parse_args(self, ctx, args):
-        if args and args[0] not in self.commands and args[0].isdigit():
-            ctx.job_id = int(args.pop(0))
-        return super().parse_args(ctx, args)
+class JobIdGroup(IdGroup):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, id_attr="job_id", **kwargs)
 
 
 @click.group(cls=JobIdGroup, invoke_without_command=True)
@@ -58,14 +57,14 @@ reports.add_command(reports_stop, name="stop")
 reports.add_command(reports_delete, name="delete")
 
 
-@click.group(invoke_without_command=True)
-@click.argument("execution-id", type=int)
+@click.group(cls=IdGroup, invoke_without_command=True)
 @opts.json_opt
 @click.pass_context
-def report(ctx, execution_id: int, **kwargs):
-    ctx.obj = execution_id
+def report(ctx, **kwargs):
     if ctx.invoked_subcommand is None:
-        res = client.get(f"/executions/{execution_id}")
+        if ctx.obj is None:
+            raise click.UsageError("Missing argument 'EXECUTION-ID'.")
+        res = client.get(f"/executions/{ctx.obj}")
         stdout.print(ExecutionWrapper(res.json()))
 
 
