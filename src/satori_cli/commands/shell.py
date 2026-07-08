@@ -15,6 +15,8 @@ from rich.progress import Progress
 
 from ..api import client
 from ..utils import options as opts
+from ..utils.console import stdout
+from ..utils.groups import IdGroup
 from ..utils.misc import remove_none_values
 
 
@@ -90,13 +92,20 @@ def interactive_shell(host: str, token: str):
         ssh_client.close()
 
 
-@click.command()
-@click.argument("execution-id", type=int, required=False)
+@click.group(cls=IdGroup, invoke_without_command=True)
 @opts.cpu_opt
 @opts.memory_opt
 @opts.image_opt
 @opts.region_filter_opt
-def shell(execution_id: int | None, cpu, memory, image, region_filter):
+@click.pass_context
+def shell(ctx, cpu, memory, image, region_filter):
+    if ctx.invoked_subcommand is not None:
+        return
+
+    # `IdGroup` captures a bare numeric argument (the execution id) into
+    # `ctx.obj` before this group's own option parsing runs.
+    execution_id = ctx.obj
+
     if execution_id is not None:
         data = client.get(f"/executions/{execution_id}/ssh").json()
 
@@ -127,3 +136,14 @@ def shell(execution_id: int | None, cpu, memory, image, region_filter):
                     time.sleep(2)
 
         interactive_shell(session_data["host"], session_data["token"])
+
+
+@shell.command(name="sessions")
+@click.option("--page", default=1)
+@click.option("--quantity", default=10)
+@opts.json_opt
+def sessions(page: int, quantity: int, **kwargs):
+    params = {"page": page, "quantity": quantity}
+
+    res = client.get("/ssh_sessions", params=params)
+    stdout.print_json(res.text)

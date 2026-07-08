@@ -287,6 +287,11 @@ test:
     delete:
       - satori-v2 monitor ${{test.monitor.new.stdout}} delete
 
+  shell:
+    # list live SSH shell sessions
+    sessions:
+      - satori-v2 shell sessions --json | jq .
+
   scan:
     # list the scans
     list:

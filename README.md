@@ -67,7 +67,7 @@ Running `satori-v2` with no subcommand lists your jobs (dashboard). Use `--publi
 | `search` | Search executions; supports bulk download/stop/delete |
 | `update` | Reinstall the CLI from GitHub via pip |
 | `output` | Show or stream raw output for an execution |
-| `shell` | Open an interactive SSH shell for an execution or new session |
+| `shell` | Group for interactive SSH shells (see subcommands below); with no subcommand, opens a shell for an execution or new session |
 
 ### `execution` subcommands
 
@@ -86,3 +86,9 @@ Running `satori-v2` with no subcommand lists your jobs (dashboard). Use `--publi
 | --- | --- |
 | `stop run <run-id>` | Stop a specific run |
 | `stop all` | Stop all queued and running runs |
+
+### `shell` subcommands
+
+| Subcommand | Description |
+| --- | --- |
+| `shell sessions` | List SSH shell sessions (paginated); supports `--page`, `--quantity`, `--json` |
