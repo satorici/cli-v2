@@ -2,7 +2,7 @@ import os
 import re
 import tarfile
 import time
-from hashlib import sha1
+from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
 from tempfile import SpooledTemporaryFile
@@ -50,7 +50,7 @@ class BundleCache:
     VALID_TIME = 24 * 60 * 60
 
     @classmethod
-    def get_bundle_id(cls, bundle_sha1: str):
+    def get_bundle_id(cls, bundle_sha256: str):
         cls.CACHE_DIR.mkdir(exist_ok=True)
 
         cutoff_time = time.time() - cls.VALID_TIME
@@ -60,15 +60,15 @@ class BundleCache:
                 file_path.unlink()
 
         try:
-            return (cls.CACHE_DIR / bundle_sha1).read_text()
+            return (cls.CACHE_DIR / bundle_sha256).read_text()
         except FileNotFoundError:
             return
 
     @classmethod
-    def set_bundle_id(cls, bundle_sha1: str, bundle_id: str):
+    def set_bundle_id(cls, bundle_sha256: str, bundle_id: str):
         cls.CACHE_DIR.mkdir(exist_ok=True)
 
-        with (cls.CACHE_DIR / bundle_sha1).open("w") as f:
+        with (cls.CACHE_DIR / bundle_sha256).open("w") as f:
             f.write(bundle_id)
 
 
@@ -157,12 +157,12 @@ class Playbook:
             return self._arg
 
         bundle = make_bundle(self._arg)
-        bundle_sha1 = sha1(bundle).hexdigest()
+        bundle_sha256 = sha256(bundle).hexdigest()
 
-        if not (bundle_id := BundleCache.get_bundle_id(bundle_sha1)):
+        if not (bundle_id := BundleCache.get_bundle_id(bundle_sha256)):
             res = client.post("/bundles", files={"bundle": bundle})
             bundle_id = res.text
-            BundleCache.set_bundle_id(bundle_sha1, bundle_id)
+            BundleCache.set_bundle_id(bundle_sha256, bundle_id)
 
         return f"bundle://{bundle_id}"
 
@@ -253,12 +253,12 @@ class Source:
             with ZipFile(obj, "x") as zf:
                 zf.writestr(".satori.yml", f"{{ cmd: [ sh {Path(self._arg).name} ] }}")
 
-            bundle_sha1 = sha1(obj.getvalue()).hexdigest()
+            bundle_sha256 = sha256(obj.getvalue()).hexdigest()
 
-            if not (bundle_id := BundleCache.get_bundle_id(bundle_sha1)):
+            if not (bundle_id := BundleCache.get_bundle_id(bundle_sha256)):
                 res = client.post("/bundles", files={"bundle": obj.getvalue()})
                 bundle_id = res.text
-                BundleCache.set_bundle_id(bundle_sha1, bundle_id)
+                BundleCache.set_bundle_id(bundle_sha256, bundle_id)
 
             return f"bundle://{bundle_id}"
         elif self.playbook:
