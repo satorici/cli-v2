@@ -5,6 +5,7 @@ import socket
 import struct
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from contextlib import suppress
 from pathlib import Path
 
 import numpy as np
@@ -81,7 +82,7 @@ def extract_domain_from_entry(entry: str) -> str:
     """Extract domain/URL from entry, removing common prefixes and ports"""
     for prefix in ["http://", "https://", "ftp://", "//"]:
         if entry.startswith(prefix):
-            entry = entry[len(prefix):]
+            entry = entry[len(prefix) :]
             break
 
     if ":" in entry and is_ip_address(entry.split(":")[0]):
@@ -101,7 +102,9 @@ def build_blacklist_ranges(file_path: str) -> list:
             if is_ip_address(parts[0]):
                 entry = parts[0]
 
-        if "/" in entry and (is_ip_address(entry.split("/")[0]) or "." in entry.split("/")[0]):
+        if "/" in entry and (
+            is_ip_address(entry.split("/")[0]) or "." in entry.split("/")[0]
+        ):
             network = IPNetwork(entry)
             ranges.append((int(network.first), int(network.last)))
         elif "-" in entry:
@@ -116,20 +119,16 @@ def build_blacklist_ranges(file_path: str) -> list:
                 ranges.append((ip_int, ip_int))
 
     if is_direct_input(file_path):
-        try:
+        with suppress(Exception):
             parse_entry(file_path)
-        except Exception:
-            pass
     else:
         with open(file_path, "r") as f:
             for line in f:
                 entry = line.strip()
                 if not entry or entry.startswith("#"):
                     continue
-                try:
+                with suppress(Exception):
                     parse_entry(entry)
-                except Exception:
-                    continue
 
     ranges.sort()
 
@@ -174,7 +173,9 @@ def hash_ip_int(ip_int: int, seed: int) -> int:
     return hash_val & 0x7FFFFFFF
 
 
-def subtract_blacklist_from_range(range_start: int, range_end: int, blacklist_ranges: list) -> list:
+def subtract_blacklist_from_range(
+    range_start: int, range_end: int, blacklist_ranges: list
+) -> list:
     """Pre-filter exclude list to get only valid IP segments"""
     if not blacklist_ranges:
         return [(range_start, range_end)]
@@ -201,18 +202,27 @@ def subtract_blacklist_from_range(range_start: int, range_end: int, blacklist_ra
 
 
 def process_ip_range_pre_filtered(
-    range_start: int, range_end: int, blacklist_ranges: list, shard_x: int, shard_y: int, seed: int
+    range_start: int,
+    range_end: int,
+    blacklist_ranges: list,
+    shard_x: int,
+    shard_y: int,
+    seed: int,
 ) -> tuple:
     """Process only non-excluded segments - skip billions of excluded IPs"""
 
-    valid_segments = subtract_blacklist_from_range(range_start, range_end, blacklist_ranges)
+    valid_segments = subtract_blacklist_from_range(
+        range_start, range_end, blacklist_ranges
+    )
 
     if not valid_segments:
         total_processed = range_end - range_start + 1
         return total_processed, total_processed, []
 
     total_processed = range_end - range_start + 1
-    total_excluded = total_processed - sum(seg_end - seg_start + 1 for seg_start, seg_end in valid_segments)
+    total_excluded = total_processed - sum(
+        seg_end - seg_start + 1 for seg_start, seg_end in valid_segments
+    )
     selected_ips = []
 
     for seg_start, seg_end in valid_segments:
@@ -255,7 +265,8 @@ def parse_direct_input(input_str: str) -> tuple:
                 entry = parts[0]
 
         if "/" in entry and (
-            is_ip_address(entry.split("/")[0]) or (entry.count(".") >= 3 and "-" not in entry)
+            is_ip_address(entry.split("/")[0])
+            or (entry.count(".") >= 3 and "-" not in entry)
         ):
             network = IPNetwork(entry)
             ip_ranges.append((int(network.first), int(network.last)))
@@ -359,7 +370,13 @@ def read_file_addresses_ultra_parallel(
         future_to_chunk = {}
         for i, chunk in enumerate(work_chunks):
             future = executor.submit(
-                _process_prefiltered_chunk_worker, chunk, blacklist_ranges, shard_x, shard_y, seed, i
+                _process_prefiltered_chunk_worker,
+                chunk,
+                blacklist_ranges,
+                shard_x,
+                shard_y,
+                seed,
+                i,
             )
             future_to_chunk[future] = i
 
@@ -388,7 +405,8 @@ def count_total_items(file_path: str) -> int:
                 entry = parts[0]
 
         if "/" in entry and (
-            is_ip_address(entry.split("/")[0]) or (entry.count(".") >= 3 and "-" not in entry)
+            is_ip_address(entry.split("/")[0])
+            or (entry.count(".") >= 3 and "-" not in entry)
         ):
             network = IPNetwork(entry)
             return int(network.last) - int(network.first) + 1
@@ -422,16 +440,29 @@ def count_total_items(file_path: str) -> int:
 
 
 def _process_prefiltered_chunk_worker(
-    chunk_range: tuple, blacklist_ranges: list, shard_x: int, shard_y: int, seed: int, chunk_id: int
+    chunk_range: tuple,
+    blacklist_ranges: list,
+    shard_x: int,
+    shard_y: int,
+    seed: int,
+    chunk_id: int,
 ) -> tuple:
     """Worker with exclude list pre-filtering - skip billions of excluded IPs"""
     range_start, range_end = chunk_range
-    return process_ip_range_pre_filtered(range_start, range_end, blacklist_ranges, shard_x, shard_y, seed)
+    return process_ip_range_pre_filtered(
+        range_start, range_end, blacklist_ranges, shard_x, shard_y, seed
+    )
 
 
 @click.command()
 @click.option("--shard", required=True, help="Current shard and total (X/Y format)")
-@click.option("--seed", type=int, default=1, show_default=True, help="Seed for pseudorandom permutation")
+@click.option(
+    "--seed",
+    type=int,
+    default=1,
+    show_default=True,
+    help="Seed for pseudorandom permutation",
+)
 @click.option(
     "--input",
     "input_file",
@@ -448,17 +479,27 @@ def _process_prefiltered_chunk_worker(
     "results_file",
     help="Save results to text file (must have .txt extension or no extension; default is .txt)",
 )
-def shards(shard: str, seed: int, input_file: str, exclude_file: str | None, results_file: str | None):
+def shards(
+    shard: str,
+    seed: int,
+    input_file: str,
+    exclude_file: str | None,
+    results_file: str | None,
+):
     """Deterministically split IPs/domains into shards for distributed scanning."""
     try:
         x_str, y_str = shard.split("/")
         shard_x = int(x_str)
         shard_y = int(y_str)
     except ValueError:
-        raise click.BadParameter("Invalid format for --shard. Use X/Y", param_hint="'--shard'")
+        raise click.BadParameter(
+            "Invalid format for --shard. Use X/Y", param_hint="'--shard'"
+        )
 
     if shard_y < 1 or shard_x < 1 or shard_x > shard_y:
-        raise click.BadParameter(f"Invalid shard value: {shard_x}/{shard_y}", param_hint="'--shard'")
+        raise click.BadParameter(
+            f"Invalid shard value: {shard_x}/{shard_y}", param_hint="'--shard'"
+        )
 
     blacklist_ranges = []
     if exclude_file:
@@ -481,8 +522,10 @@ def shards(shard: str, seed: int, input_file: str, exclude_file: str | None, res
         refresh_per_second=10,
     ) as progress:
         progress.add_task("Processing...", total=None)
-        total_processed, total_excluded, selected_items = read_file_addresses_ultra_parallel(
-            input_file, blacklist_ranges, shard_x, shard_y, seed
+        total_processed, total_excluded, selected_items = (
+            read_file_addresses_ultra_parallel(
+                input_file, blacklist_ranges, shard_x, shard_y, seed
+            )
         )
 
     end_time = time.time()
