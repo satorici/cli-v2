@@ -1,4 +1,6 @@
+import json
 import time
+from contextlib import suppress
 from datetime import datetime
 from importlib.metadata import distribution, version
 from typing import Optional
@@ -30,18 +32,14 @@ PACKAGE_NAME = "satori-cli"
 VERSION = version(PACKAGE_NAME)
 
 
-def get_installed_commit():
-    try:
+def _get_installed_commit() -> str | None:
+    with suppress(Exception):
         dist = distribution(PACKAGE_NAME)
 
         if text := dist.read_text("direct_url.json"):
-            import json
-
             data = json.loads(text)
-
             return data.get("vcs_info", {}).get("commit_id")
-    except Exception:
-        pass
+    return None
 
 
 @click.group(invoke_without_command=True)
@@ -87,7 +85,7 @@ def main():
     now = datetime.fromtimestamp(int(time.time()))
     full_version = VERSION
 
-    if commit_sha := get_installed_commit():
+    if commit_sha := _get_installed_commit():
         full_version += f" {commit_sha[:7]}"
 
     stderr.print(f"Satori CLI {full_version} - Started on {now}")
