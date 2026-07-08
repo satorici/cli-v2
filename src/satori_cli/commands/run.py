@@ -10,6 +10,7 @@ from rich.live import Live
 from rich.table import Table
 
 from ..api import client
+from ..exceptions import SatoriError
 from ..models import Playbook
 from ..utils import options as opts
 from ..utils.arguments import Source, source_arg
@@ -27,6 +28,13 @@ from ..utils.wrappers import (
     PagedWrapper,
     ReportWrapper,
 )
+
+
+def _require_first_execution_id(run_id) -> int:
+    items = client.get("/executions", params={"job_id": run_id}).json()["items"]
+    if not items:
+        raise SatoriError(f"No executions found for run {run_id}")
+    return items[0]["id"]
 
 
 @click.command()
@@ -217,20 +225,24 @@ def run(
         stdout.print(JobWrapper(run))
         sys.exit(0)
 
-    res = client.get("/executions", params={"job_id": run_id})
-    execution_id = res.json()["items"][0]["id"]
+    needs_execution = (
+        show_stdout or show_stderr or show_output or (show_report and count == 1)
+    )
 
-    if show_stdout:
-        stderr.print(f"Execution {execution_id} stdout:")
-        show_raw_output(execution_id, "stdout")
+    if needs_execution:
+        execution_id = _require_first_execution_id(run_id)
 
-    if show_stderr:
-        stderr.print(f"Execution {execution_id} stderr:")
-        show_raw_output(execution_id, "stderr")
+        if show_stdout:
+            stderr.print(f"Execution {execution_id} stdout:")
+            show_raw_output(execution_id, "stdout")
 
-    if show_output:
-        stderr.print(f"Execution {execution_id} output:")
-        show_execution_output(execution_id)
+        if show_stderr:
+            stderr.print(f"Execution {execution_id} stderr:")
+            show_raw_output(execution_id, "stderr")
+
+        if show_output:
+            stderr.print(f"Execution {execution_id} output:")
+            show_execution_output(execution_id)
 
     if get_files:
         export_job_files(run_id)
