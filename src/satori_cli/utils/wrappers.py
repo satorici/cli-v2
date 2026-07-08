@@ -165,6 +165,37 @@ class JobListWrapper(Wrapper[list]):
         yield table
 
 
+class SshSessionsListWrapper(Wrapper[list]):
+    def __rich_console__(self, console, options):
+        table = Table(expand=True)
+        table.add_column("Id")
+        table.add_column("Status")
+        table.add_column("Region")
+        table.add_column("Image")
+        table.add_column("Host")
+        table.add_column("Created at")
+        table.add_column("Finished at")
+
+        for session in self.obj:
+            region = session.get("region")
+            if region is None and session.get("regions"):
+                region = ", ".join(session["regions"])
+
+            table.add_row(
+                str(session["id"]),
+                session["status"].capitalize().replace("_", " "),
+                region or "N/A",
+                session["container_settings"]["image"],
+                session.get("host") or "N/A",
+                ISODateTime(session["created_at"]),
+                ISODateTime(session["finished_at"])
+                if session.get("finished_at")
+                else "N/A",
+            )
+
+        yield table
+
+
 def to_datetime(s: str):
     orig = s if s.endswith(("Z", "+00:00")) else s + "Z"
 

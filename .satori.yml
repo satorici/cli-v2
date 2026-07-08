@@ -290,7 +290,10 @@ test:
   shell:
     # list live SSH shell sessions
     sessions:
-      - satori-v2 shell sessions --json | jq .
+      - satori-v2 shell sessions
+
+    sessions_json:
+      - satori-v2 shell sessions --json
 
   scan:
     # list the scans

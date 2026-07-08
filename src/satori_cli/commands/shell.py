@@ -18,6 +18,7 @@ from ..utils import options as opts
 from ..utils.console import stdout
 from ..utils.groups import IdGroup
 from ..utils.misc import remove_none_values
+from ..utils.wrappers import PagedWrapper, SshSessionsListWrapper
 
 
 def get_terminal_size():
@@ -146,4 +147,4 @@ def sessions(page: int, quantity: int, **kwargs):
     params = {"page": page, "quantity": quantity}
 
     res = client.get("/ssh_sessions", params=params)
-    stdout.print_json(res.text)
+    stdout.print(PagedWrapper(res.json(), page, quantity, SshSessionsListWrapper))
