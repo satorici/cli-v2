@@ -43,7 +43,7 @@ async def run_command(
                 start_new_session=True,
                 limit=buffer_limit,
             )
-    except OSError as e:
+    except (OSError, ValueError) as e:
         return {
             "stdout": None,
             "stderr": None,
