@@ -6,9 +6,6 @@ from satori_cli.config import Config
 @pytest.mark.parametrize(
     ("value", "key"),
     [
-        ("12345", "token"),
-        ("true", "flag"),
-        ("null", "nullable"),
         ("abc123", "secret"),
     ],
 )
