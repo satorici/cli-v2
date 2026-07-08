@@ -5,7 +5,7 @@
 groups = ["default", "dev"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:ca6173e040628bc0dcb9c5d686456fc9cf16f5fbb03c2311a9981ad13c731f4f"
+content_hash = "sha256:aff906fedc43d0e64c9cb2a7b42411f2644ca9246ebe1662fb144952a07db104"
 
 [[metadata.targets]]
 requires_python = ">=3.10"
@@ -24,23 +24,6 @@ dependencies = [
 files = [
     {file = "anyio-4.14.1-py3-none-any.whl", hash = "sha256:4e5533c5b8ff0a24f5d7a176cbe6877129cd183893f66b537f8f227d10527d72"},
     {file = "anyio-4.14.1.tar.gz", hash = "sha256:8d648a3544c1a700e3ff78615cd679e4c5c3f149904287e73687b2596963629e"},
-]
-
-[[package]]
-name = "bandit"
-version = "1.9.4"
-requires_python = ">=3.10"
-summary = "Security oriented static analyser for python code."
-groups = ["dev"]
-dependencies = [
-    "PyYAML>=5.3.1",
-    "colorama>=0.3.9; platform_system == \"Windows\"",
-    "rich",
-    "stevedore>=1.20.0",
-]
-files = [
-    {file = "bandit-1.9.4-py3-none-any.whl", hash = "sha256:f89ffa663767f5a0585ea075f01020207e966a9c0f2b9ef56a57c7963a3f6f8e"},
-    {file = "bandit-1.9.4.tar.gz", hash = "sha256:b589e5de2afe70bd4d53fa0c1da6199f4085af666fde00e8a034f152a52cd628"},
 ]
 
 [[package]]
@@ -431,7 +414,7 @@ name = "markdown-it-py"
 version = "4.2.0"
 requires_python = ">=3.10"
 summary = "Python port of markdown-it. Markdown parsing, done right!"
-groups = ["default", "dev"]
+groups = ["default"]
 dependencies = [
     "mdurl~=0.1",
 ]
@@ -445,7 +428,7 @@ name = "mdurl"
 version = "0.1.2"
 requires_python = ">=3.7"
 summary = "Markdown URL utilities"
-groups = ["default", "dev"]
+groups = ["default"]
 files = [
     {file = "mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8"},
     {file = "mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba"},
@@ -726,7 +709,7 @@ name = "pyyaml"
 version = "6.0.3"
 requires_python = ">=3.8"
 summary = "YAML parser and emitter for Python"
-groups = ["default", "dev"]
+groups = ["default"]
 files = [
     {file = "pyyaml-6.0.3-cp310-cp310-macosx_10_13_x86_64.whl", hash = "sha256:214ed4befebe12df36bcc8bc2b64b396ca31be9304b8f59e25c11cf94a4c033b"},
     {file = "pyyaml-6.0.3-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:02ea2dfa234451bbb8772601d7b8e426c2bfa197136796224e50e35a78777956"},
@@ -803,7 +786,7 @@ name = "rich"
 version = "15.0.0"
 requires_python = ">=3.9.0"
 summary = "Render rich text, tables, progress bars, syntax highlighting, markdown and more to the terminal"
-groups = ["default", "dev"]
+groups = ["default"]
 dependencies = [
     "markdown-it-py>=2.2.0",
     "pygments<3.0.0,>=2.13.0",
@@ -855,17 +838,6 @@ files = [
     {file = "ruff-0.15.20-py3-none-win_amd64.whl", hash = "sha256:a525c81c70fb0380344dd1d8745d8cc1c890b7fc94a58d5a07bd8eb9557b8415"},
     {file = "ruff-0.15.20-py3-none-win_arm64.whl", hash = "sha256:2f5b2a6d614e8700388806a14996c40fab2c47b819ef57d790a34878858ed9ca"},
     {file = "ruff-0.15.20.tar.gz", hash = "sha256:1416eb04349192646b54de98f146c4f59afe37d0decfc02c3cbbf396f3a28566"},
-]
-
-[[package]]
-name = "stevedore"
-version = "5.8.0"
-requires_python = ">=3.10"
-summary = "Manage dynamic plugins for Python applications"
-groups = ["dev"]
-files = [
-    {file = "stevedore-5.8.0-py3-none-any.whl", hash = "sha256:88eede9e66ca80e34085b9174e2327da2c61ac91f24f70e41c3ad76e4bb4872b"},
-    {file = "stevedore-5.8.0.tar.gz", hash = "sha256:b49867b32ca3016e94100e68dbf26e72aa7b8708d0a3f73c08aeb220370ac715"},
 ]
 
 [[package]]

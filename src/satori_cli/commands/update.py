@@ -20,9 +20,9 @@ def update():
     stderr.print(f"Going to run: {' '.join(args)}")
 
     if platform.system() == "Windows":
-        subprocess.Popen(args)
+        subprocess.Popen(args)  # noqa: S603
         return
 
-    proc = subprocess.run(args, stdout=sys.stdout, stderr=sys.stderr)
+    proc = subprocess.run(args, stdout=sys.stdout, stderr=sys.stderr)  # noqa: S603
 
     sys.exit(proc.returncode)

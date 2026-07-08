@@ -23,7 +23,7 @@ test:
 
   # Security tests
   security_tests:
-    - pdm run bandit -r src/
+    - pdm run ruff check src/ --select S
 
   # the -P or --profile parameters allows you to use different Satori CI API Tokens
   token_saved:

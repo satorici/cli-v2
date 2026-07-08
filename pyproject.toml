@@ -28,18 +28,10 @@ build-backend = "pdm.backend"
 [project.scripts]
 satori-v2 = "satori_cli:main"
 
-[tool.pdm]
-distribution = true
-
-[tool.pdm.scripts]
-_.env_file = ".env"
-test = "pytest"
-
 [dependency-groups]
 dev = [
     "ruff>=0.9.7",
     "pytest>=8.0",
-    "bandit>=1.9.4",
 ]
 
 [tool.pytest.ini_options]
@@ -47,3 +39,11 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 
 [tool.pyrefly]
+
+[tool.pdm]
+distribution = true
+
+[tool.pdm.scripts]
+_.env_file = ".env"
+test = "pytest"
+

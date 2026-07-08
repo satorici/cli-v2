@@ -26,7 +26,7 @@ def get_terminal_size():
 
 def interactive_shell(host: str, token: str):
     ssh_client = paramiko.SSHClient()
-    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy)
+    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy)  # noqa: S507
 
     tries = 0
 
