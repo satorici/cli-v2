@@ -17,6 +17,10 @@ test:
     - apt update >/dev/null && apt install -qy --no-install-recommends git jq >/dev/null
     - pip install . --disable-pip-version-check --root-user-action=ignore
 
+  # Unit tests
+  unit_tests:
+    - pdm run pytest
+
   # the -P or --profile parameters allows you to use different Satori CI API Tokens
   token_saved:
     create_profile:
@@ -305,7 +309,7 @@ test:
       - satori-v2 scan ${{test.scan.run.stdout}} clean
 
     delete:
-     - satori-v2 scan ${{test.scan.run.stdout}} delete
+      - satori-v2 scan ${{test.scan.run.stdout}} delete
 
   # TODO: Add equivalent tests for v2
   # teams:

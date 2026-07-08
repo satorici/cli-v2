@@ -33,6 +33,7 @@ distribution = true
 
 [tool.pdm.scripts]
 _.env_file = ".env"
+test = "pytest"
 
 [tool.ruff.lint]
 extend-select = ["I"]
@@ -40,6 +41,11 @@ extend-select = ["I"]
 [dependency-groups]
 dev = [
     "ruff>=0.9.7",
+    "pytest>=8.0",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
 
 [tool.pyrefly]
