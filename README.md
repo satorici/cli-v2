@@ -8,7 +8,9 @@
 pip install git+https://github.com/satorici/cli-v2
 ```
 
-And use the CLI via `satori` command.
+And use the CLI via `satori-v2` command.
+
+> The console script is installed as `satori-v2` to coexist with the v1 CLI.
 
 ### From local repository
 
@@ -18,10 +20,10 @@ You'll need pdm to install dependencies and run inside a virtual environment.
 git clone https://github.com/satorici/cli-v2
 cd cli-v2
 pdm install
-pdm run satori
+pdm run satori-v2
 ```
 
-This method does not place a `satori` command in your `PATH`, you must be in the
+This method does not place a `satori-v2` command in your `PATH`, you must be in the
 repository directory to use the CLI.
 
 ## Authentication
@@ -29,7 +31,7 @@ repository directory to use the CLI.
 Set your API token:
 
 ```
-satori config token YOUR_TOKEN
+satori-v2 config token YOUR_TOKEN
 ```
 
 Use `--profile` to store tokens for different profiles (default is `default`).
@@ -37,14 +39,14 @@ Use `--profile` to store tokens for different profiles (default is `default`).
 To verify, run:
 
 ```
-satori config
+satori-v2 config
 ```
 
 It will display your current configuration, token included.
 
 ## Commands
 
-Running `satori` with no subcommand lists your jobs (dashboard). Use `--public` to list public jobs.
+Running `satori-v2` with no subcommand lists your jobs (dashboard). Use `--public` to list public jobs.
 
 | Command | Description |
 | --- | --- |
