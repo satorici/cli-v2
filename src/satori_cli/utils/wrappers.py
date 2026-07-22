@@ -351,32 +351,170 @@ class ExecutionListWrapper(Wrapper[dict]):
 @has_json_output
 class ReportWrapper(Wrapper[list[dict]]):
     def __rich_console__(self, console, options):
+        has_asserts = any(detail.get("asserts") for detail in self.obj)
+
+        if has_asserts:
+            table = Table(
+                Column("Test", ratio=1),
+                Column("Assert", ratio=1),
+                Column("Assert value", ratio=1),
+                Column("Result", ratio=1),
+                expand=True,
+            )
+
+            for detail in self.obj:
+                check = "✅" if detail["test_status"] == "Pass" else "❌"
+                test_name = check + " " + ":".join(detail["test"].split(" > "))
+                asserts = detail.get("asserts") or []
+
+                if not asserts:
+                    table.add_row(
+                        test_name,
+                        "",
+                        "",
+                        highlight_result(detail["test_status"]),
+                    )
+                    table.add_section()
+                    continue
+
+                grouped_asserts = groupby(asserts, lambda x: x["assert"])
+                for name, valresults in grouped_asserts:
+                    values = list(valresults)
+                    expected = "\n".join([str(val["expected"]) for val in values])
+                    status = highlight_result(
+                        "\n".join([str(val["status"]) for val in values])
+                    )
+
+                    table.add_row(test_name, name.lstrip("assert"), expected, status)
+                    test_name = ""
+
+                table.add_section()
+
+            yield table
+            return
+
+        # No asserts: show the Satori tests summary (mirrors the web Tests tab).
         table = Table(
-            Column("Test", ratio=1),
-            Column("Assert", ratio=1),
-            Column("Assert value", ratio=1),
-            Column("Result", ratio=1),
+            Column("Test", ratio=3),
+            Column("Status", ratio=1),
+            Column("Testcases", ratio=1, justify="right"),
+            Column("Fails", ratio=1, justify="right"),
             expand=True,
         )
 
         for detail in self.obj:
             check = "✅" if detail["test_status"] == "Pass" else "❌"
             test_name = check + " " + ":".join(detail["test"].split(" > "))
-            grouped_asserts = groupby(detail["asserts"], lambda x: x["assert"])
-
-            for name, valresults in grouped_asserts:
-                values = list(valresults)
-                expected = "\n".join([str(val["expected"]) for val in values])
-                status = highlight_result(
-                    "\n".join([str(val["status"]) for val in values])
-                )
-
-                table.add_row(test_name, name.lstrip("assert"), expected, status)
-                test_name = ""
-
-            table.add_section()
+            table.add_row(
+                test_name,
+                highlight_result(detail["test_status"]),
+                str(detail.get("testcases", "")),
+                str(detail.get("total_fails", "")),
+            )
 
         yield table
+
+
+FINDING_CAP = 50
+
+_SEVERITY_STYLE = {
+    "BLOCKER": "bold red",
+    "CRITICAL": "bold red",
+    "HIGH": "red",
+    "MEDIUM": "yellow",
+    "LOW": "cyan",
+    "INFO": "dim",
+}
+
+
+def _finding_title(finding) -> str:
+    """Prefer a readable title; fall back to description when title is just the id."""
+    title = finding.title or ""
+    if finding.description and (not title or title == finding.id):
+        return finding.description
+    return title
+
+
+def _finding_location(finding) -> str:
+    location = finding.location or ""
+    if finding.line is not None and location:
+        return f"{location}:{finding.line}"
+    if finding.line is not None:
+        return str(finding.line)
+    return location
+
+
+def _finding_detail(finding) -> str:
+    """Secondary detail for the row: description (if not used as title) + key fields."""
+    parts: list[str] = []
+    title = _finding_title(finding)
+    if finding.description and finding.description != title:
+        parts.append(finding.description)
+    if finding.url:
+        parts.append(finding.url)
+    # Prefer a few high-signal leftover fields over dumping everything.
+    preferred = ("cwe", "remediation", "confidence", "rule", "category")
+    extras: list[str] = []
+    if finding.fields:
+        for key in preferred:
+            if key in finding.fields:
+                extras.append(f"{key}={finding.fields[key]}")
+        if not extras:
+            for key, value in list(finding.fields.items())[:2]:
+                extras.append(f"{key}={value}")
+    if extras:
+        parts.append(" · ".join(extras))
+    return "\n".join(parts)
+
+
+class DynamicFindingsWrapper(Wrapper[list[tuple[str, list]]]):
+    """Rich display of dynamically parsed findings, grouped by test path.
+
+    ``obj`` is a list of ``(test_path, findings)`` pairs.
+    """
+
+    def __rich_console__(self, console, options):
+        from .parsers.dynamic import dynamic_severity_to_template
+
+        yield ""
+        yield "[b]Parsed findings[/b] [dim](auto)[/dim]"
+
+        for test_path, findings in self.obj:
+            visible = findings[:FINDING_CAP]
+            table = Table(
+                Column("Severity", no_wrap=True),
+                Column("Id", no_wrap=True),
+                Column("Location", ratio=2, overflow="fold"),
+                Column("Finding", ratio=4, overflow="fold"),
+                title=test_path,
+                title_justify="left",
+                expand=True,
+                show_lines=True,
+            )
+
+            for finding in visible:
+                mapped = dynamic_severity_to_template(finding.severity)
+                style = _SEVERITY_STYLE.get(mapped or "", "")
+                severity = finding.severity or ""
+                title = _finding_title(finding)
+                detail = _finding_detail(finding)
+                finding_cell = title
+                if detail:
+                    finding_cell = f"{title}\n[dim]{detail}[/dim]"
+
+                table.add_row(
+                    f"[{style}]{severity}[/{style}]" if style and severity else severity,
+                    finding.id or "",
+                    _finding_location(finding),
+                    finding_cell,
+                )
+
+            yield table
+
+            if len(findings) > FINDING_CAP:
+                yield f"[dim]… and {len(findings) - FINDING_CAP} more findings[/dim]"
+
+            yield ""
 
 
 class OutputWrapper(Wrapper[dict]):

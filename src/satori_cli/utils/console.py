@@ -133,25 +133,35 @@ def show_raw_output(execution_id: int, stream: Literal["stdout", "stderr"]):
             stdout.print(output["output"][stream].decode(errors="ignore"))
 
 
+class HttpxStreamFile(io.RawIOBase):
+    def __init__(self, response: httpx.Response):
+        self._iter = response.iter_bytes()
+
+    def readable(self):
+        return True
+
+    def readinto(self, b):
+        try:
+            chunk = next(self._iter)
+            n = len(chunk)
+            b[:n] = chunk
+            return n
+        except StopIteration:
+            return 0
+
+
+def load_execution_outputs(execution_id: int) -> list[dict]:
+    """Fetch and decode msgpack execution outputs without printing."""
+    with client.stream(
+        "GET", f"/executions/{execution_id}/output", follow_redirects=True, timeout=None
+    ) as stream:
+        outputs = [line for line in msgpack.Unpacker(HttpxStreamFile(stream)) if line]
+    return [_decode_value(output) for output in outputs]
+
+
 def show_execution_output(
     execution_id: int, console=None, filter_tests: list[str] | None = None
 ):
-    class HttpxStreamFile(io.RawIOBase):
-        def __init__(self, response: httpx.Response):
-            self._iter = response.iter_bytes()
-
-        def readable(self):
-            return True
-
-        def readinto(self, b):
-            try:
-                chunk = next(self._iter)
-                n = len(chunk)
-                b[:n] = chunk
-                return n
-            except StopIteration:
-                return 0
-
     with client.stream(
         "GET", f"/executions/{execution_id}/output", follow_redirects=True, timeout=None
     ) as stream:

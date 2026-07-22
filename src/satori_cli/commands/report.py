@@ -1,16 +1,25 @@
 from typing import Optional
 
+import httpx
 import rich_click as click
 
 from ..api import client
 from ..utils import options as opts
 from ..utils.console import (
     download_execution_files,
+    load_execution_outputs,
     show_execution_output,
     stdout,
 )
+from ..utils.format import is_json_output
 from ..utils.groups import IdGroup
-from ..utils.wrappers import ExecutionListWrapper, ExecutionWrapper, PagedWrapper
+from ..utils.parsers import parse_dynamic_output
+from ..utils.wrappers import (
+    DynamicFindingsWrapper,
+    ExecutionListWrapper,
+    ExecutionWrapper,
+    PagedWrapper,
+)
 from .search import reports_delete, reports_download, reports_search, reports_stop
 
 
@@ -57,6 +66,24 @@ reports.add_command(reports_stop, name="stop")
 reports.add_command(reports_delete, name="delete")
 
 
+def _parsed_findings_groups(execution_id: int) -> list[tuple[str, list]]:
+    groups: list[tuple[str, list]] = []
+    try:
+        outputs = load_execution_outputs(execution_id)
+    except (httpx.HTTPError, OSError, ValueError):
+        return groups
+
+    for output in outputs:
+        result = output.get("output") or {}
+        stdout_text = result.get("stdout")
+        if not stdout_text:
+            continue
+        findings = parse_dynamic_output(stdout_text)
+        if findings:
+            groups.append((output.get("path") or "test", findings))
+    return groups
+
+
 @click.group(cls=IdGroup, invoke_without_command=True)
 @opts.json_opt
 @click.pass_context
@@ -66,6 +93,11 @@ def report(ctx, **kwargs):
             raise click.UsageError("Missing argument 'EXECUTION-ID'.")
         res = client.get(f"/executions/{ctx.obj}")
         stdout.print(ExecutionWrapper(res.json()))
+
+        if not is_json_output():
+            groups = _parsed_findings_groups(ctx.obj)
+            if groups:
+                stdout.print(DynamicFindingsWrapper(groups))
 
 
 # Aliases for report command
