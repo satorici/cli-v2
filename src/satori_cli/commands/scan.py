@@ -64,6 +64,7 @@ def scan(ctx, **kwargs):
 @opts.cpu_opt
 @opts.image_opt
 @opts.json_opt
+@opts.visibility_opt
 def scan_create(
     repository: str,
     source: Source,
@@ -75,6 +76,7 @@ def scan_create(
     cpu: Optional[int],
     memory: Optional[int],
     image: Optional[str],
+    visibility: Optional[str],
     **kwargs,
 ):
     if source.type == "DIR":
@@ -100,6 +102,7 @@ def scan_create(
         "criteria": {"quantity": quantity},
         "environment_variables": env,
         "container_settings": remove_none_values(container_settings),
+        "visibility": visibility,
     }
 
     res = client.post("/jobs/scans", json=body)
