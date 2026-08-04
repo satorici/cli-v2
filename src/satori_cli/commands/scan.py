@@ -102,7 +102,7 @@ def scan_create(
         "criteria": {"quantity": quantity},
         "environment_variables": env,
         "container_settings": remove_none_values(container_settings),
-        "visibility": visibility,
+        "visibility": visibility or "PRIVATE",
     }
 
     res = client.post("/jobs/scans", json=body)
