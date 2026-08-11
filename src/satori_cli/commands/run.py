@@ -13,7 +13,7 @@ from ..api import client
 from ..exceptions import SatoriError
 from ..models import Playbook
 from ..utils import options as opts
-from ..utils.arguments import Source, source_arg
+from ..utils.arguments import Source, run_source_arg
 from ..utils.console import (
     export_job_files,
     show_execution_output,
@@ -38,7 +38,7 @@ def _require_first_execution_id(run_id) -> int:
 
 
 @click.command()
-@source_arg
+@run_source_arg
 @opts.playbook_opt
 @click.option("--count", default=1, show_default=True)
 @opts.sync_opt
@@ -88,6 +88,11 @@ def run(
     timeout: Optional[int],
     **kwargs,
 ):
+    """Run a playbook remotely.
+
+    SOURCE may be a regular source or one of the playbook aliases:
+    pyspector or semgrep. Aliases run against the current directory.
+    """
     if (show_output or live_output) and count > 1:
         stderr.print("WARNING: Only first execution output will be shown")
 
