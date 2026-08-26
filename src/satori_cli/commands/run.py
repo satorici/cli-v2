@@ -102,6 +102,9 @@ def run(
         input = local_playbook.get_inputs_from_env(input)
         container_settings = remove_none_values(local_playbook.container_settings)
 
+        if timeout is None:
+            timeout = local_playbook.execution_timeout
+
     container_settings.update(
         remove_none_values(
             {"cpu": cpu, "memory": memory, "image": image, "environment_variables": env}

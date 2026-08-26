@@ -125,6 +125,26 @@ class Playbook:
         }
 
     @property
+    def execution_timeout(self) -> Optional[int]:
+        """Returns ``settings.timeout`` (in seconds) or None if not set."""
+
+        if self.type != "FILE":
+            return None
+
+        settings = self._obj.get("settings", {})
+
+        if not isinstance(settings, dict):
+            return None
+
+        if (timeout := settings.get("timeout")) is None:
+            return None
+
+        try:
+            return int(timeout)
+        except (TypeError, ValueError):
+            raise SatoriError(f"Invalid settings.timeout value: {timeout!r}")
+
+    @property
     def monitor_expression(self) -> Optional[str]:
         """Returns the AWS EventBridge schedule expression for a monitor playbook.
 
