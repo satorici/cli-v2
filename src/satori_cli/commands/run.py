@@ -57,6 +57,7 @@ def _require_first_execution_id(run_id) -> int:
 @click.option("--delete-output", is_flag=True)
 @click.option("--files", "-f", "get_files", is_flag=True)
 @click.option("--timeout", type=int)
+@click.option("--expire")
 @opts.cpu_opt
 @opts.memory_opt
 @opts.image_opt
@@ -86,6 +87,7 @@ def run(
     visibility: Optional[str],
     tags: Optional[tuple[tuple[str, str]]],
     timeout: Optional[int],
+    expire: str | None,
     **kwargs,
 ):
     """Run a playbook remotely.
@@ -155,6 +157,7 @@ def run(
         "visibility": visibility or "PRIVATE",
         "tags": tags_obj,
         "execution_timeout": timeout,
+        "expire": expire,
     }
 
     run = client.post("/jobs/runs", json=body).json()

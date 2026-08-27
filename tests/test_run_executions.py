@@ -65,7 +65,25 @@ def test_run_playbook_alias_uses_current_directory(
     assert request["path"] == "/jobs/runs"
     assert request["body"]["playbook_source"] == playbook_uri
     assert request["body"]["with_files"] is True
+    assert request["body"]["expire"] is None
     assert uploaded == {"source": "./", "data": {"url": "upload"}}
+
+
+def test_run_forwards_expire(monkeypatch, tmp_path):
+    request = {}
+
+    def post(path, json):
+        request["body"] = json
+        return _FakeResponse({"id": 42, "files_upload": None})
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("satori_cli.commands.run.client.post", post)
+    monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
+
+    result = CliRunner().invoke(run, ["pyspector", "--expire", "2 weeks"])
+
+    assert result.exit_code == 0
+    assert request["body"]["expire"] == "2 weeks"
 
 
 def test_explicit_playbook_overrides_run_alias(monkeypatch, tmp_path):
@@ -149,3 +167,4 @@ def test_run_help_lists_playbook_aliases():
     assert result.exit_code == 0
     assert "pyspector" in result.output
     assert "semgrep" in result.output
+    assert "--expire" in result.output
