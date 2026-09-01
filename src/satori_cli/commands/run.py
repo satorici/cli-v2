@@ -54,7 +54,17 @@ def _require_first_execution_id(run_id) -> int:
 @click.option("--stderr", "show_stderr", is_flag=True)
 @click.option("--save-files", is_flag=True)
 @click.option("--delete-report", is_flag=True)
+@click.option(
+    "--save-report",
+    type=bool,
+    deprecated="--save-report is deprecated, use --delete-report instead",
+)
 @click.option("--delete-output", is_flag=True)
+@click.option(
+    "--save-output",
+    type=bool,
+    deprecated="--save-output is deprecated, use --delete-output instead",
+)
 @click.option("--files", "-f", "get_files", is_flag=True)
 @click.option("--timeout", type=int)
 @click.option("--expire")
@@ -75,7 +85,9 @@ def run(
     show_stdout: bool,
     show_stderr: bool,
     delete_report: bool,
+    save_report: bool | None,
     delete_output: bool,
+    save_output: bool | None,
     save_files: bool,
     get_files: bool,
     input: Optional[dict[str, list[str]]],
@@ -95,6 +107,14 @@ def run(
     SOURCE may be a regular source or one of the playbook aliases:
     pyspector or semgrep. Aliases run against the current directory.
     """
+    # Overwrite delete_report and delete_output with save_report and save_output
+    if save_report is not None:
+        delete_report = not save_report
+        save_report = None
+    if save_output is not None:
+        delete_output = not save_output
+        save_output = None
+
     if (show_output or live_output) and count > 1:
         stderr.print("WARNING: Only first execution output will be shown")
 
