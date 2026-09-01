@@ -18,8 +18,6 @@ FINDING_STATUSES = [
 
 
 @click.command("findings")
-@click.option("--page", default=1)
-@click.option("--quantity", default=10)
 @click.option("--execution-id", type=int)
 @click.option(
     "--status",
@@ -35,6 +33,7 @@ FINDING_STATUSES = [
     type=click.Choice(["ASC", "DESC"], case_sensitive=False),
 )
 @opts.json_opt
+@opts.pagination_opts
 def findings(
     page: int,
     quantity: int,

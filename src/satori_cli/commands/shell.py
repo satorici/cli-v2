@@ -140,9 +140,8 @@ def shell(ctx, cpu, memory, image, region_filter):
 
 
 @shell.command(name="sessions")
-@click.option("--page", default=1)
-@click.option("--quantity", default=10)
 @opts.json_opt
+@opts.pagination_opts
 def sessions(page: int, quantity: int, **kwargs):
     params = {"page": page, "quantity": quantity}
 

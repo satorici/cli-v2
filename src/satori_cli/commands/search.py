@@ -25,8 +25,7 @@ def isodatetime(arg: str):
 
 
 def search_filter_options(f):
-    f = click.option("--page", default=1)(f)
-    f = click.option("--quantity", default=10)(f)
+    f = opts.pagination_opts(f)
     f = click.option(
         "--job-type", type=click.Choice(["RUN", "SCAN", "MONITOR", "GITHUB", "LOCAL"])
     )(f)

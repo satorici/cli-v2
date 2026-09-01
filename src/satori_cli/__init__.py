@@ -44,10 +44,9 @@ def _get_installed_commit() -> str | None:
 
 
 @click.group(invoke_without_command=True)
-@click.option("--page", default=1)
-@click.option("--quantity", default=10)
 @click.option("--public", "visibility", flag_value="PUBLIC")
 @opts.output_format_opts
+@opts.pagination_opts
 @click.pass_context
 def cli(
     ctx,

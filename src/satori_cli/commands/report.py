@@ -29,8 +29,6 @@ class JobIdGroup(IdGroup):
 
 
 @click.group(cls=JobIdGroup, invoke_without_command=True)
-@click.option("--page", default=1)
-@click.option("--quantity", default=10)
 @click.option(
     "--status",
     type=click.Choice(
@@ -39,6 +37,7 @@ class JobIdGroup(IdGroup):
 )
 @click.option("--public", "visibility", flag_value="PUBLIC")
 @opts.json_opt
+@opts.pagination_opts
 @click.pass_context
 def reports(
     ctx,
@@ -107,9 +106,7 @@ def report(ctx, **kwargs):
 @opts.json_opt
 @click.pass_obj
 def report_output(execution_id: int, filter_tests: tuple[str, ...], **kwargs):
-    show_execution_output(
-        execution_id, filter_tests=list(filter_tests) or None
-    )
+    show_execution_output(execution_id, filter_tests=list(filter_tests) or None)
 
 
 @report.command(name="files")

@@ -26,10 +26,9 @@ def get(execution_id: int):
 
 
 @execution.command()
-@click.option("--page", default=1)
-@click.option("--quantity", default=10)
 @click.option("--job-type")
 @click.option("--job-id", type=int)
+@opts.pagination_opts
 def list(page: int, quantity: int, job_type: Optional[str], job_id: Optional[int]):
     params = {k: v for k, v in locals().items() if v is not None}
 

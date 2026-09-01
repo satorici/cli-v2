@@ -75,6 +75,16 @@ def output_format_opts(fn):
     return fn
 
 
+page_opt = click.option("--page", default=1, type=int)
+quantity_opt = click.option("--quantity", "-q", "--limit", "-l", default=10, type=int)
+
+
+def pagination_opts(fn):
+    fn = quantity_opt(fn)
+    fn = page_opt(fn)
+    return fn
+
+
 playbook_opt = click.option("--playbook", "-p", callback=_playbook_callback)
 visibility_opt = click.option(
     "--visibility",
