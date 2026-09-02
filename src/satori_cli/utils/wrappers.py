@@ -222,6 +222,41 @@ class FindingsListWrapper(Wrapper[list]):
         yield table
 
 
+_RISK_LABELS = {
+    0: "Info",
+    1: "Low",
+    2: "Medium",
+    3: "High",
+    4: "Critical",
+    5: "Blocker",
+}
+
+
+class IssueListWrapper(Wrapper[list]):
+    def __rich_console__(self, console, options):
+        table = Table(expand=True)
+        table.add_column("ID")
+        table.add_column("Title")
+        table.add_column("Risk")
+
+        for finding in self.obj:
+            severity = finding.get("severity")
+            if severity is None:
+                risk = "N/A"
+            else:
+                label = _RISK_LABELS.get(severity, str(severity))
+                style = _SEVERITY_STYLE.get(label.upper(), "")
+                risk = f"[{style}]{label}[/{style}]" if style else label
+
+            table.add_row(
+                str(finding["id"]),
+                finding["title"],
+                risk,
+            )
+
+        yield table
+
+
 def to_datetime(s: str):
     orig = s if s.endswith(("Z", "+00:00")) else s + "Z"
 

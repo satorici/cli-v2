@@ -11,6 +11,7 @@ from httpx import HTTPStatusError
 from .commands.config import config_
 from .commands.execution import execution
 from .commands.finding import findings
+from .commands.issue import issue
 from .commands.job import job, jobs
 from .commands.local import local
 from .commands.monitor import list_monitors, monitor
@@ -74,6 +75,7 @@ cli.add_command(execution)
 cli.add_command(reports)
 cli.add_command(report)
 cli.add_command(findings)
+cli.add_command(issue)
 cli.add_command(stop)
 cli.add_command(search)
 cli.add_command(shards)

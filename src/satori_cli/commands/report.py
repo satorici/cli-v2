@@ -20,6 +20,7 @@ from ..utils.wrappers import (
     ExecutionWrapper,
     PagedWrapper,
 )
+from .issue import list_issues
 from .search import reports_delete, reports_download, reports_search, reports_stop
 
 
@@ -130,3 +131,11 @@ def report_delete(execution_id: int):
 def report_visibility(execution_id: int, value: str):
     client.patch(f"/executions/{execution_id}", json={"visibility": value.upper()})
     stdout.print(f"Report visibility set to {value.upper()}")
+
+
+@report.command(name="issues")
+@opts.json_opt
+@opts.pagination_opts
+@click.pass_obj
+def report_issues(execution_id: int, page: int, quantity: int, **kwargs):
+    list_issues(execution_id, page, quantity)
