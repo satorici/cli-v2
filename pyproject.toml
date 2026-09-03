@@ -5,7 +5,7 @@ authors = [{ name = "Satori CI", email = "info@satori.ci" }]
 dependencies = [
     "httpx>=0.27.0",
     "rich>=13.7.1",
-    "click>=8.1.7",
+    "click>=8.2.0",
     "rich-click>=1.8.3",
     "deepmerge>=2.0",
     "pyyaml>=6.0.2",
