@@ -3,7 +3,7 @@ import rich_click as click
 from ..api import client
 from ..utils import options as opts
 from ..utils.console import stdout
-from ..utils.wrappers import IssueListWrapper, PagedWrapper
+from ..utils.wrappers import IssueListWrapper, IssueWrapper, PagedWrapper
 
 
 def list_issues(execution_id: int, page: int, quantity: int):
@@ -20,8 +20,17 @@ def list_issues(execution_id: int, page: int, quantity: int):
     stdout.print(PagedWrapper(data, page, quantity, IssueListWrapper))
 
 
-@click.command("issue")
+@click.command("issues")
 @click.argument("execution-id", type=int)
 @opts.json_opt
-def issue(execution_id: int, page: int, quantity: int, **kwargs):
+@opts.pagination_opts
+def issues(execution_id: int, page: int, quantity: int, **kwargs):
     list_issues(execution_id, page, quantity)
+
+
+@click.command("issue")
+@click.argument("finding-id", type=int)
+@opts.json_opt
+def issue(finding_id: int, **kwargs):
+    res = client.get(f"/findings/{finding_id}")
+    stdout.print(IssueWrapper(res.json()))

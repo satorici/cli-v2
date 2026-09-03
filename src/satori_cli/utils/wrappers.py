@@ -257,6 +257,48 @@ class IssueListWrapper(Wrapper[list]):
         yield table
 
 
+@has_json_output
+class IssueWrapper(Wrapper[dict]):
+    def __rich_console__(self, console, options):
+        finding = self.obj
+        grid = Table.grid(padding=(0, 2))
+
+        severity = finding.get("severity")
+        if severity is None:
+            risk = "N/A"
+        else:
+            label = _RISK_LABELS.get(severity, str(severity))
+            style = _SEVERITY_STYLE.get(label.upper(), "")
+            risk = f"[{style}]{label}[/{style}]" if style else label
+
+        grid.add_row("Title", finding["title"])
+        grid.add_row("Status", finding["status"].capitalize().replace("_", " "))
+        grid.add_row("Risk", risk)
+        grid.add_row("Source", finding["source"].capitalize())
+        grid.add_row("Execution", str(finding["execution_id"]))
+        grid.add_row("Created at", ISODateTime(finding["created_at"]))
+
+        if assignee_id := finding.get("assignee_id"):
+            grid.add_row("Assignee", str(assignee_id))
+
+        yield Panel(grid, title=f"Issue {finding['id']}", title_align="left")
+
+        if snapshot := finding.get("snapshot"):
+            snapshot_grid = Table.grid(padding=(0, 2))
+            if isinstance(snapshot, dict):
+                for key, value in snapshot.items():
+                    if value is None:
+                        rendered = "N/A"
+                    elif isinstance(value, (dict, list)):
+                        rendered = json.dumps(value)
+                    else:
+                        rendered = str(value)
+                    snapshot_grid.add_row(f"{key}:", rendered)
+            else:
+                snapshot_grid.add_row(str(snapshot))
+            yield Panel(snapshot_grid, title="Snapshot", title_align="left")
+
+
 def to_datetime(s: str):
     orig = s if s.endswith(("Z", "+00:00")) else s + "Z"
 
