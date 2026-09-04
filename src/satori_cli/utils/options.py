@@ -23,6 +23,44 @@ def _input_callback(ctx, name, inputs: tuple[str]):
         return dict(parameters)
 
 
+def _split_callback(ctx, name, splits: tuple[str]):
+    if splits:
+        result = {}
+
+        for split in splits:
+            if "=" not in split:
+                raise click.BadParameter(
+                    f"invalid format '{split}', expected KEY=DELIMITER"
+                )
+
+            k, v = split.split("=", 1)
+            result[k] = v
+
+        return result
+
+
+def apply_splits(
+    parameters: dict[str, list[str]] | None,
+    splits: dict[str, str] | None,
+) -> dict[str, list[str]] | None:
+    if not parameters or not splits:
+        return parameters
+
+    result = dict(parameters)
+
+    for key, delimiter in splits.items():
+        if key not in result:
+            continue
+
+        values = []
+        for value in result[key]:
+            values.extend(part for part in value.split(delimiter) if part)
+
+        result[key] = values
+
+    return result
+
+
 def _env_callback(ctx, name, envs):
     if envs:
         return {k: v for k, v in envs}
@@ -48,6 +86,9 @@ def _playbook_callback(ctx, name, value):
 
 input_opt = click.option(
     "--data", "-d", "input", multiple=True, callback=_input_callback
+)
+split_opt = click.option(
+    "--split", "split", multiple=True, callback=_split_callback
 )
 env_opt = click.option(
     "--env", "-e", type=(str, str), multiple=True, callback=_env_callback

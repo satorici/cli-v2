@@ -21,6 +21,7 @@ from ..utils.wrappers import JobWrapper, ReportWrapper, highlight_result
 @source_arg
 @opts.playbook_opt
 @opts.input_opt
+@opts.split_opt
 @click.option("--timeout", type=int)
 @click.option("--run", multiple=True)
 @opts.visibility_opt
@@ -32,6 +33,7 @@ def local(
     source: Source,
     playbook: Optional[Playbook],
     input: Optional[dict[str, list[str]]],
+    split: Optional[dict[str, str]],
     timeout: Optional[int],
     run: Optional[tuple[str]],
     visibility: Optional[str],
@@ -41,6 +43,8 @@ def local(
     sync: bool,
     **kwargs,
 ):
+    input = opts.apply_splits(input, split)
+
     playbook_data = playbook.playbook_data() if playbook else source.playbook_data()
 
     if tags:

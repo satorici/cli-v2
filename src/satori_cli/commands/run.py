@@ -44,6 +44,7 @@ def _require_first_execution_id(run_id) -> int:
 @opts.sync_opt
 @opts.region_filter_opt
 @opts.input_opt
+@opts.split_opt
 @opts.env_opt
 @click.option("--tag", "-t", "tags", multiple=True, type=(str, str))
 @click.option("--output", "-o", "show_output", is_flag=True)
@@ -91,6 +92,7 @@ def run(
     save_files: bool,
     get_files: bool,
     input: Optional[dict[str, list[str]]],
+    split: Optional[dict[str, str]],
     repository: Optional[str],
     env: Optional[dict[str, str]],
     cpu: Optional[int],
@@ -107,6 +109,7 @@ def run(
     SOURCE may be a regular source or one of the playbook aliases:
     pyspector or semgrep. Aliases run against the current directory.
     """
+    input = opts.apply_splits(input, split)
     # Overwrite delete_report and delete_output with save_report and save_output
     if save_report is not None:
         delete_report = not save_report

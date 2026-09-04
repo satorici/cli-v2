@@ -58,6 +58,7 @@ def scan(ctx, **kwargs):
 @opts.region_filter_opt
 @opts.sync_opt
 @opts.input_opt
+@opts.split_opt
 @opts.env_opt
 @opts.memory_opt
 @opts.cpu_opt
@@ -71,6 +72,7 @@ def scan_create(
     region_filter: tuple[str],
     quantity: Optional[int],
     input: Optional[dict[str, list[str]]],
+    split: Optional[dict[str, str]],
     env: Optional[dict[str, str]],
     cpu: Optional[int],
     memory: Optional[int],
@@ -80,6 +82,8 @@ def scan_create(
 ):
     if source.type == "DIR":
         raise SatoriError("Directory sources are not compatible with scan")
+
+    input = opts.apply_splits(input, split)
 
     container_settings = {}
 
