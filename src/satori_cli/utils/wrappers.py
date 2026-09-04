@@ -54,12 +54,18 @@ def command_generator(job: dict):
     if job_type == "MONITOR":
         return f"satori-v2 run {job['playbook_source']}"
 
-    command = ["satori-v2", job_type.lower(), job["playbook_source"]]
-
     if job_type == "SCAN":
-        command.append(job["repository_data"]["repository"])
+        command = [
+            "satori-v2",
+            "scan",
+            job["repository_data"]["repository"],
+            job["playbook_source"],
+        ]
+        if quantity := (job.get("criteria") or {}).get("quantity"):
+            command.extend(["-q", str(quantity)])
+        return " ".join(command)
 
-    return " ".join(command)
+    return f"satori-v2 {job_type.lower()} {job['playbook_source']}"
 
 
 @has_json_output

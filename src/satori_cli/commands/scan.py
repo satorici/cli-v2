@@ -4,8 +4,9 @@ import rich_click as click
 
 from ..api import client
 from ..exceptions import SatoriError
+from ..models import Playbook
 from ..utils import options as opts
-from ..utils.arguments import Source, source_arg
+from ..utils.arguments import Source, _SourceParam
 from ..utils.console import stdout, wait_job_until_finished
 from ..utils.misc import list_jobs, remove_none_values
 from ..utils.wrappers import JobWrapper
@@ -43,6 +44,7 @@ def scan(ctx, **kwargs):
     """Start a repository scan or manage an existing scan.
 
     Create: scan REPOSITORY SOURCE [OPTIONS]
+            scan REPOSITORY --playbook SOURCE [OPTIONS]
 
     Manage: scan SCAN_ID [status|stop|clean|delete]
     """
@@ -53,7 +55,8 @@ def scan(ctx, **kwargs):
 
 @scan.command(name="create", hidden=True)
 @click.argument("repository")
-@source_arg
+@click.argument("source", type=_SourceParam(), required=False)
+@opts.playbook_opt
 @click.option("-q", "--quantity", type=int)
 @opts.region_filter_opt
 @opts.sync_opt
@@ -67,7 +70,8 @@ def scan(ctx, **kwargs):
 @opts.visibility_opt
 def scan_create(
     repository: str,
-    source: Source,
+    source: Optional[Source],
+    playbook: Optional[Playbook],
     sync: bool,
     region_filter: tuple[str],
     quantity: Optional[int],
@@ -80,14 +84,18 @@ def scan_create(
     visibility: Optional[str],
     **kwargs,
 ):
-    if source.type == "DIR":
+    if not source and not playbook:
+        raise click.UsageError("SOURCE or --playbook is required")
+
+    if source and source.type == "DIR":
         raise SatoriError("Directory sources are not compatible with scan")
 
     input = opts.apply_splits(input, split)
 
     container_settings = {}
 
-    if local_playbook := source.playbook:
+    local_playbook = playbook or (source.playbook if source else None)
+    if local_playbook:
         input = local_playbook.get_inputs_from_env(input)
         container_settings = remove_none_values(local_playbook.container_settings)
 
@@ -97,13 +105,16 @@ def scan_create(
         )
     )
 
+    playbook_data = (
+        playbook.playbook_data() if playbook else source.playbook_data()
+    )
+
     body = {
-        "playbook_source": source.playbook_data(),
+        "playbook_source": playbook_data,
         "parameters": input,
         "regions": list(region_filter),
         "repository_data": {"repository": repository},
         "criteria": {"quantity": quantity},
-        "environment_variables": env,
         "container_settings": remove_none_values(container_settings),
         "visibility": visibility or "PRIVATE",
     }

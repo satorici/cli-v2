@@ -168,3 +168,98 @@ def test_run_help_lists_playbook_aliases():
     assert "pyspector" in result.output
     assert "semgrep" in result.output
     assert "--expire" in result.output
+
+
+@pytest.mark.parametrize("repo_flag", ["--repo", "--repository"])
+def test_run_with_repo_creates_scan(monkeypatch, repo_flag):
+    request = {}
+
+    def post(path, json):
+        request["path"] = path
+        request["body"] = json
+        return _FakeResponse(
+            {
+                "id": 99,
+                "type": "SCAN",
+                "playbook_source": "satori://code/python/pyspector_v2.yml",
+                "visibility": "PRIVATE",
+                "created_at": "2026-01-01T00:00:00Z",
+                "repository_data": {"repository": "satorici/satori-cli"},
+                "criteria": {"quantity": 1},
+                "status": "FETCHING_DATA",
+            }
+        )
+
+    monkeypatch.setattr("satori_cli.commands.run.client.post", post)
+    monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
+
+    result = CliRunner().invoke(
+        run,
+        [
+            "satori://code/python/pyspector_v2.yml",
+            repo_flag,
+            "satorici/satori-cli",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert request["path"] == "/jobs/scans"
+    assert request["body"]["playbook_source"] == "satori://code/python/pyspector_v2.yml"
+    assert request["body"]["repository_data"] == {"repository": "satorici/satori-cli"}
+    assert request["body"]["criteria"] == {"quantity": 1}
+
+
+def test_run_with_repo_output_waits_and_shows(monkeypatch):
+    waited = {}
+    shown = {}
+
+    def post(path, json):
+        return _FakeResponse(
+            {
+                "id": 99,
+                "type": "SCAN",
+                "playbook_source": "satori://code/python/pyspector_v2.yml",
+                "visibility": "PRIVATE",
+                "created_at": "2026-01-01T00:00:00Z",
+                "repository_data": {"repository": "satorici/satori-cli"},
+                "criteria": {"quantity": 1},
+                "status": "FETCHING_DATA",
+            }
+        )
+
+    def wait(job_id):
+        waited["job_id"] = job_id
+
+    def show(execution_id, *args, **kwargs):
+        shown["execution_id"] = execution_id
+
+    monkeypatch.setattr("satori_cli.commands.run.client.post", post)
+    monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
+    monkeypatch.setattr("satori_cli.commands.run.stderr.print", lambda *args: None)
+    monkeypatch.setattr("satori_cli.commands.run.wait_job_until_finished", wait)
+    monkeypatch.setattr(
+        "satori_cli.commands.run._require_first_execution_id", lambda job_id: 42
+    )
+    monkeypatch.setattr("satori_cli.commands.run.show_execution_output", show)
+
+    result = CliRunner().invoke(
+        run,
+        [
+            "satori://code/python/pyspector_v2.yml",
+            "--repo",
+            "satorici/satori-cli",
+            "--output",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert waited == {"job_id": 99}
+    assert shown == {"execution_id": 42}
+
+
+def test_run_help_lists_repo_alias():
+    result = CliRunner().invoke(run, ["--help"])
+
+    assert result.exit_code == 0
+    assert "--repo" in result.output
+    assert "--repository" in result.output

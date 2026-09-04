@@ -20,6 +20,7 @@ from ..utils.console import (
     show_raw_output,
     stderr,
     stdout,
+    wait_job_until_finished,
 )
 from ..utils.misc import remove_none_values
 from ..utils.wrappers import (
@@ -49,7 +50,7 @@ def _require_first_execution_id(run_id) -> int:
 @click.option("--tag", "-t", "tags", multiple=True, type=(str, str))
 @click.option("--output", "-o", "show_output", is_flag=True)
 @click.option("--live-output", is_flag=True)
-@click.option("--repository", "repository")
+@click.option("--repository", "--repo", "repository")
 @click.option("--report", "show_report", is_flag=True)
 @click.option("--stdout", "show_stdout", is_flag=True)
 @click.option("--stderr", "show_stderr", is_flag=True)
@@ -165,6 +166,52 @@ def run(
 
         stdout.print(JobWrapper(monitor))
         sys.exit(0)
+
+    if repository:
+        scan_body = {
+            "playbook_source": playbook_data,
+            "parameters": input,
+            "regions": list(region_filter),
+            "repository_data": {"repository": repository},
+            "criteria": {"quantity": 1},
+            "container_settings": remove_none_values(container_settings),
+            "visibility": visibility or "PRIVATE",
+            "tags": tags_obj,
+            "execution_timeout": timeout,
+        }
+        scan_job = client.post("/jobs/scans", json=scan_body).json()
+        stdout.print(JobWrapper(scan_job))
+
+        needs_execution = show_stdout or show_stderr or show_output or show_report
+        if sync or needs_execution:
+            wait_job_until_finished(scan_job["id"])
+
+        if needs_execution:
+            execution_id = _require_first_execution_id(scan_job["id"])
+
+            if show_stdout:
+                stderr.print(f"Execution {execution_id} stdout:")
+                show_raw_output(execution_id, "stdout")
+
+            if show_stderr:
+                stderr.print(f"Execution {execution_id} stderr:")
+                show_raw_output(execution_id, "stderr")
+
+            if show_output:
+                stderr.print(f"Execution {execution_id} output:")
+                show_execution_output(execution_id)
+
+            if show_report:
+                res = client.get(f"/executions/{execution_id}")
+                execution = res.json()
+                if report := execution.get("report"):
+                    if detail := report.get("detail"):
+                        stdout.print(ReportWrapper(detail))
+                    else:
+                        stderr.print("No report detail available for this execution.")
+                else:
+                    stderr.print("No report available for this execution.")
+        return
 
     body = {
         "playbook_source": playbook_data,
