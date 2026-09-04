@@ -17,6 +17,7 @@ from .commands.local import local
 from .commands.monitor import list_monitors, monitor
 from .commands.output import output
 from .commands.playbook import playbook, playbooks
+from .commands.repo import repos
 from .commands.report import report, reports
 from .commands.run import run
 from .commands.scan import list_scans, scan
@@ -75,6 +76,7 @@ cli.add_command(execution)
 cli.add_command(reports)
 cli.add_command(report)
 cli.add_command(findings)
+cli.add_command(repos)
 cli.add_command(issues)
 cli.add_command(issue)
 cli.add_command(stop)

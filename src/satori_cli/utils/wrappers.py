@@ -228,6 +228,23 @@ class FindingsListWrapper(Wrapper[list]):
         yield table
 
 
+class RepoListWrapper(Wrapper[list]):
+    def __rich_console__(self, console, options):
+        table = Table(expand=True)
+        table.add_column("Id")
+        table.add_column("Full name")
+        table.add_column("Private")
+
+        for repo in self.obj:
+            table.add_row(
+                str(repo["id"]),
+                repo["full_name"],
+                "Yes" if repo["private"] else "No",
+            )
+
+        yield table
+
+
 _RISK_LABELS = {
     0: "Info",
     1: "Low",
