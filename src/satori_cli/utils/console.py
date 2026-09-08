@@ -14,11 +14,12 @@ from rich.markdown import Markdown
 from ..api import client
 from ..exceptions import SatoriError
 from ..utils.format import OutputFormat, get_output_format
+from ..utils.highlight import SatoriHighlighter, satori_theme
 from ..utils.output_filter import run_test_filter
 from ..utils.wrappers import ExecutionWrapper, OutputWrapper
 
-stdout = Console()
-stderr = Console(stderr=True)
+stdout = Console(highlighter=SatoriHighlighter(), theme=satori_theme)
+stderr = Console(highlighter=SatoriHighlighter(), theme=satori_theme, stderr=True)
 
 
 def wait_job_until_finished(job_id: int):

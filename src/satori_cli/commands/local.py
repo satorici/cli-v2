@@ -7,6 +7,9 @@ from typing import Optional
 import httpx
 import msgpack
 import rich_click as click
+from rich import progress
+from rich.live import Live
+from rich.table import Table
 
 from ..api import client
 from ..models import Playbook
@@ -14,7 +17,9 @@ from ..utils import options as opts
 from ..utils.arguments import Source, source_arg
 from ..utils.console import format_raw_results, stderr, stdout
 from ..utils.execution.runner import TimedOut, process_commands
-from ..utils.wrappers import JobWrapper, ReportWrapper, highlight_result
+from ..utils.format import is_json_output
+from ..utils.highlight import highlight_result
+from ..utils.wrappers import JobWrapper, ReportWrapper
 
 
 @click.command()
@@ -61,8 +66,10 @@ def local(
 
     local = client.post("/jobs/locals", json=body).json()
 
-    if not sync:
-        stdout.print(JobWrapper(local))
+    use_progress = not is_json_output() and not show_output
+    execution_id = None
+    report = None
+    needs_report = show_report or sync
 
     with SpooledTemporaryFile() as recipe, SpooledTemporaryFile() as results:
         res = httpx.get(local["recipe_url"])
@@ -76,55 +83,104 @@ def local(
 
         settings = httpx.get(local["settings_url"]).json()
 
-        async def execute():
+        async def execute(on_running=None):
             if source.type == "DIR":
                 os.chdir(source._arg)
 
-            async for cline, result in process_commands(unpacked, settings, timeout):
+            async for cline, result in process_commands(
+                unpacked,
+                settings,
+                timeout,
+                on_running=on_running,
+            ):
                 msgpack.pack(cline | {"output": result}, results)
 
         fields = {"x-amz-meta-status": "FINISHED"}
+        timed_out = False
 
-        try:
-            asyncio.run(execute())
-        except TimedOut:
-            fields["x-amz-meta-status"] = "CANCELED"
+        def upload_and_poll():
+            nonlocal execution_id, report
+
+            results.seek(0)
+            results_upload = local["results_upload"]
+            res = httpx.post(
+                results_upload["url"],
+                data=results_upload["fields"] | fields,
+                files={"file": results},
+            )
+            res.raise_for_status()
+
+            # The execution (and its report) are created by the backend after
+            # results are uploaded, so poll instead of querying once.
+            for _ in range(60):
+                res = client.get(
+                    "/executions", params={"job_id": local["id"], "quantity": 1}
+                )
+
+                if items := res.json()["items"]:
+                    execution_id = items[0]["id"]
+
+                    if not needs_report:
+                        break
+
+                    execution = client.get(f"/executions/{execution_id}").json()
+                    if report := execution.get("report"):
+                        break
+
+                time.sleep(2)
+
+        if use_progress:
+            p = progress.Progress(
+                progress.SpinnerColumn("dots2"),
+                progress.TextColumn(
+                    "[progress.description]Status: {task.description}",
+                ),
+                progress.TimeElapsedColumn(),
+            )
+            task = p.add_task("Starting execution")
+
+            def make_grid(report_ids=None):
+                grid = Table.grid("")
+                grid.add_row(JobWrapper(local, compact=True, report_ids=report_ids))
+                grid.add_row(p)
+                return grid
+
+            def on_running(path: str) -> None:
+                p.update(task, description="Running [b]" + path)
+
+            with Live(make_grid(), console=stdout, refresh_per_second=10) as live:
+                try:
+                    asyncio.run(execute(on_running))
+                    p.update(task, description="Completed")
+                except TimedOut:
+                    timed_out = True
+                    fields["x-amz-meta-status"] = "CANCELED"
+                    p.update(task, description="Timeout")
+
+                upload_and_poll()
+                report_ids = [execution_id] if execution_id is not None else None
+                live.update(make_grid(report_ids))
+        else:
+            try:
+                asyncio.run(execute())
+            except TimedOut:
+                timed_out = True
+                fields["x-amz-meta-status"] = "CANCELED"
+
+            upload_and_poll()
+
+            if not is_json_output():
+                report_ids = [execution_id] if execution_id is not None else None
+                stdout.print(JobWrapper(local, compact=True, report_ids=report_ids))
+
+        if timed_out:
             stdout.print("Execution timed out")
-
-        results.seek(0)
-
-        results_upload = local["results_upload"]
-
-        res = httpx.post(
-            results_upload["url"],
-            data=results_upload["fields"] | fields,
-            files={"file": results},
-        )
-        res.raise_for_status()
 
         if show_output:
             results.seek(0)
             format_raw_results(results)
 
-    if show_report or sync:
-        report = None
-
-        # The report is generated by the backend after the results are
-        # uploaded, so we poll until it becomes available instead of querying
-        # only once (which races against the backend and reports nothing).
-        for _ in range(60):
-            res = client.get(
-                "/executions", params={"job_id": local["id"], "quantity": 1}
-            )
-
-            if items := res.json()["items"]:
-                execution = client.get(f"/executions/{items[0]['id']}").json()
-
-                if report := execution.get("report"):
-                    break
-
-            time.sleep(2)
-
+    if needs_report:
         if report:
             if show_report:
                 if detail := report.get("detail"):

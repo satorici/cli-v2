@@ -6,7 +6,6 @@ from math import floor
 from typing import Generic, TypeVar
 
 from rich.console import Console, ConsoleOptions, RenderResult
-from rich.highlighter import RegexHighlighter
 from rich.panel import Panel
 from rich.segment import Segment
 from rich.table import Column, Table
@@ -16,7 +15,9 @@ if sys.version_info < (3, 11):
 else:
     from typing import TypedDict
 
+from ..constants import report_url
 from ..utils.format import is_json_output
+from ..utils.highlight import highlight_result, highlight_text
 
 T = TypeVar("T")
 
@@ -70,18 +71,31 @@ def command_generator(job: dict):
 
 @has_json_output
 class JobWrapper(Wrapper[dict]):
+    def __init__(
+        self,
+        obj: dict,
+        *,
+        compact: bool = False,
+        report_ids: list[int] | None = None,
+    ):
+        super().__init__(obj)
+        self.compact = compact
+        self.report_ids = report_ids
+
     def __rich_console__(self, console, options):
         job = self.obj
         job_type = job["type"]
 
-        job_grid = Table.grid(padding=(0, 2))
+        job_grid = Table.grid(Column(style="bold"), Column(), padding=(0, 2))
 
-        if job_type != "GITHUB":
-            job_grid.add_row("Command", command_generator(job))
+        if not self.compact:
+            if job_type != "GITHUB":
+                job_grid.add_row("Command", highlight_text(command_generator(job)))
 
-        job_grid.add_row("Type", job_type.capitalize())
-        job_grid.add_row("Playbook source", job["playbook_source"])
-        job_grid.add_row("Visibility", job["visibility"].capitalize())
+            job_grid.add_row("Type", highlight_text(job_type.capitalize()))
+            job_grid.add_row("Playbook source", highlight_text(job["playbook_source"]))
+
+        job_grid.add_row("Visibility", highlight_text(job["visibility"].capitalize()))
         job_grid.add_row("Created at", ISODateTime(job["created_at"]))
 
         if status := job.get("status"):
@@ -90,22 +104,33 @@ class JobWrapper(Wrapper[dict]):
             if finished_job and job["finished_at"]:
                 job_grid.add_row("Finished at", ISODateTime(job["finished_at"]))
 
-            job_grid.add_row("Status", status.capitalize().replace("_", " "))
+            job_grid.add_row(
+                "Status", highlight_text(status.capitalize().replace("_", " "))
+            )
 
             if finished_job:
-                result = highlight_result("Fail" if job["failed_reports"] else "Pass")
+                result = highlight_text("Fail" if job["failed_reports"] else "Pass")
             else:
-                result = "N/A"
+                result = highlight_text("N/A")
 
             if job["type"] == "RUN":
-                job_grid.add_row("Execution count", str(job["count"]))
+                job_grid.add_row("Execution count", highlight_text(str(job["count"])))
                 job_grid.add_row("Result", result)
 
             if job["type"] == "MONITOR":
-                job_grid.add_row("Schedule expression", str(job["expression"]))
+                job_grid.add_row(
+                    "Schedule expression", highlight_text(str(job["expression"]))
+                )
 
         if estimated_cost := job.get("estimated_cost"):
-            job_grid.add_row("Estimated cost", f"USD {estimated_cost:.6f}")
+            job_grid.add_row(
+                "Estimated cost", highlight_text(f"USD {estimated_cost:.6f}")
+            )
+
+        if self.report_ids:
+            for report_id in self.report_ids:
+                job_grid.add_row("Report ID", highlight_text(str(report_id)))
+                job_grid.add_row("Report", highlight_text(report_url(report_id)))
 
         yield Panel(job_grid, title=f"Job {job['id']}", title_align="left")
 
@@ -122,15 +147,15 @@ class JobExecutionsWrapper(Wrapper[list]):
 
         for execution in self.obj:
             if report := execution["data"].get("report"):
-                result = highlight_result("Fail" if report["fails"] else "Pass")
+                result = highlight_text("Fail" if report["fails"] else "Pass")
             else:
-                result = "N/A"
+                result = highlight_text("N/A")
 
             table.add_row(
                 str(execution["id"]),
                 ISODateTime(execution["created_at"]),
                 execution["data"].get("region", "N/A"),
-                execution["status"].capitalize().replace("_", " "),
+                highlight_text(execution["status"].capitalize().replace("_", " ")),
                 execution["visibility"].capitalize(),
                 result,
             )
@@ -333,14 +358,7 @@ def to_datetime(s: str):
 
 class ISODateTime(Wrapper[str]):
     def __rich_console__(self, console, options):
-        yield to_datetime(self.obj).strftime("%Y-%m-%d %H:%M:%S")
-
-
-class ResultHighlighter(RegexHighlighter):
-    highlights = [r"(?P<green>Pass)", r"(?P<red>Fail)"]
-
-
-highlight_result = ResultHighlighter()
+        yield highlight_text(to_datetime(self.obj).strftime("%Y-%m-%d %H:%M:%S"))
 
 
 @has_json_output
@@ -352,12 +370,17 @@ class ExecutionWrapper(Wrapper[dict]):
 
         grid = Table.grid(Column(ratio=1), Column(ratio=1), expand=True)
 
-        execution_grid = Table.grid(padding=(0, 2))
-        execution_grid.add_row("Status", self.obj["status"].capitalize())
-        execution_grid.add_row("Visibility", self.obj["visibility"].capitalize())
+        execution_grid = Table.grid(Column(style="bold"), Column(), padding=(0, 2))
+        execution_grid.add_row(
+            "Status", highlight_text(self.obj["status"].capitalize())
+        )
+        execution_grid.add_row(
+            "Visibility", highlight_text(self.obj["visibility"].capitalize())
+        )
+        execution_grid.add_row("Report URL", highlight_text(report_url(self.obj["id"])))
 
         if region := data.get("region"):
-            execution_grid.add_row("Region", region)
+            execution_grid.add_row("Region", highlight_text(region))
 
         execution_grid.add_row("Created at", ISODateTime(self.obj["created_at"]))
 
@@ -366,11 +389,11 @@ class ExecutionWrapper(Wrapper[dict]):
         if stopped_at := data.get("timestamps", {}).get("executionStoppedAt"):
             execution_grid.add_row("Stopped at", ISODateTime(stopped_at))
 
-        job_grid = Table.grid(padding=(0, 2))
-        job_grid.add_row("Type", job["type"].capitalize())
-        job_grid.add_row("Visibility", job["visibility"].capitalize())
+        job_grid = Table.grid(Column(style="bold"), Column(), padding=(0, 2))
+        job_grid.add_row("Type", highlight_text(job["type"].capitalize()))
+        job_grid.add_row("Visibility", highlight_text(job["visibility"].capitalize()))
         job_grid.add_row("Created at", ISODateTime(job["created_at"]))
-        job_grid.add_row("Playbook source", job["playbook_source"])
+        job_grid.add_row("Playbook source", highlight_text(job["playbook_source"]))
 
         grid.add_row(
             execution_grid,
@@ -416,9 +439,9 @@ class ExecutionListWrapper(Wrapper[dict]):
 
         for execution in self.obj:
             if report := execution["report"]:
-                result = highlight_result("Fail" if report["total_fails"] else "Pass")
+                result = highlight_text("Fail" if report["total_fails"] else "Pass")
             else:
-                result = "N/A"
+                result = highlight_text("N/A")
 
             job = execution["job"]
 

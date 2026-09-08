@@ -4,9 +4,9 @@ import os
 import shlex
 import signal
 from asyncio import subprocess
+from collections.abc import Callable, Iterable
 from itertools import groupby
 from time import perf_counter
-from typing import Iterable
 
 from .models import CommandData, CommandLine, FileBasedResultCache, Result, ResultCache
 from .utils import replace_results, replace_testcase
@@ -103,6 +103,7 @@ async def process_commands(
     timeout: int | None = None,
     cache_class: type[ResultCache] = FileBasedResultCache,
     stop_event: asyncio.Event | None = None,
+    on_running: Callable[[str], None] | None = None,
 ):
     if not stop_event:
         stop_event = asyncio.Event()
@@ -149,7 +150,9 @@ async def process_commands(
                 }
 
                 for _, v in tasks.items():
-                    log.info(f"Running {v['path']}: {v['original']}")
+                    log.debug(f"Running {v['path']}: {v['original']}")
+                    if on_running is not None:
+                        on_running(v["path"])
 
                 if inner_timeout is not None:
                     asyncio.create_task(set_after(command_timeout_event, inner_timeout))

@@ -10,6 +10,7 @@ from rich.live import Live
 from rich.table import Table
 
 from ..api import client
+from ..constants import report_url
 from ..exceptions import SatoriError
 from ..models import Playbook
 from ..utils import options as opts
@@ -22,6 +23,7 @@ from ..utils.console import (
     stdout,
     wait_job_until_finished,
 )
+from ..utils.format import is_json_output
 from ..utils.misc import remove_none_values
 from ..utils.wrappers import (
     JobExecutionsWrapper,
@@ -32,10 +34,42 @@ from ..utils.wrappers import (
 
 
 def _require_first_execution_id(run_id) -> int:
-    items = client.get("/executions", params={"job_id": run_id}).json()["items"]
-    if not items:
+    ids = _wait_execution_ids_for_job(run_id, quantity=1)
+    if not ids:
         raise SatoriError(f"No executions found for run {run_id}")
-    return items[0]["id"]
+    return ids[0]
+
+
+def _execution_ids_for_job(job_id, quantity: int = 1) -> list[int]:
+    items = client.get(
+        "/executions", params={"job_id": job_id, "quantity": quantity}
+    ).json()["items"]
+    return [item["id"] for item in items]
+
+
+def _wait_execution_ids_for_job(
+    job_id, quantity: int = 1, attempts: int = 30, delay: float = 1.0
+) -> list[int]:
+    """Poll until executions exist; the backend creates them after the job is RUNNING."""
+    ids: list[int] = []
+    for _ in range(attempts):
+        ids = _execution_ids_for_job(job_id, quantity)
+        if len(ids) >= quantity:
+            return ids
+        time.sleep(delay)
+    return ids
+
+
+def _print_report_urls(execution_ids: list[int]) -> None:
+    if is_json_output() or not execution_ids:
+        return
+    for execution_id in execution_ids:
+        stdout.print(f"Report ID: {execution_id}")
+        stdout.print(f"Report: {report_url(execution_id)}")
+
+
+def _compact_job(job: dict, report_ids: list[int] | None = None) -> JobWrapper:
+    return JobWrapper(job, compact=True, report_ids=report_ids or None)
 
 
 @click.command()
@@ -180,14 +214,17 @@ def run(
             "execution_timeout": timeout,
         }
         scan_job = client.post("/jobs/scans", json=scan_body).json()
-        stdout.print(JobWrapper(scan_job))
+        report_ids = _wait_execution_ids_for_job(scan_job["id"], quantity=1)
+        stdout.print(_compact_job(scan_job, report_ids))
 
         needs_execution = show_stdout or show_stderr or show_output or show_report
         if sync or needs_execution:
             wait_job_until_finished(scan_job["id"])
 
         if needs_execution:
-            execution_id = _require_first_execution_id(scan_job["id"])
+            execution_id = report_ids[0] if report_ids else _require_first_execution_id(
+                scan_job["id"]
+            )
 
             if show_stdout:
                 stderr.print(f"Execution {execution_id} stdout:")
@@ -236,6 +273,7 @@ def run(
         source.upload_files(files_upload)
 
     run_id = run["id"]
+    report_ids = _wait_execution_ids_for_job(run_id, quantity=count)
 
     if (
         sync
@@ -260,15 +298,15 @@ def run(
         p.add_task("")
 
         grid = Table.grid("")
-        grid.add_row(JobWrapper(run))
+        grid.add_row(_compact_job(run, report_ids))
         grid.add_row(p)
 
         with Live(grid, console=live_console, refresh_per_second=10) as live:
 
             def show_live_output():
-                execution_id = None
+                execution_id = report_ids[0] if report_ids else None
 
-                while True:
+                while execution_id is None:
                     res = client.get(
                         "/executions", params={"job_id": run_id, "quantity": 1}
                     )
@@ -295,7 +333,7 @@ def run(
                     run["status"] = sse.data
 
                     grid = Table.grid("")
-                    grid.add_row(JobWrapper(run))
+                    grid.add_row(_compact_job(run, report_ids))
                     grid.add_row(p)
 
                     live.update(grid)
@@ -303,15 +341,18 @@ def run(
                     if run["status"] in ("FINISHED", "CANCELED"):
                         break
     else:
-        stdout.print(JobWrapper(run))
+        stdout.print(_compact_job(run, report_ids))
         sys.exit(0)
 
     needs_execution = (
         show_stdout or show_stderr or show_output or (show_report and count == 1)
     )
 
+    execution_id = report_ids[0] if report_ids else None
+
     if needs_execution:
-        execution_id = _require_first_execution_id(run_id)
+        if execution_id is None:
+            execution_id = _require_first_execution_id(run_id)
 
         if show_stdout:
             stderr.print(f"Execution {execution_id} stdout:")
@@ -330,6 +371,8 @@ def run(
 
     if show_report:
         if count == 1:
+            if execution_id is None:
+                execution_id = _require_first_execution_id(run_id)
             res = client.get(f"/executions/{execution_id}")
             execution = res.json()
             if report := execution.get("report"):
@@ -342,6 +385,7 @@ def run(
         else:
             res = client.get("/executions", params={"job_id": run_id})
             executions = res.json()
+            _print_report_urls([item["id"] for item in executions["items"]])
             stdout.print(
                 PagedWrapper(
                     executions, 1, len(executions["items"]), JobExecutionsWrapper
