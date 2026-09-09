@@ -3,6 +3,7 @@ from typing import Optional
 
 import rich_click as click
 
+from ..api import client
 from ..config import config
 from ..utils.console import stderr, stdout
 from ..utils.options import profile_opt
@@ -27,6 +28,11 @@ def config_(key: Optional[str], value: Optional[str], **kwargs):
     if key and value == "":
         stderr.print(f"'{key}' value must not be empty")
         sys.exit(1)
+
+    if key == "pat":
+        client.patch("/settings", json={"github": {"token": value}})
+        stdout.print("Github PAT updated")
+        return
 
     config.save(key, value, kwargs["profile"])
     stdout.print(f"{key} updated")

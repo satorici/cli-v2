@@ -26,6 +26,7 @@ from .commands.shards import shards
 from .commands.shell import shell
 from .commands.stop import stop
 from .commands.update import update
+from .commands.whoami import whoami
 from .exceptions import SatoriError
 from .utils import options as opts
 from .utils.console import stderr
@@ -85,6 +86,7 @@ cli.add_command(shards)
 cli.add_command(update)
 cli.add_command(output)
 cli.add_command(shell)
+cli.add_command(whoami)
 
 
 def main():
