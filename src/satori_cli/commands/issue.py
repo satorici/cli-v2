@@ -47,7 +47,7 @@ def issue(ctx, **kwargs):
 def issue_advisory(finding_id: int, **kwargs):
     if finding_id is None:
         raise click.UsageError("Missing argument 'FINDING-ID'.")
-    res = client.post("/external_issues", json={"finding_id": finding_id})
+    res = client.post("/external_issues/security_advisory", json={"finding_id": finding_id})
     data = res.json()
     if is_json_output():
         stdout.print_json(data)
