@@ -256,15 +256,30 @@ class FindingsListWrapper(Wrapper[list]):
 class RepoListWrapper(Wrapper[list]):
     def __rich_console__(self, console, options):
         table = Table(expand=True)
-        table.add_column("Id")
         table.add_column("Full name")
-        table.add_column("Private")
+        table.add_column("Visibility")
+        table.add_column("Playbook")
+        table.add_column("Status")
+        table.add_column("Result")
 
         for repo in self.obj:
+            last = repo.get("last_execution")
+            playbook = last["playbook_source"] if last else "N/A"
+            status = (
+                last["status"].capitalize().replace("_", " ") if last else "N/A"
+            )
+            if not last or last.get("total_fails") is None:
+                result = highlight_text("N/A")
+            else:
+                fails = last["total_fails"]
+                result = highlight_text("Pass" if fails == 0 else f"Fail({fails})")
+
             table.add_row(
-                str(repo["id"]),
                 repo["full_name"],
-                "Yes" if repo["private"] else "No",
+                "Private" if repo["private"] else "Public",
+                playbook,
+                status,
+                result,
             )
 
         yield table
