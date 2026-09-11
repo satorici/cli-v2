@@ -3,5 +3,5 @@ settings:
   image: public.ecr.aws/docker/library/python
 
 import:
-  - "pass.yml"
+  - "file://pass.yml"
   - "satori://secrets/trufflehog.yml"
