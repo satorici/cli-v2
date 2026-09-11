@@ -62,6 +62,7 @@ def scan(ctx, **kwargs):
 @opts.sync_opt
 @opts.input_opt
 @opts.split_opt
+@opts.data_file_opt
 @opts.env_opt
 @opts.memory_opt
 @opts.cpu_opt
@@ -77,6 +78,7 @@ def scan_create(
     quantity: Optional[int],
     input: Optional[dict[str, list[str]]],
     split: Optional[dict[str, str]],
+    data_file: Optional[tuple[str]],
     env: Optional[dict[str, str]],
     cpu: Optional[int],
     memory: Optional[int],
@@ -91,6 +93,7 @@ def scan_create(
         raise SatoriError("Directory sources are not compatible with scan")
 
     input = opts.apply_splits(input, split)
+    input = opts.apply_data_files(input, data_file)
 
     container_settings = {}
 

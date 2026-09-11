@@ -1,4 +1,5 @@
 from collections import defaultdict
+from pathlib import Path
 
 import click
 
@@ -39,6 +40,16 @@ def _split_callback(ctx, name, splits: tuple[str]):
         return result
 
 
+def _data_file_callback(ctx, name, data_files: tuple[str]):
+    if data_files:
+        for data_file in data_files:
+            if "=" not in data_file:
+                raise click.BadParameter(
+                    f"invalid format '{data_file}', expected KEY=PATH"
+                )
+        return data_files
+
+
 def apply_splits(
     parameters: dict[str, list[str]] | None,
     splits: dict[str, str] | None,
@@ -57,6 +68,39 @@ def apply_splits(
             values.extend(part for part in value.split(delimiter) if part)
 
         result[key] = values
+
+    return result
+
+
+def apply_data_files(
+    parameters: dict[str, list[str]] | None,
+    data_files: tuple[str] | None,
+) -> dict[str, list[str]] | None:
+    if not data_files:
+        return parameters
+
+    result: dict[str, list[str]] = (
+        {k: list(v) for k, v in parameters.items()} if parameters else {}
+    )
+
+    for data_file in data_files:
+        if "=" not in data_file:
+            raise click.BadParameter(
+                f"invalid format '{data_file}', expected KEY=PATH"
+            )
+
+        key, path_str = data_file.split("=", 1)
+        path = Path(path_str)
+
+        if not path.is_file():
+            raise click.BadParameter(f"file not found: {path_str}")
+
+        lines = [
+            line.rstrip("\r")
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line
+        ]
+        result.setdefault(key, []).extend(lines)
 
     return result
 
@@ -89,6 +133,13 @@ input_opt = click.option(
 )
 split_opt = click.option(
     "--split", "split", multiple=True, callback=_split_callback
+)
+data_file_opt = click.option(
+    "--data-file",
+    "-df",
+    "data_file",
+    multiple=True,
+    callback=_data_file_callback,
 )
 env_opt = click.option(
     "--env", "-e", type=(str, str), multiple=True, callback=_env_callback

@@ -27,6 +27,7 @@ from ..utils.wrappers import JobWrapper, ReportWrapper
 @opts.playbook_opt
 @opts.input_opt
 @opts.split_opt
+@opts.data_file_opt
 @click.option("--timeout", type=int)
 @click.option("--run", multiple=True)
 @opts.visibility_opt
@@ -39,6 +40,7 @@ def local(
     playbook: Optional[Playbook],
     input: Optional[dict[str, list[str]]],
     split: Optional[dict[str, str]],
+    data_file: Optional[tuple[str]],
     timeout: Optional[int],
     run: Optional[tuple[str]],
     visibility: Optional[str],
@@ -49,6 +51,7 @@ def local(
     **kwargs,
 ):
     input = opts.apply_splits(input, split)
+    input = opts.apply_data_files(input, data_file)
 
     playbook_data = playbook.playbook_data() if playbook else source.playbook_data()
 
