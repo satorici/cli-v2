@@ -1,6 +1,6 @@
 import os
 
-from httpx import Client, Response
+from httpx2 import Client, Response
 
 from .auth import SatoriAuth
 

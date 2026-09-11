@@ -1,6 +1,6 @@
 from typing import Generator
 
-from httpx import Auth, Request, Response
+from httpx2 import Auth, Request, Response
 
 from .config import config
 from .exceptions import AuthError

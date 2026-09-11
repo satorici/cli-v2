@@ -8,7 +8,7 @@ from pathlib import Path
 from tempfile import SpooledTemporaryFile
 from typing import Any, Literal, Optional, TypedDict, Union
 
-import httpx
+import httpx2
 import yaml
 from repro_zipfile import ReproducibleZipFile as ZipFile
 
@@ -237,7 +237,7 @@ class Source:
                     tf.add(self._arg, Path(self._arg).name)
 
                 f.seek(0)
-                res = httpx.post(data["url"], data=data["fields"], files={"file": f})
+                res = httpx2.post(data["url"], data=data["fields"], files={"file": f})
                 res.raise_for_status()
 
             return
@@ -261,7 +261,7 @@ class Source:
                 tf.add(self._arg, ".", filter=tar_filter)
 
             f.seek(0)
-            res = httpx.post(data["url"], data=data["fields"], files={"file": f})
+            res = httpx2.post(data["url"], data=data["fields"], files={"file": f})
             res.raise_for_status()
 
     def playbook_data(self):

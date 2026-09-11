@@ -4,7 +4,7 @@ import time
 from tempfile import SpooledTemporaryFile
 from typing import Optional
 
-import httpx
+import httpx2
 import msgpack
 import rich_click as click
 from rich import progress
@@ -72,7 +72,7 @@ def local(
     needs_report = show_report or sync
 
     with SpooledTemporaryFile() as recipe, SpooledTemporaryFile() as results:
-        res = httpx.get(local["recipe_url"])
+        res = httpx2.get(local["recipe_url"])
         recipe.write(res.content)
         recipe.seek(0)
 
@@ -81,7 +81,7 @@ def local(
         if run:
             unpacked = (cline for cline in unpacked if cline["path"].startswith(run))
 
-        settings = httpx.get(local["settings_url"]).json()
+        settings = httpx2.get(local["settings_url"]).json()
 
         async def execute(on_running=None):
             if source.type == "DIR":
@@ -103,7 +103,7 @@ def local(
 
             results.seek(0)
             results_upload = local["results_upload"]
-            res = httpx.post(
+            res = httpx2.post(
                 results_upload["url"],
                 data=results_upload["fields"] | fields,
                 files={"file": results},

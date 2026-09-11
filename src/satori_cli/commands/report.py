@@ -1,6 +1,6 @@
 from typing import Optional
 
-import httpx
+import httpx2
 import rich_click as click
 
 from ..api import client
@@ -70,7 +70,7 @@ def _parsed_findings_groups(execution_id: int) -> list[tuple[str, list]]:
     groups: list[tuple[str, list]] = []
     try:
         outputs = load_execution_outputs(execution_id)
-    except (httpx.HTTPError, OSError, ValueError):
+    except (httpx2.HTTPError, OSError, ValueError):
         return groups
 
     for output in outputs:

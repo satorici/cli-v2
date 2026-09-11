@@ -1,4 +1,4 @@
-from httpx import Client
+from httpx2 import Client
 
 from .api import raise_for_status
 from .constants import PLAYBOOKS_API_URL

@@ -6,7 +6,7 @@ from importlib.metadata import distribution, version
 from typing import Optional
 
 import rich_click as click
-from httpx import HTTPStatusError
+from httpx2 import HTTPStatusError
 
 from .commands.config import config_
 from .commands.execution import execution

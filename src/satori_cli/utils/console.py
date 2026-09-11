@@ -5,7 +5,7 @@ from pathlib import Path
 from tempfile import SpooledTemporaryFile
 from typing import Literal
 
-import httpx
+import httpx2
 import msgpack
 from rich import progress
 from rich.console import Console
@@ -41,7 +41,7 @@ def wait_job_until_finished(job_id: int):
                     status = res.json()["status"]
                     p.update(task, description=status)
                     break
-                except httpx.TimeoutException:
+                except httpx2.TimeoutException:
                     tries += 1
             else:
                 raise SatoriError("Fetch status failed after 3 retries")
@@ -135,7 +135,7 @@ def show_raw_output(execution_id: int, stream: Literal["stdout", "stderr"]):
 
 
 class HttpxStreamFile(io.RawIOBase):
-    def __init__(self, response: httpx.Response):
+    def __init__(self, response: httpx2.Response):
         self._iter = response.iter_bytes()
 
     def readable(self):
@@ -177,7 +177,7 @@ def show_execution(execution_id: int):
 def download_execution_files(execution_id: int):
     res = client.get(f"/executions/{execution_id}/files")
 
-    with httpx.stream("GET", res.headers["Location"]) as s:
+    with httpx2.stream("GET", res.headers["Location"]) as s:
         s.raise_for_status()
 
         total = int(s.headers["Content-Length"])
@@ -217,7 +217,7 @@ def export_job_files(job_id: int, region: str | None = None, dest: str = "."):
 
             page += 1
 
-    with httpx.Client() as c:
+    with httpx2.Client() as c:
 
         def download(id: int):
             url = client.get(f"/executions/{id}/files").headers["Location"]

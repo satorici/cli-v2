@@ -4,7 +4,6 @@ import time
 from typing import Optional
 
 import rich_click as click
-from httpx_sse import connect_sse
 from rich import progress
 from rich.live import Live
 from rich.table import Table
@@ -323,10 +322,8 @@ def run(
                 output_thread = threading.Thread(target=show_live_output, daemon=True)
                 output_thread.start()
 
-            with connect_sse(
-                client, "GET", f"jobs/runs/{run_id}/status", timeout=None
-            ) as es:
-                for sse in es.iter_sse():
+            with client.sse(f"jobs/runs/{run_id}/status", timeout=None) as es:
+                for sse in es:
                     if sse.event == "ping":
                         continue
 
