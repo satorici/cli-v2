@@ -300,6 +300,8 @@ class IssueListWrapper(Wrapper[list]):
         table = Table(expand=True)
         table.add_column("ID")
         table.add_column("Title")
+        table.add_column("Status")
+        table.add_column("Source")
         table.add_column("Risk")
 
         for finding in self.obj:
@@ -314,6 +316,8 @@ class IssueListWrapper(Wrapper[list]):
             table.add_row(
                 str(finding["id"]),
                 finding["title"],
+                finding["status"].capitalize().replace("_", " "),
+                finding["source"].capitalize(),
                 risk,
             )
 

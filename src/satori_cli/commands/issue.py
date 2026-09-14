@@ -6,6 +6,7 @@ from ..utils.console import stdout
 from ..utils.format import is_json_output
 from ..utils.groups import IdGroup
 from ..utils.wrappers import IssueListWrapper, IssueWrapper, PagedWrapper
+from .finding import FINDING_STATUSES
 
 
 def list_issues(execution_id: int, page: int, quantity: int):
@@ -39,6 +40,20 @@ def issue(ctx, **kwargs):
             raise click.UsageError("Missing argument 'FINDING-ID'.")
         res = client.get(f"/findings/{ctx.obj}")
         stdout.print(IssueWrapper(res.json()))
+
+
+@issue.command(name="status")
+@click.argument("value", type=click.Choice(FINDING_STATUSES, case_sensitive=False))
+@opts.json_opt
+@click.pass_obj
+def issue_status(finding_id: int, value: str, **kwargs):
+    if finding_id is None:
+        raise click.UsageError("Missing argument 'FINDING-ID'.")
+    res = client.patch(f"/findings/{finding_id}", json={"status": value.upper()})
+    if is_json_output():
+        stdout.print_json(res.json())
+    else:
+        stdout.print(f"Issue {finding_id} status set to {value.upper()}")
 
 
 @issue.command(name="advisory")
