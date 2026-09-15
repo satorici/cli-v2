@@ -63,6 +63,7 @@ Running `satori-v2` with no subcommand lists your jobs (dashboard). Use `--publi
 | `execution` | Group for execution management (see subcommands below) |
 | `reports` | List executions/reports with filters |
 | `report` | Show a single execution report |
+| `advisories` | List external issues (e.g. GitHub security advisories) you created; supports `--execution-id`, `--kind`, `--provider`, `--order`, pagination, `--json` |
 | `stop` | Group for stopping runs (see subcommands below) |
 | `search` | Search executions; supports bulk download/stop/delete |
 | `update` | Reinstall the CLI from GitHub via pip |

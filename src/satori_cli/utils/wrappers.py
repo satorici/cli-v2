@@ -324,6 +324,39 @@ class IssueListWrapper(Wrapper[list]):
         yield table
 
 
+class ExternalIssueListWrapper(Wrapper[list]):
+    def __rich_console__(self, console, options):
+        table = Table(expand=True)
+        table.add_column("ID")
+        table.add_column("Created")
+        table.add_column("Execution")
+        table.add_column("Kind")
+        table.add_column("Title")
+        table.add_column("Severity")
+        table.add_column("URL")
+
+        for item in self.obj:
+            severity = item.get("severity")
+            if severity is None:
+                severity_text = "N/A"
+            else:
+                label = str(severity).capitalize()
+                style = _SEVERITY_STYLE.get(label.upper(), "")
+                severity_text = f"[{style}]{label}[/{style}]" if style else label
+
+            table.add_row(
+                str(item["id"]),
+                ISODateTime(item["created_at"]),
+                str(item["execution_id"]),
+                item["kind"].capitalize().replace("_", " "),
+                item["title"],
+                severity_text,
+                item.get("external_url") or "N/A",
+            )
+
+        yield table
+
+
 @has_json_output
 class IssueWrapper(Wrapper[dict]):
     def __rich_console__(self, console, options):
