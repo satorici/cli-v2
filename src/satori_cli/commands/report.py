@@ -138,4 +138,4 @@ def report_visibility(execution_id: int, value: str):
 @opts.pagination_opts
 @click.pass_obj
 def report_issues(execution_id: int, page: int, quantity: int, **kwargs):
-    list_issues(execution_id, page, quantity)
+    list_issues(page, quantity, execution_id=execution_id)

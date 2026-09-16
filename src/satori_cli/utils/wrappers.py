@@ -227,32 +227,6 @@ class SshSessionsListWrapper(Wrapper[list]):
         yield table
 
 
-class FindingsListWrapper(Wrapper[list]):
-    def __rich_console__(self, console, options):
-        table = Table(expand=True)
-        table.add_column("Id")
-        table.add_column("Title")
-        table.add_column("Status")
-        table.add_column("Severity")
-        table.add_column("Source")
-        table.add_column("Execution")
-        table.add_column("Created at")
-
-        for finding in self.obj:
-            severity = finding.get("severity")
-            table.add_row(
-                str(finding["id"]),
-                finding["title"],
-                finding["status"].capitalize().replace("_", " "),
-                str(severity) if severity is not None else "N/A",
-                finding["source"].capitalize(),
-                str(finding["execution_id"]),
-                ISODateTime(finding["created_at"]),
-            )
-
-        yield table
-
-
 class RepoListWrapper(Wrapper[list]):
     def __rich_console__(self, console, options):
         table = Table(expand=True)
@@ -303,6 +277,8 @@ class IssueListWrapper(Wrapper[list]):
         table.add_column("Status")
         table.add_column("Source")
         table.add_column("Risk")
+        table.add_column("Execution")
+        table.add_column("Created at")
 
         for finding in self.obj:
             severity = finding.get("severity")
@@ -319,6 +295,8 @@ class IssueListWrapper(Wrapper[list]):
                 finding["status"].capitalize().replace("_", " "),
                 finding["source"].capitalize(),
                 risk,
+                str(finding["execution_id"]),
+                ISODateTime(finding["created_at"]),
             )
 
         yield table

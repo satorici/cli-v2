@@ -1,3 +1,5 @@
+from typing import Optional
+
 import rich_click as click
 
 from ..api import client
@@ -6,29 +8,98 @@ from ..utils.console import stdout
 from ..utils.format import is_json_output
 from ..utils.groups import IdGroup
 from ..utils.wrappers import IssueListWrapper, IssueWrapper, PagedWrapper
-from .finding import FINDING_STATUSES
+
+ISSUE_STATUSES = [
+    "OPEN",
+    "INVESTIGATING",
+    "CONFIRMED",
+    "FIXED",
+    "FALSE_POSITIVE",
+    "ACCEPTED_RISK",
+]
 
 
-def list_issues(execution_id: int, page: int, quantity: int):
-    res = client.get(
-        "/findings",
-        params={"execution_id": execution_id},
-    )
+def list_issues(
+    page: int,
+    quantity: int,
+    execution_id: Optional[int] = None,
+    status: Optional[str] = None,
+    source: Optional[str] = None,
+    severity: Optional[int] = None,
+    order: Optional[str] = None,
+):
+    params = {
+        k: v
+        for k, v in {
+            "page": page,
+            "quantity": quantity,
+            "execution_id": execution_id,
+            "status": status.upper() if status else None,
+            "source": source.upper() if source else None,
+            "severity": severity,
+            "order": order.upper() if order else None,
+        }.items()
+        if v is not None
+    }
+    res = client.get("/findings", params=params)
     data = res.json()
-    data["items"] = sorted(
-        data["items"],
-        key=lambda f: f.get("severity") if f.get("severity") is not None else -1,
-        reverse=True,
-    )
+    if order is None:
+        data["items"] = sorted(
+            data["items"],
+            key=lambda f: f.get("severity") if f.get("severity") is not None else -1,
+            reverse=True,
+        )
     stdout.print(PagedWrapper(data, page, quantity, IssueListWrapper))
 
 
 @click.command("issues")
-@click.argument("execution-id", type=int)
+@click.argument("execution_id_arg", metavar="EXECUTION-ID", type=int, required=False)
+@click.option("--execution-id", "execution_id_opt", type=int)
+@click.option(
+    "--status",
+    type=click.Choice(ISSUE_STATUSES, case_sensitive=False),
+)
+@click.option(
+    "--source",
+    type=click.Choice(["ASSERT", "TOOL"], case_sensitive=False),
+)
+@click.option("--severity", type=click.IntRange(0, 5))
+@click.option(
+    "--order",
+    type=click.Choice(["ASC", "DESC"], case_sensitive=False),
+)
 @opts.json_opt
 @opts.pagination_opts
-def issues(execution_id: int, page: int, quantity: int, **kwargs):
-    list_issues(execution_id, page, quantity)
+def issues(
+    page: int,
+    quantity: int,
+    execution_id_arg: Optional[int],
+    execution_id_opt: Optional[int],
+    status: Optional[str],
+    source: Optional[str],
+    severity: Optional[int],
+    order: Optional[str],
+    **kwargs,
+):
+    if (
+        execution_id_arg is not None
+        and execution_id_opt is not None
+        and execution_id_arg != execution_id_opt
+    ):
+        raise click.UsageError(
+            "Conflicting EXECUTION-ID argument and --execution-id option."
+        )
+    list_issues(
+        page,
+        quantity,
+        execution_id=execution_id_arg
+        if execution_id_arg is not None
+        else execution_id_opt,
+        status=status,
+        source=source,
+        severity=severity,
+        order=order,
+    )
 
 
 @click.group(cls=IdGroup, invoke_without_command=True)
@@ -43,7 +114,7 @@ def issue(ctx, **kwargs):
 
 
 @issue.command(name="status")
-@click.argument("value", type=click.Choice(FINDING_STATUSES, case_sensitive=False))
+@click.argument("value", type=click.Choice(ISSUE_STATUSES, case_sensitive=False))
 @opts.json_opt
 @click.pass_obj
 def issue_status(finding_id: int, value: str, **kwargs):

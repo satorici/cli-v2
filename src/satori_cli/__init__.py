@@ -11,7 +11,6 @@ from httpx2 import HTTPStatusError
 from .commands.advisory import advisories, advisory
 from .commands.config import config_
 from .commands.execution import execution
-from .commands.finding import findings
 from .commands.issue import issue, issues
 from .commands.job import job, jobs
 from .commands.local import local
@@ -77,7 +76,6 @@ cli.add_command(job)
 cli.add_command(execution)
 cli.add_command(reports)
 cli.add_command(report)
-cli.add_command(findings)
 cli.add_command(repos)
 cli.add_command(issues)
 cli.add_command(issue)
