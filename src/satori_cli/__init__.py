@@ -8,7 +8,7 @@ from typing import Optional
 import rich_click as click
 from httpx2 import HTTPStatusError
 
-from .commands.advisory import advisories
+from .commands.advisory import advisories, advisory
 from .commands.config import config_
 from .commands.execution import execution
 from .commands.finding import findings
@@ -82,6 +82,7 @@ cli.add_command(repos)
 cli.add_command(issues)
 cli.add_command(issue)
 cli.add_command(advisories)
+cli.add_command(advisory)
 cli.add_command(stop)
 cli.add_command(search)
 cli.add_command(shards)

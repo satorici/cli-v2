@@ -358,6 +358,37 @@ class ExternalIssueListWrapper(Wrapper[list]):
 
 
 @has_json_output
+class ExternalIssueWrapper(Wrapper[dict]):
+    def __rich_console__(self, console, options):
+        item = self.obj
+        grid = Table.grid(padding=(0, 2))
+
+        severity = item.get("severity")
+        if severity is None:
+            severity_text = "N/A"
+        else:
+            label = str(severity).capitalize()
+            style = _SEVERITY_STYLE.get(label.upper(), "")
+            severity_text = f"[{style}]{label}[/{style}]" if style else label
+
+        grid.add_row("Title", item["title"])
+        grid.add_row("Kind", item["kind"].capitalize().replace("_", " "))
+        grid.add_row("Provider", item["provider"].capitalize())
+        grid.add_row("Severity", severity_text)
+        grid.add_row("Visibility", item["visibility"].capitalize())
+        grid.add_row("Execution", str(item["execution_id"]))
+        grid.add_row("Finding", str(item["finding_id"]))
+        grid.add_row("External ID", item.get("external_id") or "N/A")
+        grid.add_row("External URL", item.get("external_url") or "N/A")
+        grid.add_row("Created at", ISODateTime(item["created_at"]))
+
+        yield Panel(grid, title=f"Advisory {item['id']}", title_align="left")
+
+        if description := item.get("description"):
+            yield Panel(description, title="Description", title_align="left")
+
+
+@has_json_output
 class IssueWrapper(Wrapper[dict]):
     def __rich_console__(self, console, options):
         finding = self.obj
