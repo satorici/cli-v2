@@ -272,13 +272,13 @@ _RISK_LABELS = {
 class IssueListWrapper(Wrapper[list]):
     def __rich_console__(self, console, options):
         table = Table(expand=True)
-        table.add_column("ID")
-        table.add_column("Title")
-        table.add_column("Status")
-        table.add_column("Source")
-        table.add_column("Risk")
-        table.add_column("Execution")
-        table.add_column("Created at")
+        table.add_column("ID", min_width=4, max_width=6)
+        table.add_column("Title", ratio=6, no_wrap=True, overflow="ellipsis")
+        table.add_column("Status", min_width=6, max_width=7)
+        table.add_column("Source", min_width=6, max_width=7)
+        table.add_column("Risk", min_width=6, max_width=7)
+        table.add_column("Execution", min_width=8, max_width=9)
+        table.add_column("Created at", ratio=2, no_wrap=True)
 
         for finding in self.obj:
             severity = finding.get("severity")
