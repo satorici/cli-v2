@@ -4,7 +4,7 @@ from ..models import Playbook, Source
 
 
 RUN_PLAYBOOK_ALIASES = {
-    "pyspector": "satori://code/python/pyspector.yml",
+    "pyspector": "satori://code/python/pyspector_v2.yml",
     "semgrep": "satori://code/semgrep.yml",
 }
 
