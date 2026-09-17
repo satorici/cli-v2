@@ -20,6 +20,7 @@ from ..utils.execution.runner import TimedOut, process_commands
 from ..utils.format import is_json_output
 from ..utils.highlight import highlight_result
 from ..utils.wrappers import JobWrapper, ReportWrapper
+from .issue import list_issues
 
 
 @click.command()
@@ -34,6 +35,7 @@ from ..utils.wrappers import JobWrapper, ReportWrapper
 @click.option("--tag", "-t", "tags", multiple=True, type=(str, str))
 @click.option("--output", "-o", "show_output", is_flag=True)
 @click.option("--report", "show_report", is_flag=True)
+@click.option("--issues", "show_issues", is_flag=True)
 @opts.sync_opt
 def local(
     source: Source,
@@ -47,6 +49,7 @@ def local(
     tags: Optional[tuple[tuple[str, str]]],
     show_output: bool,
     show_report: bool,
+    show_issues: bool,
     sync: bool,
     **kwargs,
 ):
@@ -72,7 +75,7 @@ def local(
     use_progress = not is_json_output() and not show_output
     execution_id = None
     report = None
-    needs_report = show_report or sync
+    needs_report = show_report or sync or show_issues
 
     with SpooledTemporaryFile() as recipe, SpooledTemporaryFile() as results:
         res = httpx2.get(local["recipe_url"])
@@ -190,7 +193,7 @@ def local(
                     stdout.print(ReportWrapper(detail))
                 else:
                     stderr.print("No report detail available for this execution.")
-            else:
+            elif sync:
                 fails = report.get("total_fails")
                 stdout.print(
                     highlight_result(
@@ -199,3 +202,9 @@ def local(
                 )
         else:
             stderr.print("No report available for this execution.")
+
+    if show_issues:
+        if execution_id is not None:
+            list_issues(page=1, quantity=10, execution_id=execution_id)
+        else:
+            stderr.print("No execution available to list issues.")

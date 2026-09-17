@@ -30,6 +30,7 @@ from ..utils.wrappers import (
     PagedWrapper,
     ReportWrapper,
 )
+from .issue import list_issues
 
 
 def _require_first_execution_id(run_id) -> int:
@@ -86,6 +87,7 @@ def _compact_job(job: dict, report_ids: list[int] | None = None) -> JobWrapper:
 @click.option("--live-output", is_flag=True)
 @click.option("--repository", "--repo", "repository")
 @click.option("--report", "show_report", is_flag=True)
+@click.option("--issues", "show_issues", is_flag=True)
 @click.option("--stdout", "show_stdout", is_flag=True)
 @click.option("--stderr", "show_stderr", is_flag=True)
 @click.option("--save-files", is_flag=True)
@@ -118,6 +120,7 @@ def run(
     show_output: bool,
     live_output: bool,
     show_report: bool,
+    show_issues: bool,
     show_stdout: bool,
     show_stderr: bool,
     delete_report: bool,
@@ -219,7 +222,9 @@ def run(
         report_ids = _wait_execution_ids_for_job(scan_job["id"], quantity=1)
         stdout.print(_compact_job(scan_job, report_ids))
 
-        needs_execution = show_stdout or show_stderr or show_output or show_report
+        needs_execution = (
+            show_stdout or show_stderr or show_output or show_report or show_issues
+        )
         if sync or needs_execution:
             wait_job_until_finished(scan_job["id"])
 
@@ -250,6 +255,9 @@ def run(
                         stderr.print("No report detail available for this execution.")
                 else:
                     stderr.print("No report available for this execution.")
+
+            if show_issues:
+                list_issues(page=1, quantity=10, execution_id=execution_id)
         return
 
     body = {
@@ -282,13 +290,18 @@ def run(
         or show_output
         or get_files
         or show_report
+        or show_issues
         or show_stderr
         or show_stdout
         or live_output
     ):
         live_console = (
             stderr
-            if show_output or show_report or show_stderr or show_stdout
+            if show_output
+            or show_report
+            or show_issues
+            or show_stderr
+            or show_stdout
             else stdout
         )
 
@@ -345,7 +358,11 @@ def run(
         sys.exit(0)
 
     needs_execution = (
-        show_stdout or show_stderr or show_output or (show_report and count == 1)
+        show_stdout
+        or show_stderr
+        or show_output
+        or (show_report and count == 1)
+        or (show_issues and count == 1)
     )
 
     execution_id = report_ids[0] if report_ids else None
@@ -391,3 +408,8 @@ def run(
                     executions, 1, len(executions["items"]), JobExecutionsWrapper
                 )
             )
+
+    if show_issues and count == 1:
+        if execution_id is None:
+            execution_id = _require_first_execution_id(run_id)
+        list_issues(page=1, quantity=10, execution_id=execution_id)
