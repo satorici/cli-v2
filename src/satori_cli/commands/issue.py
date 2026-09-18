@@ -134,6 +134,21 @@ def issue_status(finding_id: int, value: str, **kwargs):
         stdout.print(f"Issue {finding_id} status set to {value.upper()}")
 
 
+@issue.command(name="comment")
+@click.argument("body")
+@opts.json_opt
+@click.pass_obj
+def issue_comment(finding_id: int, body: str, **kwargs):
+    if finding_id is None:
+        raise click.UsageError("Missing argument 'FINDING-ID'.")
+    res = client.post(f"/findings/{finding_id}/comments", json={"body": body})
+    if is_json_output():
+        stdout.print_json(res.json())
+    else:
+        data = res.json()
+        stdout.print(f"Comment {data['id']} added to issue {finding_id}")
+
+
 @issue.command(name="advisory")
 @optgroup.group(cls=MutuallyExclusiveOptionGroup)
 @optgroup.option("--publish", is_flag=True, help="Publish the draft advisory to GitHub")
