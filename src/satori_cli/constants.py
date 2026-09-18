@@ -14,3 +14,7 @@ DASHBOARD_URL = os.getenv("SATORI_DASHBOARD_URL", "https://dashboard.satori.ci")
 
 def report_url(execution_id: int) -> str:
     return f"{DASHBOARD_URL}/reports/{execution_id}"
+
+
+def advisory_url(advisory_id: int) -> str:
+    return f"{DASHBOARD_URL}/advisories/{advisory_id}"

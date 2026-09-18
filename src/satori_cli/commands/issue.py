@@ -1,13 +1,20 @@
 from typing import Optional
 
 import rich_click as click
+from click_option_group import MutuallyExclusiveOptionGroup, optgroup
 
 from ..api import client
+from ..constants import advisory_url
 from ..utils import options as opts
-from ..utils.console import stdout
+from ..utils.console import stderr, stdout
 from ..utils.format import is_json_output
 from ..utils.groups import IdGroup
-from ..utils.wrappers import IssueListWrapper, IssueWrapper, PagedWrapper
+from ..utils.wrappers import (
+    ExternalIssueWrapper,
+    IssueListWrapper,
+    IssueWrapper,
+    PagedWrapper,
+)
 
 ISSUE_STATUSES = [
     "OPEN",
@@ -128,18 +135,48 @@ def issue_status(finding_id: int, value: str, **kwargs):
 
 
 @issue.command(name="advisory")
+@optgroup.group(cls=MutuallyExclusiveOptionGroup)
+@optgroup.option("--publish", is_flag=True, help="Publish the draft advisory to GitHub")
+@optgroup.option("--delete", is_flag=True, help="Delete the advisory")
 @opts.json_opt
 @click.pass_obj
-def issue_advisory(finding_id: int, **kwargs):
+def issue_advisory(finding_id: int, publish: bool, delete: bool, **kwargs):
     if finding_id is None:
         raise click.UsageError("Missing argument 'FINDING-ID'.")
+
+    body = {"finding_id": finding_id}
+
+    if delete:
+        client.request("DELETE", "/external_issues/security_advisory", json=body)
+        if not is_json_output():
+            stdout.print("Advisory deleted")
+        return
+
+    if publish:
+        res = client.post(
+            "/external_issues/security_advisory/publish",
+            json=body,
+            timeout=30,
+        )
+        data = res.json()
+        if is_json_output():
+            stdout.print_json(data)
+        else:
+            stdout.print(data.get("external_url") or data["external_id"])
+        return
+
     res = client.post(
         "/external_issues/security_advisory",
-        json={"finding_id": finding_id},
+        json=body,
         timeout=10,
     )
     data = res.json()
     if is_json_output():
         stdout.print_json(data)
     else:
-        stdout.print(data.get("external_url") or data["external_id"])
+        stdout.print(ExternalIssueWrapper(data))
+        stdout.print(f"View on web: {advisory_url(data['id'])}")
+        stderr.print(
+            "WARNING: Draft is not published yet. "
+            f"Publish with: satori-v2 issue {finding_id} advisory --publish"
+        )
