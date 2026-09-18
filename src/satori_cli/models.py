@@ -117,11 +117,14 @@ class Playbook:
     def container_settings(self) -> ContainerSettings:
         settings = self._obj.get("settings", {}) if self.type == "FILE" else {}
 
+        # Only image is sent from YAML; cpu/memory/storage are applied server-side
+        # for ENTERPRISE tenants so non-ENTERPRISE playbooks with settings.cpu
+        # do not trip the API gate.
         return {
-            "cpu": settings.get("cpu"),
-            "memory": settings.get("memory"),
+            "cpu": None,
+            "memory": None,
             "image": settings.get("image"),
-            "storage": settings.get("storage"),
+            "storage": None,
         }
 
     @property

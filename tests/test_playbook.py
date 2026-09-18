@@ -35,6 +35,33 @@ def test_monitor_expression_cron(tmp_path):
     assert playbook_model.monitor_expression == "cron(0 12 * * ? *)"
 
 
+def test_container_settings_extracts_only_image(tmp_path):
+    playbook_path = tmp_path / "playbook.yml"
+    playbook_path.write_text(
+        "settings:\n  image: python\n  cpu: 2048\n  memory: 4096\n  storage: 40\n"
+    )
+    playbook_model = Playbook(str(playbook_path))
+    assert playbook_model.container_settings == {
+        "cpu": None,
+        "memory": None,
+        "image": "python",
+        "storage": None,
+    }
+
+
+def test_container_settings_url_playbook_empty(tmp_path):
+    # URL playbooks do not load YAML locally; server merges settings.image.
+    playbook_model = Playbook.__new__(Playbook)
+    playbook_model.type = "URL"
+    playbook_model._obj = {"settings": {"image": "python", "cpu": 2048}}
+    assert playbook_model.container_settings == {
+        "cpu": None,
+        "memory": None,
+        "image": None,
+        "storage": None,
+    }
+
+
 def test_invalid_yaml_raises(tmp_path):
     playbook_path = tmp_path / "playbook.yml"
     playbook_path.write_bytes(b"{{not valid yaml")
