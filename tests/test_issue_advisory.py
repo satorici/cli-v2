@@ -21,6 +21,8 @@ ADVISORY = {
     "visibility": "PRIVATE",
 }
 
+STATUS = {"status": "triage"}
+
 
 class _FakeResponse:
     def __init__(self, data=None):
@@ -30,26 +32,43 @@ class _FakeResponse:
         return self._data
 
 
-def _patch(monkeypatch):
+def _patch(monkeypatch, *, list_items=None):
     request = {}
+    requests = []
     printed = []
     warnings = []
 
     def post(path, json=None, timeout=None):
-        request["method"] = "POST"
-        request["path"] = path
-        request["json"] = json
-        request["timeout"] = timeout
+        entry = {
+            "method": "POST",
+            "path": path,
+            "json": json,
+            "timeout": timeout,
+        }
+        request.update(entry)
+        requests.append(entry)
         return _FakeResponse()
 
     def req(method, path, json=None):
-        request["method"] = method
-        request["path"] = path
-        request["json"] = json
+        entry = {"method": method, "path": path, "json": json}
+        request.update(entry)
+        requests.append(entry)
         return _FakeResponse({})
+
+    def get(path, params=None):
+        entry = {"method": "GET", "path": path, "params": params}
+        request.update(entry)
+        requests.append(entry)
+        if path == "/external_issues":
+            items = list_items if list_items is not None else [ADVISORY]
+            return _FakeResponse({"total": len(items), "items": items})
+        if path.endswith("/status"):
+            return _FakeResponse(STATUS)
+        return _FakeResponse()
 
     monkeypatch.setattr("satori_cli.commands.issue.client.post", post)
     monkeypatch.setattr("satori_cli.commands.issue.client.request", req)
+    monkeypatch.setattr("satori_cli.commands.issue.client.get", get)
     monkeypatch.setattr(
         "satori_cli.commands.issue.stdout.print",
         lambda *args: printed.extend(args),
@@ -62,11 +81,11 @@ def _patch(monkeypatch):
         "satori_cli.commands.issue.stderr.print",
         lambda *args: warnings.extend(args),
     )
-    return request, printed, warnings
+    return request, requests, printed, warnings
 
 
 def test_issue_advisory_create(monkeypatch):
-    request, printed, warnings = _patch(monkeypatch)
+    request, _, printed, warnings = _patch(monkeypatch)
 
     result = CliRunner().invoke(issue, ["10", "advisory"])
 
@@ -86,7 +105,7 @@ def test_issue_advisory_create(monkeypatch):
 
 
 def test_issue_advisory_publish(monkeypatch):
-    request, printed, _ = _patch(monkeypatch)
+    request, _, printed, _ = _patch(monkeypatch)
 
     result = CliRunner().invoke(issue, ["10", "advisory", "--publish"])
 
@@ -99,7 +118,7 @@ def test_issue_advisory_publish(monkeypatch):
 
 
 def test_issue_advisory_delete(monkeypatch):
-    request, printed, _ = _patch(monkeypatch)
+    request, _, printed, _ = _patch(monkeypatch)
 
     result = CliRunner().invoke(issue, ["10", "advisory", "--delete"])
 
@@ -110,10 +129,65 @@ def test_issue_advisory_delete(monkeypatch):
     assert printed == ["Advisory deleted"]
 
 
+def test_issue_advisory_status(monkeypatch):
+    _, requests, printed, _ = _patch(monkeypatch)
+
+    result = CliRunner().invoke(issue, ["10", "advisory", "--status"])
+
+    assert result.exit_code == 0, result.output
+    assert requests[0]["method"] == "GET"
+    assert requests[0]["path"] == "/external_issues"
+    assert requests[0]["params"] == {
+        "finding_id": 10,
+        "kind": "SECURITY_ADVISORY",
+        "quantity": 1,
+    }
+    assert requests[1]["method"] == "GET"
+    assert requests[1]["path"] == "/external_issues/1/status"
+    assert printed == ["triage"]
+
+
+def test_issue_advisory_status_json(monkeypatch):
+    _, requests, printed, _ = _patch(monkeypatch)
+
+    result = CliRunner().invoke(issue, ["10", "advisory", "--status", "--json"])
+
+    assert result.exit_code == 0, result.output
+    assert requests[1]["path"] == "/external_issues/1/status"
+    assert printed == [STATUS]
+
+
+def test_issue_advisory_status_missing(monkeypatch):
+    _patch(monkeypatch, list_items=[])
+
+    result = CliRunner().invoke(issue, ["10", "advisory", "--status"])
+
+    assert result.exit_code != 0
+    assert "No security advisory found for this issue." in result.output
+
+
 def test_issue_advisory_publish_and_delete_mutex(monkeypatch):
     _patch(monkeypatch)
 
     result = CliRunner().invoke(issue, ["10", "advisory", "--publish", "--delete"])
+
+    assert result.exit_code != 0
+    assert "mutually exclusive" in result.output.lower()
+
+
+def test_issue_advisory_status_and_publish_mutex(monkeypatch):
+    _patch(monkeypatch)
+
+    result = CliRunner().invoke(issue, ["10", "advisory", "--status", "--publish"])
+
+    assert result.exit_code != 0
+    assert "mutually exclusive" in result.output.lower()
+
+
+def test_issue_advisory_status_and_delete_mutex(monkeypatch):
+    _patch(monkeypatch)
+
+    result = CliRunner().invoke(issue, ["10", "advisory", "--status", "--delete"])
 
     assert result.exit_code != 0
     assert "mutually exclusive" in result.output.lower()

@@ -153,9 +153,14 @@ def issue_comment(finding_id: int, body: str, **kwargs):
 @optgroup.group(cls=MutuallyExclusiveOptionGroup)
 @optgroup.option("--publish", is_flag=True, help="Publish the draft advisory to GitHub")
 @optgroup.option("--delete", is_flag=True, help="Delete the advisory")
+@optgroup.option(
+    "--status", is_flag=True, help="Fetch remote GitHub advisory status"
+)
 @opts.json_opt
 @click.pass_obj
-def issue_advisory(finding_id: int, publish: bool, delete: bool, **kwargs):
+def issue_advisory(
+    finding_id: int, publish: bool, delete: bool, status: bool, **kwargs
+):
     if finding_id is None:
         raise click.UsageError("Missing argument 'FINDING-ID'.")
 
@@ -178,6 +183,26 @@ def issue_advisory(finding_id: int, publish: bool, delete: bool, **kwargs):
             stdout.print_json(data)
         else:
             stdout.print(data.get("external_url") or data["external_id"])
+        return
+
+    if status:
+        list_res = client.get(
+            "/external_issues",
+            params={
+                "finding_id": finding_id,
+                "kind": "SECURITY_ADVISORY",
+                "quantity": 1,
+            },
+        )
+        items = list_res.json().get("items") or []
+        if not items:
+            raise click.UsageError("No security advisory found for this issue.")
+        res = client.get(f"/external_issues/{items[0]['id']}/status")
+        data = res.json()
+        if is_json_output():
+            stdout.print_json(data)
+        else:
+            stdout.print(data["status"])
         return
 
     res = client.post(
