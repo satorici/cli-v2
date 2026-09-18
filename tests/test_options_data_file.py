@@ -3,7 +3,25 @@ from pathlib import Path
 import click
 import pytest
 
-from satori_cli.utils.options import apply_data_files, apply_splits
+from satori_cli.utils.options import _input_callback, apply_data_files, apply_splits
+
+
+def test_input_callback_preserves_empty_string():
+    result = _input_callback(None, "input", ("INPUT=",))
+
+    assert result == {"INPUT": [""]}
+
+
+def test_input_callback_non_empty_value():
+    result = _input_callback(None, "input", ("INPUT=Hola",))
+
+    assert result == {"INPUT": ["Hola"]}
+
+
+def test_input_callback_splits_multiline_values():
+    result = _input_callback(None, "input", ("KEY=a\nb\nc",))
+
+    assert result == {"KEY": ["a", "b", "c"]}
 
 
 def test_apply_data_files_into_empty_parameters(tmp_path: Path):

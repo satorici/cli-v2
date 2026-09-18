@@ -19,7 +19,7 @@ def _input_callback(ctx, name, inputs: tuple[str]):
 
             k, v = input.split("=", 1)
 
-            parameters[k].extend(v.splitlines())
+            parameters[k].extend(v.splitlines() if v else [""])
 
         return dict(parameters)
 
