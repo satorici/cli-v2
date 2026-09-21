@@ -48,6 +48,7 @@ def _get_installed_commit() -> str | None:
 
 @click.group(invoke_without_command=True)
 @click.option("--public", "visibility", flag_value="PUBLIC")
+@opts.debug_opt
 @opts.output_format_opts
 @opts.pagination_opts
 @click.pass_context
@@ -56,8 +57,10 @@ def cli(
     page: int,
     quantity: int,
     visibility: Optional[str],
+    debug: bool = False,
     **kwargs,
 ):
+    opts.configure_logging(debug)
     if ctx.invoked_subcommand is None:
         list_jobs(page, quantity, None, visibility)
 

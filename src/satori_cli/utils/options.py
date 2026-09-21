@@ -1,10 +1,30 @@
+import logging
 from collections import defaultdict
 from pathlib import Path
 
 import click
+from rich.logging import RichHandler
 
 from ..config import config
 from ..models import Playbook
+from .console import stderr
+
+
+def configure_logging(debug: bool) -> None:
+    if not debug:
+        return
+    root = logging.getLogger()
+    root.setLevel(logging.DEBUG)
+    if not root.handlers:
+        root.addHandler(
+            RichHandler(
+                console=stderr,
+                show_path=False,
+                markup=True,
+                show_time=False,
+            )
+        )
+    logging.getLogger("runner").setLevel(logging.DEBUG)
 
 
 def _input_callback(ctx, name, inputs: tuple[str]):
@@ -85,9 +105,7 @@ def apply_data_files(
 
     for data_file in data_files:
         if "=" not in data_file:
-            raise click.BadParameter(
-                f"invalid format '{data_file}', expected KEY=PATH"
-            )
+            raise click.BadParameter(f"invalid format '{data_file}', expected KEY=PATH")
 
         key, path_str = data_file.split("=", 1)
         path = Path(path_str)
@@ -131,9 +149,7 @@ def _playbook_callback(ctx, name, value):
 input_opt = click.option(
     "--data", "-d", "input", multiple=True, callback=_input_callback
 )
-split_opt = click.option(
-    "--split", "split", multiple=True, callback=_split_callback
-)
+split_opt = click.option("--split", "split", multiple=True, callback=_split_callback)
 data_file_opt = click.option(
     "--data-file",
     "-df",
@@ -147,6 +163,9 @@ env_opt = click.option(
 region_filter_opt = click.option("--region-filter", "-r", multiple=True)
 sync_opt = click.option("--sync", "-s", is_flag=True, default=False)
 profile_opt = click.option("--profile", default="default")
+debug_opt = click.option(
+    "--debug", is_flag=True, default=False, help="Enable debug logging"
+)
 cpu_opt = click.option("--cpu", type=int)
 memory_opt = click.option("--memory", type=int)
 image_opt = click.option("--image")
