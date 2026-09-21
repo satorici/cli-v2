@@ -9,6 +9,7 @@ from ..utils import options as opts
 from ..utils.console import stderr, stdout
 from ..utils.format import is_json_output
 from ..utils.groups import IdGroup
+from ..utils.verify_issue import verify_issue
 from ..utils.wrappers import (
     ExternalIssueWrapper,
     IssueListWrapper,
@@ -181,6 +182,15 @@ def issue_comment(finding_id: int, body: str, **kwargs):
     else:
         data = res.json()
         stdout.print(f"Comment {data['id']} added to issue {finding_id}")
+
+
+@issue.command(name="verify")
+@click.pass_obj
+def issue_verify(finding_id: int):
+    """Verify a finding with Claude Code (3-agent majority → comment + TP/FP)."""
+    if finding_id is None:
+        raise click.UsageError("Missing argument 'FINDING-ID'.")
+    verify_issue(finding_id)
 
 
 @issue.command(name="advisory")
