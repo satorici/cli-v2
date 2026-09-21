@@ -19,10 +19,10 @@ from ..utils.wrappers import (
 ISSUE_STATUSES = [
     "OPEN",
     "INVESTIGATING",
-    "CONFIRMED",
+    "TP",
     "FIXED",
-    "FALSE_POSITIVE",
-    "ACCEPTED_RISK",
+    "FP",
+    "ACCEPTED",
 ]
 
 

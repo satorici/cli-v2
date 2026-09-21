@@ -268,6 +268,18 @@ _RISK_LABELS = {
     5: "Blocker",
 }
 
+_FINDING_STATUS_LABELS = {
+    "TP": "Confirmed",
+    "FP": "False positive",
+    "ACCEPTED": "Accepted risk",
+}
+
+
+def _format_finding_status(status: str) -> str:
+    return _FINDING_STATUS_LABELS.get(
+        status, status.capitalize().replace("_", " ")
+    )
+
 
 class IssueListWrapper(Wrapper[list]):
     def __rich_console__(self, console, options):
@@ -292,7 +304,7 @@ class IssueListWrapper(Wrapper[list]):
             table.add_row(
                 str(finding["id"]),
                 finding["title"],
-                finding["status"].capitalize().replace("_", " "),
+                _format_finding_status(finding["status"]),
                 finding["source"].capitalize(),
                 risk,
                 str(finding["execution_id"]),
@@ -381,7 +393,7 @@ class IssueWrapper(Wrapper[dict]):
             risk = f"[{style}]{label}[/{style}]" if style else label
 
         grid.add_row("Title", finding["title"])
-        grid.add_row("Status", finding["status"].capitalize().replace("_", " "))
+        grid.add_row("Status", _format_finding_status(finding["status"]))
         grid.add_row("Risk", risk)
         grid.add_row("Source", finding["source"].capitalize())
         grid.add_row("Execution", str(finding["execution_id"]))
