@@ -150,7 +150,8 @@ def issue(ctx, **kwargs):
         if ctx.obj is None:
             raise click.UsageError("Missing argument 'FINDING-ID'.")
         res = client.get(f"/findings/{ctx.obj}")
-        stdout.print(IssueWrapper(res.json()))
+        timeline = client.get(f"/findings/{ctx.obj}/timeline")
+        stdout.print(IssueWrapper(res.json(), history=timeline.json()))
 
 
 @issue.command(name="status")

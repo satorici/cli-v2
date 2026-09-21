@@ -367,6 +367,11 @@ class ExternalIssueWrapper(Wrapper[dict]):
 
 @has_json_output
 class IssueWrapper(Wrapper[dict]):
+    def __init__(self, obj: dict, *, history: list[dict] | None = None):
+        data = dict(obj)
+        data["history"] = history if history is not None else []
+        super().__init__(data)
+
     def __rich_console__(self, console, options):
         finding = self.obj
         grid = Table.grid(padding=(0, 2))
@@ -405,6 +410,42 @@ class IssueWrapper(Wrapper[dict]):
             else:
                 snapshot_grid.add_row(str(snapshot))
             yield Panel(snapshot_grid, title="Snapshot", title_align="left")
+
+        if history := finding.get("history"):
+            history_grid = Table.grid()
+            for entry in history:
+                history_grid.add_row(_format_history_entry(entry))
+            yield Panel(history_grid, title="History", title_align="left")
+
+
+def _format_history_entry(entry: dict) -> str:
+    when = to_datetime(entry["created_at"]).strftime("%Y-%m-%d %H:%M")
+    return f"{when} {_history_phrase(entry)}"
+
+
+def _history_phrase(entry: dict) -> str:
+    if entry.get("kind") == "comment":
+        return f'said "{entry["body"]}"'
+
+    event_type = entry.get("type") or ""
+    payload = entry.get("payload") or {}
+
+    if event_type == "STATUS_CHANGED":
+        status = str(payload.get("to", "")).lower()
+        return f"changed the status to {status}"
+    if event_type == "SEVERITY_CHANGED":
+        return f"changed the severity to {payload.get('to')}"
+    if event_type == "ASSIGNED":
+        assignee = payload.get("to")
+        if assignee is None:
+            return "unassigned the issue"
+        return f"changed the assignee to {assignee}"
+    if event_type == "CREATED":
+        return "created the issue"
+    if event_type == "AI_ANALYSIS_ADDED":
+        return "added an AI analysis"
+
+    return event_type.lower().replace("_", " ")
 
 
 def to_datetime(s: str):

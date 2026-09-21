@@ -1,6 +1,7 @@
 from click.testing import CliRunner
 
 from satori_cli.commands.issue import issue
+from satori_cli.config import config
 
 COMMENT = {
     "kind": "comment",
@@ -21,6 +22,8 @@ class _FakeResponse:
 
 
 def _patch(monkeypatch):
+    config._current_config.pop("json", None)
+    config._current_config.pop("format", None)
     request = {}
     printed = []
 
