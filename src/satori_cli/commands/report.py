@@ -20,7 +20,12 @@ from ..utils.wrappers import (
     ExecutionWrapper,
     PagedWrapper,
 )
-from .issue import list_issues
+from .issue import (
+    ISSUE_STATUSES,
+    SEVERITY_ALIASES,
+    list_issues,
+    parse_severity_csv,
+)
 from .search import reports_delete, reports_download, reports_search, reports_stop
 
 
@@ -134,8 +139,43 @@ def report_visibility(execution_id: int, value: str):
 
 
 @report.command(name="issues")
+@click.option(
+    "--status",
+    type=click.Choice(ISSUE_STATUSES, case_sensitive=False),
+)
+@click.option(
+    "--source",
+    type=click.Choice(["ASSERT", "TOOL"], case_sensitive=False),
+)
+@click.option(
+    "--severity",
+    callback=parse_severity_csv,
+    metavar="|".join(SEVERITY_ALIASES),
+    help="Comma-separated severities, e.g. high,low,medium",
+)
+@click.option(
+    "--order",
+    type=click.Choice(["ASC", "DESC"], case_sensitive=False),
+)
 @opts.json_opt
 @opts.pagination_opts
 @click.pass_obj
-def report_issues(execution_id: int, page: int, quantity: int, **kwargs):
-    list_issues(page, quantity, execution_id=execution_id)
+def report_issues(
+    execution_id: int,
+    page: int,
+    quantity: int,
+    status: Optional[str],
+    source: Optional[str],
+    severity: Optional[list[int]],
+    order: Optional[str],
+    **kwargs,
+):
+    list_issues(
+        page,
+        quantity,
+        execution_id=execution_id,
+        status=status,
+        source=source,
+        severity=severity,
+        order=order,
+    )

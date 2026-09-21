@@ -25,6 +25,34 @@ ISSUE_STATUSES = [
     "ACCEPTED",
 ]
 
+SEVERITY_ALIASES = ("INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL", "BLOCKER")
+
+
+def parse_severity_csv(
+    ctx: click.Context, param: click.Parameter, value: Optional[str]
+) -> Optional[list[int]]:
+    if value is None:
+        return None
+    parts = [part.strip() for part in value.split(",")]
+    if not parts or any(not part for part in parts):
+        raise click.BadParameter(
+            f"Expected comma-separated severities from {', '.join(SEVERITY_ALIASES)}."
+        )
+    result: list[int] = []
+    seen: set[int] = set()
+    for part in parts:
+        upper = part.upper()
+        if upper not in SEVERITY_ALIASES:
+            raise click.BadParameter(
+                f"Invalid severity {part!r}. "
+                f"Choose from {', '.join(SEVERITY_ALIASES)}."
+            )
+        index = SEVERITY_ALIASES.index(upper)
+        if index not in seen:
+            seen.add(index)
+            result.append(index)
+    return result
+
 
 def list_issues(
     page: int,
@@ -32,7 +60,7 @@ def list_issues(
     execution_id: Optional[int] = None,
     status: Optional[str] = None,
     source: Optional[str] = None,
-    severity: Optional[int] = None,
+    severity: Optional[list[int]] = None,
     order: Optional[str] = None,
 ):
     params = {
@@ -70,7 +98,12 @@ def list_issues(
     "--source",
     type=click.Choice(["ASSERT", "TOOL"], case_sensitive=False),
 )
-@click.option("--severity", type=click.IntRange(0, 5))
+@click.option(
+    "--severity",
+    callback=parse_severity_csv,
+    metavar="|".join(SEVERITY_ALIASES),
+    help="Comma-separated severities, e.g. high,low,medium",
+)
 @click.option(
     "--order",
     type=click.Choice(["ASC", "DESC"], case_sensitive=False),
@@ -84,7 +117,7 @@ def issues(
     execution_id_opt: Optional[int],
     status: Optional[str],
     source: Optional[str],
-    severity: Optional[int],
+    severity: Optional[list[int]],
     order: Optional[str],
     **kwargs,
 ):
