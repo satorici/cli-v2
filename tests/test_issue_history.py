@@ -28,6 +28,7 @@ HISTORY = [
         "created_at": "2026-09-21T00:00:00Z",
         "edited_at": None,
         "user_id": 7,
+        "display_name": "alice",
     },
     {
         "kind": "event",
@@ -36,7 +37,7 @@ HISTORY = [
         "finding_id": 333,
         "type": "STATUS_CHANGED",
         "payload": {"from": "OPEN", "to": "CONFIRMED"},
-        "actor_user_id": 7,
+        "display_name": "alice",
     },
 ]
 
@@ -112,10 +113,8 @@ def test_issue_history_renders():
     text = console.export_text()
 
     assert "History" in text
-    assert "said" in text
-    assert "esta vulnerabilidad" in text
-    assert "razon" in text
-    assert "changed the status to confirmed" in text
+    assert 'alice said "esta vulnerabilidad' in text
+    assert "alice changed the status to confirmed" in text
     assert "2026-09-21 00:00" in text
     assert "2026-09-21 00:01" in text
 
@@ -138,15 +137,14 @@ def test_issue_history_created_event():
             "finding_id": 333,
             "type": "CREATED",
             "payload": {},
-            "actor_user_id": None,
         },
     ]
     console = Console(record=True, width=200)
     console.print(IssueWrapper(FINDING, history=history))
     text = console.export_text()
 
-    assert '- 2026-09-21 00:00 said "hello"' in text
-    assert "- 2026-09-21 00:01 created the issue" in text
+    assert '2026-09-21 00:00 said "hello"' in text
+    assert "2026-09-21 00:01 created the issue" in text
 
 
 def test_issue_history_hidden_when_empty():

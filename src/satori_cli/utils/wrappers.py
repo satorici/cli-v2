@@ -454,28 +454,32 @@ def _format_assert_snapshot_item(item: object) -> str:
 
 
 def _history_phrase(entry: dict) -> str:
+    who = entry.get("display_name")
+    who = who.strip() if isinstance(who, str) and who.strip() else None
+    prefix = f"{who} " if who else ""
+
     if entry.get("kind") == "comment":
-        return f'said "{entry["body"]}"'
+        return f'{prefix}said "{entry["body"]}"'
 
     event_type = entry.get("type") or ""
     payload = entry.get("payload") or {}
 
     if event_type == "STATUS_CHANGED":
         status = str(payload.get("to", "")).lower()
-        return f"changed the status to {status}"
+        return f"{prefix}changed the status to {status}"
     if event_type == "SEVERITY_CHANGED":
-        return f"changed the severity to {payload.get('to')}"
+        return f"{prefix}changed the severity to {payload.get('to')}"
     if event_type == "ASSIGNED":
         assignee = payload.get("to")
         if assignee is None:
-            return "unassigned the issue"
-        return f"changed the assignee to {assignee}"
+            return f"{prefix}unassigned the issue"
+        return f"{prefix}changed the assignee to {assignee}"
     if event_type == "CREATED":
-        return "created the issue"
+        return f"{prefix}created the issue" if who else "created the issue"
     if event_type == "AI_ANALYSIS_ADDED":
-        return "added an AI analysis"
+        return f"{prefix}added an AI analysis"
 
-    return event_type.lower().replace("_", " ")
+    return f"{prefix}{event_type.lower().replace('_', ' ')}".rstrip()
 
 
 def to_datetime(s: str):
