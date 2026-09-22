@@ -2,6 +2,7 @@ from typing import Optional
 
 import rich_click as click
 from click_option_group import MutuallyExclusiveOptionGroup, optgroup
+from httpx2 import HTTPStatusError
 
 from ..api import client
 from ..constants import advisory_url
@@ -249,18 +250,36 @@ def issue_advisory(
             stdout.print(data["status"])
         return
 
-    res = client.post(
-        "/external_issues/security_advisory",
-        json=body,
-        timeout=10,
-    )
-    data = res.json()
+    try:
+        res = client.post(
+            "/external_issues/security_advisory",
+            json=body,
+            timeout=10,
+        )
+        data = res.json()
+    except HTTPStatusError as e:
+        if e.response.status_code != 409:
+            raise
+        list_res = client.get(
+            "/external_issues",
+            params={
+                "finding_id": finding_id,
+                "kind": "SECURITY_ADVISORY",
+                "quantity": 1,
+            },
+        )
+        items = list_res.json().get("items") or []
+        if not items:
+            raise
+        data = items[0]
+
     if is_json_output():
         stdout.print_json(data)
     else:
         stdout.print(ExternalIssueWrapper(data))
         stdout.print(f"View on web: {advisory_url(data['id'])}")
-        stderr.print(
-            "WARNING: Draft is not published yet. "
-            f"Publish with: satori-v2 issue {finding_id} advisory --publish"
-        )
+        if not data.get("external_id"):
+            stderr.print(
+                "WARNING: Draft is not published yet. "
+                f"Publish with: satori-v2 issue {finding_id} advisory --publish"
+            )
