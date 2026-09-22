@@ -47,15 +47,16 @@ You are verifying a Satori security finding against the repository in the curren
    - verdict: TP or FP
    - short rationale
 2. Take the majority vote (at least 2 of 3) as the final verdict.
-3. Print the full analysis to the console (vote summary and each agent's verdict/rationale). Do not put that analysis in the issue comment.
-4. Persist the result by running these CLI commands (in order):
+3. Persist the result by running these CLI commands (in order):
 
 ```bash
 satori-v2 issue {finding_id} comment "Conclusion: <concise final judgment>"
 satori-v2 issue {finding_id} status TP
 ```
 
-The comment body must be only a short Conclusion line (one or two sentences). Do not include per-agent analysis or the vote tally in the comment — those stay console-only.
+The comment body must be only a short Conclusion line (one or two sentences). Do not include per-agent analysis or the vote tally in the comment.
+
+Do not print a separate verification summary, final-verdict block, or duplicate reasoning to the console — the CLI `comment` / `status` commands already report success. Rely on those; do not invent a second writeup.
 
 Use `FP` instead of `TP` in the status command when the majority says FP.
 
