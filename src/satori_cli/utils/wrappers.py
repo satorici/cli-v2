@@ -402,6 +402,11 @@ class IssueWrapper(Wrapper[dict]):
                 for key, value in snapshot.items():
                     if value is None:
                         rendered = "N/A"
+                    elif key == "asserts" and isinstance(value, list):
+                        lines = [
+                            _format_assert_snapshot_item(item) for item in value
+                        ]
+                        rendered = "\n".join(line for line in lines if line) or "N/A"
                     elif isinstance(value, (dict, list)):
                         rendered = json.dumps(value)
                     else:
@@ -421,6 +426,31 @@ class IssueWrapper(Wrapper[dict]):
 def _format_history_entry(entry: dict) -> str:
     when = to_datetime(entry["created_at"]).strftime("%Y-%m-%d %H:%M")
     return f"{when} {_history_phrase(entry)}"
+
+
+def _format_assert_snapshot_item(item: object) -> str:
+    if not isinstance(item, dict):
+        return str(item)
+    name = item.get("assert")
+    if not isinstance(name, str) or not name.strip():
+        return json.dumps(item)
+    expected = item.get("expected")
+    status = item.get("status")
+    expected_text = (
+        expected.strip()
+        if isinstance(expected, str) and expected.strip()
+        else str(expected) if expected is not None else "?"
+    )
+    status_text = (
+        status.strip()
+        if isinstance(status, str) and status.strip()
+        else "Fail"
+    )
+    line = f"{name.strip()}: expected {expected_text} ({status_text})"
+    count = item.get("count")
+    if isinstance(count, int) and count > 1:
+        line = f"{line} ×{count}"
+    return line
 
 
 def _history_phrase(entry: dict) -> str:
