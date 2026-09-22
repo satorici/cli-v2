@@ -80,6 +80,9 @@ def test_build_verify_prompt_includes_majority_and_commands():
     assert "3 independent Agent" in prompt
     assert "majority" in prompt.lower()
     assert "satori-v2 issue 10 comment" in prompt
+    assert 'comment "Conclusion:' in prompt
+    assert "Print the full analysis to the console" in prompt
+    assert "Do not include per-agent analysis" in prompt
     assert "satori-v2 issue 10 status TP" in prompt
     assert "CWE-89" in prompt
 
@@ -127,6 +130,8 @@ def test_issue_verify_scan_happy_path(monkeypatch, tmp_path):
     prompt = claude_args[2]
     assert "3 independent Agent" in prompt
     assert "satori-v2 issue 10 comment" in prompt
+    assert 'comment "Conclusion:' in prompt
+    assert "Print the full analysis to the console" in prompt
     assert "satori-v2 issue 10 status TP" in prompt
     assert "--allowedTools" in claude_args
     assert "--no-session-persistence" in claude_args
