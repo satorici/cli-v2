@@ -29,17 +29,15 @@ def playbooks(**kwargs):
 def playbook(ctx, execution_id_or_uri: str, **kwargs):
     if ctx.invoked_subcommand is None:
         if execution_id_or_uri.isdigit():
-            execution = client.get(f"/executions/{execution_id_or_uri}").json()
-            source = execution["job"]["playbook_source"]
-            if not source.startswith("satori://"):
-                raise SatoriError("Job playbook is not a public playbook")
-            playbook_id = source.removeprefix("satori://")
-        elif execution_id_or_uri.startswith("satori://"):
-            playbook_id = execution_id_or_uri.removeprefix("satori://")
-        else:
+            res = client.get(f"/executions/{execution_id_or_uri}/playbook")
+            stdout.out(res.text)
+            return
+
+        if not execution_id_or_uri.startswith("satori://"):
             raise SatoriError(
                 "Argument must be an execution ID or a playbook URI starting with satori://"
             )
 
+        playbook_id = execution_id_or_uri.removeprefix("satori://")
         res = playbooks_client.get(f"/playbooks/{playbook_id}")
         stdout.print(PlaybookDetailWrapper(res.json()))

@@ -69,62 +69,53 @@ def test_invalid_yaml_raises(tmp_path):
         Playbook(str(playbook_path))
 
 
-def test_playbook_from_execution_id_fetches_public(monkeypatch):
+def test_playbook_from_execution_id_fetches_snapshot(monkeypatch):
     api_calls = []
-    playbooks_calls = []
-    detail = {
-        "id": "code/semgrep.yml",
-        "name": "Semgrep",
-        "uri": "satori://code/semgrep.yml",
-        "category": "code",
-        "content": "cmd: []\n",
-    }
+    yaml_body = "settings:\n  name: saved\n"
+
+    class _TextResponse:
+        def __init__(self, text):
+            self.text = text
 
     def api_get(path, **kwargs):
         api_calls.append(path)
-        return _FakeResponse(
-            {
-                "id": 42,
-                "job": {"playbook_source": "satori://code/semgrep.yml"},
-            }
-        )
-
-    def playbooks_get(path, **kwargs):
-        playbooks_calls.append(path)
-        return _FakeResponse(detail)
+        return _TextResponse(yaml_body)
 
     printed = []
 
     monkeypatch.setattr("satori_cli.commands.playbook.client.get", api_get)
     monkeypatch.setattr(
-        "satori_cli.commands.playbook.playbooks_client.get", playbooks_get
-    )
-    monkeypatch.setattr(
-        "satori_cli.commands.playbook.stdout.print",
+        "satori_cli.commands.playbook.stdout.out",
         lambda *args, **kwargs: printed.append(args[0]),
     )
 
     result = CliRunner().invoke(playbook, ["42"])
 
     assert result.exit_code == 0, result.output
-    assert api_calls == ["/executions/42"]
-    assert playbooks_calls == ["/playbooks/code/semgrep.yml"]
-    assert printed[0].obj == detail
+    assert api_calls == ["/executions/42/playbook"]
+    assert printed == [yaml_body]
 
 
-def test_playbook_from_execution_id_rejects_bundle(monkeypatch):
+def test_playbook_from_execution_id_works_for_bundle_jobs(monkeypatch):
+    """Execution snapshot works regardless of original playbook_source."""
+
+    class _TextResponse:
+        text = "cmd: [echo hi]\n"
+
     monkeypatch.setattr(
         "satori_cli.commands.playbook.client.get",
-        lambda *args, **kwargs: _FakeResponse(
-            {"id": 42, "job": {"playbook_source": "bundle://abc123"}}
-        ),
+        lambda *args, **kwargs: _TextResponse(),
+    )
+    printed = []
+    monkeypatch.setattr(
+        "satori_cli.commands.playbook.stdout.out",
+        lambda *args, **kwargs: printed.append(args[0]),
     )
 
-    result = CliRunner().invoke(playbook, ["42"])
+    result = CliRunner().invoke(playbook, ["99"])
 
-    assert result.exit_code != 0
-    assert isinstance(result.exception, SatoriError)
-    assert "not a public playbook" in str(result.exception)
+    assert result.exit_code == 0, result.output
+    assert printed == ["cmd: [echo hi]\n"]
 
 
 def test_playbook_from_uri_fetches_directly(monkeypatch):
