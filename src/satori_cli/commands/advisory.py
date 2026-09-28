@@ -58,7 +58,9 @@ def advisory(ctx, **kwargs):
         if ctx.obj is None:
             raise click.UsageError("Missing argument 'ADVISORY-ID'.")
         res = client.get(f"/external_issues/{ctx.obj}")
-        stdout.print(ExternalIssueWrapper(res.json()))
+        data = res.json()
+        timeline = client.get(f"/findings/{data['finding_id']}/timeline").json()
+        stdout.print(ExternalIssueWrapper(data, history=timeline))
 
 
 @advisory.command(name="visibility")

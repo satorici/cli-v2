@@ -336,6 +336,11 @@ class ExternalIssueListWrapper(Wrapper[list]):
 
 @has_json_output
 class ExternalIssueWrapper(Wrapper[dict]):
+    def __init__(self, obj: dict, *, history: list[dict] | None = None):
+        data = dict(obj)
+        data["history"] = history if history is not None else []
+        super().__init__(data)
+
     def __rich_console__(self, console, options):
         item = self.obj
         grid = Table.grid(padding=(0, 2))
@@ -363,6 +368,12 @@ class ExternalIssueWrapper(Wrapper[dict]):
 
         if description := item.get("description"):
             yield Panel(description, title="Description", title_align="left")
+
+        if history := item.get("history"):
+            history_grid = Table.grid()
+            for entry in history:
+                history_grid.add_row(_format_history_entry(entry))
+            yield Panel(history_grid, title="History", title_align="left")
 
 
 @has_json_output

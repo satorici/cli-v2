@@ -51,8 +51,13 @@ class _FakeResponse:
 
 
 def _clear_output_flags():
+    # always_merger mutates profile dicts, so clear there too.
     config._current_config.pop("json", None)
     config._current_config.pop("format", None)
+    for profile in config._config.values():
+        if isinstance(profile, dict):
+            profile.pop("json", None)
+            profile.pop("format", None)
 
 
 def _patch_view(monkeypatch, history=None):

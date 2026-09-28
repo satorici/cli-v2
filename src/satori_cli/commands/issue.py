@@ -273,10 +273,9 @@ def issue_advisory(
             raise
         data = items[0]
 
-    if is_json_output():
-        stdout.print_json(data)
-    else:
-        stdout.print(ExternalIssueWrapper(data))
+    timeline = client.get(f"/findings/{finding_id}/timeline").json()
+    stdout.print(ExternalIssueWrapper(data, history=timeline))
+    if not is_json_output():
         stdout.print(f"View on web: {advisory_url(data['id'])}")
         if not data.get("external_id"):
             stderr.print(

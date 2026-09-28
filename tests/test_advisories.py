@@ -2,6 +2,7 @@ from click.testing import CliRunner
 from rich.console import Console
 
 from satori_cli.commands.advisory import advisories, advisory
+from satori_cli.config import config
 from satori_cli.utils.wrappers import (
     ExternalIssueListWrapper,
     ExternalIssueWrapper,
@@ -43,6 +44,18 @@ ITEMS = [
     },
 ]
 
+HISTORY = [
+    {
+        "kind": "event",
+        "id": 2,
+        "created_at": "2026-09-21T00:01:00Z",
+        "finding_id": 10,
+        "type": "STATUS_CHANGED",
+        "payload": {"from": "OPEN", "to": "TP"},
+        "display_name": "alice",
+    },
+]
+
 
 class _FakeResponse:
     def __init__(self, data=None):
@@ -52,14 +65,28 @@ class _FakeResponse:
         return self._data
 
 
+def _clear_output_flags():
+    # always_merger mutates profile dicts, so clear there too.
+    config._current_config.pop("json", None)
+    config._current_config.pop("format", None)
+    for profile in config._config.values():
+        if isinstance(profile, dict):
+            profile.pop("json", None)
+            profile.pop("format", None)
+
+
 def _patch(monkeypatch):
+    _clear_output_flags()
     request = {}
+    requests = []
     printed = []
 
     def get(path, params=None):
-        request["method"] = "GET"
-        request["path"] = path
-        request["params"] = params
+        entry = {"method": "GET", "path": path, "params": params}
+        request.update(entry)
+        requests.append(entry)
+        if path.endswith("/timeline"):
+            return _FakeResponse(HISTORY)
         if path.startswith("/external_issues/") and path != "/external_issues":
             return _FakeResponse(ITEMS[0])
         return _FakeResponse()
@@ -76,11 +103,11 @@ def _patch(monkeypatch):
         "satori_cli.commands.advisory.stdout.print",
         lambda *args: printed.extend(args),
     )
-    return request, printed
+    return request, requests, printed
 
 
 def test_advisories_defaults(monkeypatch):
-    request, printed = _patch(monkeypatch)
+    request, _, printed = _patch(monkeypatch)
 
     result = CliRunner().invoke(advisories)
 
@@ -94,7 +121,7 @@ def test_advisories_defaults(monkeypatch):
 
 
 def test_advisories_filters_are_uppercased(monkeypatch):
-    request, _ = _patch(monkeypatch)
+    request, _, _ = _patch(monkeypatch)
 
     result = CliRunner().invoke(
         advisories,
@@ -126,16 +153,19 @@ def test_advisories_filters_are_uppercased(monkeypatch):
 
 
 def test_advisory_get(monkeypatch):
-    request, printed = _patch(monkeypatch)
+    _, requests, printed = _patch(monkeypatch)
 
     result = CliRunner().invoke(advisory, ["1"])
 
     assert result.exit_code == 0, result.output
-    assert request["method"] == "GET"
-    assert request["path"] == "/external_issues/1"
+    assert [r["path"] for r in requests] == [
+        "/external_issues/1",
+        "/findings/10/timeline",
+    ]
     assert len(printed) == 1
     assert isinstance(printed[0], ExternalIssueWrapper)
     assert printed[0].obj["id"] == 1
+    assert printed[0].obj["history"] == HISTORY
 
 
 def test_advisory_missing_id():
@@ -146,7 +176,7 @@ def test_advisory_missing_id():
 
 
 def test_advisory_visibility(monkeypatch):
-    request, printed = _patch(monkeypatch)
+    request, _, printed = _patch(monkeypatch)
 
     result = CliRunner().invoke(advisory, ["1", "visibility", "public"])
 
@@ -158,6 +188,7 @@ def test_advisory_visibility(monkeypatch):
 
 
 def test_external_issue_list_wrapper_renders():
+    _clear_output_flags()
     console = Console(record=True, width=200)
     console.print(ExternalIssueListWrapper(ITEMS))
     text = console.export_text()
@@ -174,6 +205,7 @@ def test_external_issue_list_wrapper_renders():
 
 
 def test_external_issue_wrapper_renders():
+    _clear_output_flags()
     console = Console(record=True, width=200)
     console.print(ExternalIssueWrapper(ITEMS[0]))
     text = console.export_text()
@@ -189,3 +221,4 @@ def test_external_issue_wrapper_renders():
     assert "GHSA-x" in text
     assert "desc" in text
     assert "2026-09-01 10:00:00" in text
+    assert "History" not in text
