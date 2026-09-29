@@ -82,7 +82,14 @@ def _clear_output_flags():
             profile.pop("format", None)
 
 
-def _patch(monkeypatch, *, list_items=None, post_response=None, post_error=None):
+def _patch(
+    monkeypatch,
+    *,
+    list_items=None,
+    post_response=None,
+    post_error=None,
+    delete_response=None,
+):
     _clear_output_flags()
     request = {}
     requests = []
@@ -106,7 +113,9 @@ def _patch(monkeypatch, *, list_items=None, post_response=None, post_error=None)
         entry = {"method": method, "path": path, "json": json}
         request.update(entry)
         requests.append(entry)
-        return _FakeResponse({})
+        return _FakeResponse(
+            delete_response if delete_response is not None else {"warning": None}
+        )
 
     def get(path, params=None):
         entry = {"method": "GET", "path": path, "params": params}
@@ -224,7 +233,7 @@ def test_issue_advisory_publish(monkeypatch):
 
 
 def test_issue_advisory_delete(monkeypatch):
-    request, requests, printed, _ = _patch(monkeypatch)
+    request, requests, printed, warnings = _patch(monkeypatch)
 
     result = CliRunner().invoke(issue, ["10", "advisory", "--delete"])
 
@@ -233,7 +242,35 @@ def test_issue_advisory_delete(monkeypatch):
     assert request["path"] == "/external_issues/security_advisory"
     assert request["json"] == {"finding_id": 10}
     assert printed == ["Advisory deleted"]
+    assert warnings == []
     assert not any(r["path"].endswith("/timeline") for r in requests)
+
+
+def test_issue_advisory_delete_warns_when_github_close_fails(monkeypatch):
+    warning = (
+        "Could not close the GitHub advisory: "
+        "GitHub denied permission for security advisories"
+    )
+    _, _, printed, warnings = _patch(
+        monkeypatch, delete_response={"warning": warning}
+    )
+
+    result = CliRunner().invoke(issue, ["10", "advisory", "--delete"])
+
+    assert result.exit_code == 0, result.output
+    assert printed == ["Advisory deleted"]
+    assert warnings == [f"WARNING: {warning}"]
+
+
+def test_issue_advisory_delete_json(monkeypatch):
+    data = {"warning": None}
+    _, _, printed, warnings = _patch(monkeypatch, delete_response=data)
+
+    result = CliRunner().invoke(issue, ["10", "advisory", "--delete", "--json"])
+
+    assert result.exit_code == 0, result.output
+    assert printed == [data]
+    assert warnings == []
 
 
 def test_issue_advisory_status(monkeypatch):

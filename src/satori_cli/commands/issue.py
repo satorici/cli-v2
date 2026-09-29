@@ -212,9 +212,16 @@ def issue_advisory(
     body = {"finding_id": finding_id}
 
     if delete:
-        client.request("DELETE", "/external_issues/security_advisory", json=body)
-        if not is_json_output():
+        res = client.request(
+            "DELETE", "/external_issues/security_advisory", json=body
+        )
+        data = res.json()
+        if is_json_output():
+            stdout.print_json(data)
+        else:
             stdout.print("Advisory deleted")
+            if warning := data.get("warning"):
+                stderr.print(f"WARNING: {warning}")
         return
 
     if publish:
