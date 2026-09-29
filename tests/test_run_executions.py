@@ -56,6 +56,9 @@ def test_run_playbook_alias_uses_current_directory(
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("satori_cli.commands.run.client.post", post)
+    monkeypatch.setattr(
+        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [1]
+    )
     monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
     monkeypatch.setattr(Source, "upload_files", upload_files)
 
@@ -66,6 +69,7 @@ def test_run_playbook_alias_uses_current_directory(
     assert request["body"]["playbook_source"] == playbook_uri
     assert request["body"]["with_files"] is True
     assert request["body"]["expire"] is None
+    assert request["body"]["notify"] is None
     assert uploaded == {"source": "./", "data": {"url": "upload"}}
 
 
@@ -78,12 +82,58 @@ def test_run_forwards_expire(monkeypatch, tmp_path):
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("satori_cli.commands.run.client.post", post)
+    monkeypatch.setattr(
+        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [1]
+    )
     monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
 
     result = CliRunner().invoke(run, ["pyspector", "--expire", "2 weeks"])
 
     assert result.exit_code == 0
     assert request["body"]["expire"] == "2 weeks"
+
+
+def test_run_forwards_notify(monkeypatch, tmp_path):
+    request = {}
+
+    def post(path, json):
+        request["body"] = json
+        return _FakeResponse({"id": 42, "files_upload": None})
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("satori_cli.commands.run.client.post", post)
+    monkeypatch.setattr(
+        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [1]
+    )
+    monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
+
+    result = CliRunner().invoke(
+        run,
+        [
+            "pyspector",
+            "--notify",
+            "status=TP,severity=blocker,critical,high,result=fail,to=slack://ID1:ID2",
+            "--notify",
+            "result=pass,to=slack://ID1:ID3",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert request["body"]["notify"] == [
+        {
+            "result": "fail",
+            "severity": ["blocker", "critical", "high"],
+            "to": "slack://ID1:ID2",
+        },
+        {"result": "pass", "to": "slack://ID1:ID3"},
+    ]
+
+
+def test_run_rejects_bad_notify(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(run, ["pyspector", "--notify", "to=slack://T:C"])
+    assert result.exit_code != 0
+    assert "notify" in result.output.lower() or "result" in result.output.lower()
 
 
 def test_explicit_playbook_overrides_run_alias(monkeypatch, tmp_path):
@@ -168,6 +218,7 @@ def test_run_help_lists_playbook_aliases():
     assert "pyspector" in result.output
     assert "semgrep" in result.output
     assert "--expire" in result.output
+    assert "--notify" in result.output
 
 
 @pytest.mark.parametrize("repo_flag", ["--repo", "--repository"])

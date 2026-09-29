@@ -24,6 +24,7 @@ from ..utils.console import (
 )
 from ..utils.format import is_json_output
 from ..utils.misc import remove_none_values
+from ..utils.notify import NotifySpecError, parse_notify_specs
 from ..utils.wrappers import (
     JobExecutionsWrapper,
     JobWrapper,
@@ -106,6 +107,16 @@ def _compact_job(job: dict, report_ids: list[int] | None = None) -> JobWrapper:
 @click.option("--files", "-f", "get_files", is_flag=True)
 @click.option("--timeout", type=int)
 @click.option("--expire")
+@click.option(
+    "--notify",
+    "notify_specs",
+    multiple=True,
+    help=(
+        "Notification rule replacing playbook settings.notify. "
+        "Repeatable. Format: result=fail,severity=high,critical,to=slack://W:C "
+        "(status= is accepted but ignored)."
+    ),
+)
 @opts.cpu_opt
 @opts.memory_opt
 @opts.image_opt
@@ -141,6 +152,7 @@ def run(
     tags: Optional[tuple[tuple[str, str]]],
     timeout: Optional[int],
     expire: str | None,
+    notify_specs: tuple[str, ...],
     **kwargs,
 ):
     """Run a playbook remotely.
@@ -148,6 +160,10 @@ def run(
     SOURCE may be a regular source or one of the playbook aliases:
     pyspector or semgrep. Aliases run against the current directory.
     """
+    try:
+        notify = parse_notify_specs(notify_specs)
+    except NotifySpecError as exc:
+        raise click.BadParameter(str(exc), param_hint="--notify") from exc
     input = opts.apply_splits(input, split)
     input = opts.apply_data_files(input, data_file)
     # Overwrite delete_report and delete_output with save_report and save_output
@@ -275,6 +291,7 @@ def run(
         "tags": tags_obj,
         "execution_timeout": timeout,
         "expire": expire,
+        "notify": notify,
     }
 
     run = client.post("/jobs/runs", json=body).json()
