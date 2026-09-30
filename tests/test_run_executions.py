@@ -131,7 +131,9 @@ def test_run_forwards_notify(monkeypatch, tmp_path):
 
 def test_run_rejects_bad_notify(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
-    result = CliRunner().invoke(run, ["pyspector", "--notify", "to=slack://T:C"])
+    result = CliRunner().invoke(
+        run, ["pyspector", "--notify", "result=always,to=slack://T:C"]
+    )
     assert result.exit_code != 0
     assert "notify" in result.output.lower() or "result" in result.output.lower()
 

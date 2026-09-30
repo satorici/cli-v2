@@ -5,14 +5,15 @@ from __future__ import annotations
 import re
 
 # Keys that start a new field. status is accepted then dropped.
-KNOWN_KEYS = frozenset({"result", "severity", "to", "status"})
+KNOWN_KEYS = frozenset({"result", "severity", "to", "status", "watch"})
 VALID_RESULTS = frozenset({"pass", "fail"})
 VALID_SEVERITIES = frozenset(
     {"info", "low", "medium", "high", "critical", "blocker"}
 )
+VALID_WATCH = frozenset({"issue-status", "finish"})
 
 _KEY_RE = re.compile(
-    r"(?:^|,)(result|severity|to|status)=",
+    r"(?:^|,)(result|severity|to|status|watch)=",
     re.IGNORECASE,
 )
 
@@ -26,8 +27,12 @@ def parse_notify_spec(spec: str) -> dict:
 
     Example:
         status=TP,severity=blocker,critical,high,result=fail,to=slack://ID1:ID2
+        watch=issue-status,severity=high,result=fail,to=slack://ID1:ID2
 
-    ``status`` is accepted but ignored. ``severity`` may contain commas.
+    ``status`` is accepted but ignored. ``severity`` and ``watch`` may contain
+    commas. ``watch`` picks the events that fire the rule: ``finish`` (execution
+    finished) and/or ``issue-status`` (a finding's status changed). Without
+    ``watch`` the rule fires on finish only.
     """
     if not isinstance(spec, str) or not spec.strip():
         raise NotifySpecError("notify spec must be a non-empty string")
@@ -61,38 +66,52 @@ def parse_notify_spec(spec: str) -> dict:
     # status is intentionally ignored
     fields.pop("status", None)
 
-    result = fields.get("result")
-    if result is None:
-        raise NotifySpecError("notify requires result=pass|fail")
-    result_norm = result.strip().lower()
-    if result_norm not in VALID_RESULTS:
-        raise NotifySpecError(f"invalid notify result: {result!r} (use pass or fail)")
-
     to = fields.get("to")
     if to is None or not to.strip():
         raise NotifySpecError("notify requires to=<uri>")
 
-    rule: dict = {"result": result_norm, "to": to.strip()}
+    rule: dict = {"to": to.strip()}
+
+    result = fields.get("result")
+    if result is not None:
+        result_norm = result.strip().lower()
+        if result_norm not in VALID_RESULTS:
+            raise NotifySpecError(
+                f"invalid notify result: {result!r} (use pass or fail)"
+            )
+        rule["result"] = result_norm
 
     severity_raw = fields.get("severity")
     if severity_raw is not None:
-        names: list[str] = []
-        for part in severity_raw.split(","):
-            name = part.strip().lower()
-            if not name:
-                continue
-            if name not in VALID_SEVERITIES:
-                raise NotifySpecError(
-                    f"invalid notify severity: {part!r} "
-                    "(use info, low, medium, high, critical, blocker)"
-                )
-            if name not in names:
-                names.append(name)
-        if not names:
-            raise NotifySpecError("notify severity must not be empty")
-        rule["severity"] = names
+        rule["severity"] = _parse_names(
+            "severity",
+            severity_raw,
+            VALID_SEVERITIES,
+            "info, low, medium, high, critical, blocker",
+        )
+
+    watch_raw = fields.get("watch")
+    if watch_raw is not None:
+        rule["watch"] = _parse_names(
+            "watch", watch_raw, VALID_WATCH, "issue-status, finish"
+        )
 
     return rule
+
+
+def _parse_names(key: str, raw: str, valid: frozenset[str], hint: str) -> list[str]:
+    names: list[str] = []
+    for part in raw.split(","):
+        name = part.strip().lower()
+        if not name:
+            continue
+        if name not in valid:
+            raise NotifySpecError(f"invalid notify {key}: {part!r} (use {hint})")
+        if name not in names:
+            names.append(name)
+    if not names:
+        raise NotifySpecError(f"notify {key} must not be empty")
+    return names
 
 
 def parse_notify_specs(specs: tuple[str, ...] | list[str]) -> list[dict] | None:

@@ -37,9 +37,8 @@ def test_parse_case_insensitive_keys_and_values():
     }
 
 
-def test_parse_rejects_missing_result():
-    with pytest.raises(NotifySpecError, match="result"):
-        parse_notify_spec("to=slack://T:C")
+def test_parse_omitted_result():
+    assert parse_notify_spec("to=slack://T:C") == {"to": "slack://T:C"}
 
 
 def test_parse_rejects_missing_to():
@@ -60,6 +59,46 @@ def test_parse_rejects_bad_severity():
 def test_parse_rejects_unknown_key():
     with pytest.raises(NotifySpecError, match="unknown"):
         parse_notify_spec("channel=slack,result=fail,to=slack://T:C")
+
+
+def test_parse_watch_issue_status():
+    assert parse_notify_spec(
+        "watch=issue-status,severity=blocker,critical,high,result=fail,to=slack://ID1:ID2"
+    ) == {
+        "result": "fail",
+        "severity": ["blocker", "critical", "high"],
+        "to": "slack://ID1:ID2",
+        "watch": ["issue-status"],
+    }
+
+
+def test_parse_watch_not_leading():
+    assert parse_notify_spec("result=fail,watch=ISSUE-STATUS,to=slack://T:C") == {
+        "result": "fail",
+        "to": "slack://T:C",
+        "watch": ["issue-status"],
+    }
+
+
+def test_parse_watch_issue_status_and_finish():
+    assert parse_notify_spec(
+        "watch=issue-status,finish,result=fail,to=slack://T:C"
+    ) == {
+        "result": "fail",
+        "to": "slack://T:C",
+        "watch": ["issue-status", "finish"],
+    }
+
+
+def test_parse_watch_finish():
+    assert parse_notify_spec("watch=finish,result=pass,to=slack://T:C")["watch"] == [
+        "finish"
+    ]
+
+
+def test_parse_rejects_bad_watch():
+    with pytest.raises(NotifySpecError, match="watch"):
+        parse_notify_spec("watch=result,result=fail,to=slack://T:C")
 
 
 def test_parse_notify_specs_none_when_empty():
