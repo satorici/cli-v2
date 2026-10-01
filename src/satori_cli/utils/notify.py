@@ -31,8 +31,8 @@ def parse_notify_spec(spec: str) -> dict:
 
     ``status`` is accepted but ignored. ``severity`` and ``watch`` may contain
     commas. ``watch`` picks the events that fire the rule: ``finish`` (execution
-    finished) and/or ``issue-status`` (a finding's status changed). Without
-    ``watch`` the rule fires on finish only.
+    finished) and/or ``issue-status`` (a finding marked True Positive / TP).
+    Without ``watch`` the rule fires on finish only.
     """
     if not isinstance(spec, str) or not spec.strip():
         raise NotifySpecError("notify spec must be a non-empty string")

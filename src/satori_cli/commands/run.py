@@ -135,7 +135,7 @@ def _compact_job(job: dict, report_ids: list[int] | None = None) -> JobWrapper:
         "Notification rule replacing playbook settings.notify. "
         "Repeatable. Format: result=fail,severity=high,critical,to=slack://W:C "
         "(status= is accepted but ignored). watch=issue-status,finish picks when "
-        "it fires: on finding status changes and/or execution finish (default)."
+        "it fires: on True Positive (TP) and/or execution finish (default)."
     ),
 )
 @opts.cpu_opt
