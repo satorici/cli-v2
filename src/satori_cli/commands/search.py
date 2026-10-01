@@ -42,6 +42,8 @@ def search_filter_options(f):
         "--job-type", type=click.Choice(["RUN", "SCAN", "MONITOR", "GITHUB", "LOCAL"])
     )(f)
     f = click.option("--job-id", type=int)(f)
+    f = click.option("--id-gt", type=int)(f)
+    f = click.option("--id-lt", type=int)(f)
     f = click.option("--global", is_flag=True)(f)
     f = click.option(
         "--status",
