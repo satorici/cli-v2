@@ -179,15 +179,79 @@ def _run_claude(claude: str, prompt: str, cwd: Path) -> int:
     return result.returncode
 
 
-def verify_issue(finding_id: int) -> None:
-    git, claude = _require_binaries()
-    finding, repository = resolve_repository(finding_id)
-    prompt = build_verify_prompt(finding, repository)
+_FINDINGS_PAGE_SIZE = 200
 
+
+def list_finding_ids_for_execution(execution_id: int) -> list[int]:
+    """Paginate GET /findings for an execution and return every finding id."""
+    ids: list[int] = []
+    page = 1
+    while True:
+        data = client.get(
+            "/findings",
+            params={
+                "execution_id": execution_id,
+                "page": page,
+                "quantity": _FINDINGS_PAGE_SIZE,
+            },
+        ).json()
+        items = data.get("items") or []
+        ids.extend(item["id"] for item in items if "id" in item)
+        total = data.get("total")
+        if total is not None and len(ids) >= total:
+            break
+        if len(items) < _FINDINGS_PAGE_SIZE:
+            break
+        page += 1
+    return ids
+
+
+def verify_findings(finding_ids: list[int]) -> None:
+    """Verify multiple findings with a single repo clone.
+
+    Continues after individual Claude failures; raises if any failed.
+    """
+    if not finding_ids:
+        return
+
+    git, claude = _require_binaries()
+    first_finding, repository = resolve_repository(finding_ids[0])
+    findings: list[dict[str, Any]] = [first_finding]
+
+    for finding_id in finding_ids[1:]:
+        finding, repo = resolve_repository(finding_id)
+        if repo != repository:
+            raise click.UsageError(
+                f"Finding {finding_id} repository {repo!r} differs from "
+                f"{repository!r}; cannot batch-verify across repositories."
+            )
+        findings.append(finding)
+
+    failures: list[tuple[int, int]] = []
     with tempfile.TemporaryDirectory(prefix="satori-verify-") as tmp:
         clone_dir = _clone_repo(git, repository, Path(tmp))
-        code = _run_claude(claude, prompt, clone_dir)
-        if code != 0:
-            raise click.ClickException(
-                f"Claude Code exited with status {code}."
-            )
+        for finding in findings:
+            finding_id = finding["id"]
+            stderr.print(f"Verifying finding {finding_id}…")
+            prompt = build_verify_prompt(finding, repository)
+            code = _run_claude(claude, prompt, clone_dir)
+            if code != 0:
+                stderr.print(
+                    f"WARNING: Claude Code exited with status {code} "
+                    f"for finding {finding_id}."
+                )
+                failures.append((finding_id, code))
+
+    if len(failures) == 1:
+        raise click.ClickException(
+            f"Claude Code exited with status {failures[0][1]}."
+        )
+    if failures:
+        detail = ", ".join(f"{fid} (exit {code})" for fid, code in failures)
+        raise click.ClickException(
+            f"Claude Code failed for {len(failures)} finding(s): {detail}."
+        )
+
+
+def verify_issue(finding_id: int) -> None:
+    verify_findings([finding_id])

@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 
 from satori_cli.commands.issue import issue
@@ -236,6 +237,122 @@ def test_issue_verify_claude_nonzero(monkeypatch, tmp_path):
 
     assert result.exit_code != 0
     assert "exited with status 7" in result.output
+
+
+def test_list_finding_ids_for_execution_paginates(monkeypatch):
+    pages = {
+        1: {
+            "items": [{"id": 1}, {"id": 2}],
+            "total": 3,
+        },
+        2: {
+            "items": [{"id": 3}],
+            "total": 3,
+        },
+    }
+    calls: list[dict] = []
+
+    def get(path, params=None, **kwargs):
+        assert path == "/findings"
+        assert params is not None
+        calls.append(dict(params))
+        return _FakeResponse(pages[params["page"]])
+
+    monkeypatch.setattr("satori_cli.utils.verify_issue.client.get", get)
+    monkeypatch.setattr("satori_cli.utils.verify_issue._FINDINGS_PAGE_SIZE", 2)
+
+    assert verify_mod.list_finding_ids_for_execution(100) == [1, 2, 3]
+    assert calls == [
+        {"execution_id": 100, "page": 1, "quantity": 2},
+        {"execution_id": 100, "page": 2, "quantity": 2},
+    ]
+
+
+def test_verify_findings_clones_once_and_runs_claude_per_finding(
+    monkeypatch, tmp_path
+):
+    finding_b = {**FINDING, "id": 11, "title": "XSS"}
+    by_id = {10: FINDING, 11: finding_b}
+    runs: list[dict[str, object]] = []
+
+    def get(path, **kwargs):
+        if path.startswith("/findings/"):
+            fid = int(path.rsplit("/", 1)[-1])
+            return _FakeResponse(by_id[fid])
+        if path.startswith("/executions/"):
+            return _FakeResponse(EXECUTION)
+        if path.startswith("/jobs/"):
+            return _FakeResponse(SCAN_JOB)
+        raise AssertionError(f"Unexpected GET {path}")
+
+    monkeypatch.setattr("satori_cli.utils.verify_issue.client.get", get)
+    monkeypatch.setattr(
+        "satori_cli.utils.verify_issue.shutil.which",
+        lambda name: f"/bin/{name}",
+    )
+
+    def fake_run(args, cwd=None, stdout=None, stderr=None):
+        runs.append({"args": list(args), "cwd": cwd})
+        if args[1] == "clone":
+            Path(args[-1]).mkdir(parents=True, exist_ok=True)
+        return type("R", (), {"returncode": 0})()
+
+    monkeypatch.setattr("satori_cli.utils.verify_issue.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        "satori_cli.utils.verify_issue.tempfile.TemporaryDirectory",
+        lambda prefix="": _FakeTempDir(tmp_path / "work"),
+    )
+
+    verify_mod.verify_findings([10, 11])
+
+    clone_runs = [r for r in runs if r["args"][1] == "clone"]
+    claude_runs = [r for r in runs if r["args"][0] == "/bin/claude"]
+    assert len(clone_runs) == 1
+    assert len(claude_runs) == 2
+    assert "satori-v2 issue 10 comment" in claude_runs[0]["args"][2]
+    assert "satori-v2 issue 11 comment" in claude_runs[1]["args"][2]
+
+
+def test_verify_findings_continues_then_raises_on_failures(monkeypatch, tmp_path):
+    finding_b = {**FINDING, "id": 11}
+    by_id = {10: FINDING, 11: finding_b}
+    claude_calls = 0
+
+    def get(path, **kwargs):
+        if path.startswith("/findings/"):
+            fid = int(path.rsplit("/", 1)[-1])
+            return _FakeResponse(by_id[fid])
+        if path.startswith("/executions/"):
+            return _FakeResponse(EXECUTION)
+        if path.startswith("/jobs/"):
+            return _FakeResponse(SCAN_JOB)
+        raise AssertionError(f"Unexpected GET {path}")
+
+    monkeypatch.setattr("satori_cli.utils.verify_issue.client.get", get)
+    monkeypatch.setattr(
+        "satori_cli.utils.verify_issue.shutil.which",
+        lambda name: f"/bin/{name}",
+    )
+
+    def fake_run(args, cwd=None, stdout=None, stderr=None):
+        nonlocal claude_calls
+        if args[1] == "clone":
+            Path(args[-1]).mkdir(parents=True, exist_ok=True)
+            return type("R", (), {"returncode": 0})()
+        claude_calls += 1
+        return type("R", (), {"returncode": 3 if claude_calls == 1 else 5})()
+
+    monkeypatch.setattr("satori_cli.utils.verify_issue.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        "satori_cli.utils.verify_issue.tempfile.TemporaryDirectory",
+        lambda prefix="": _FakeTempDir(tmp_path / "work"),
+    )
+
+    with pytest.raises(Exception, match="failed for 2 finding") as exc:
+        verify_mod.verify_findings([10, 11])
+    assert claude_calls == 2
+    assert "10 (exit 3)" in str(exc.value)
+    assert "11 (exit 5)" in str(exc.value)
 
 
 class _FakeTempDir:

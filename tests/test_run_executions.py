@@ -28,6 +28,7 @@ def test_require_first_execution_id_raises_on_empty(monkeypatch):
         "satori_cli.commands.run.client.get",
         lambda *args, **kwargs: _FakeResponse({"items": []}),
     )
+    monkeypatch.setattr("satori_cli.commands.run.time.sleep", lambda *_: None)
     with pytest.raises(SatoriError, match="No executions found"):
         _require_first_execution_id(1)
 
@@ -308,6 +309,122 @@ def test_run_with_repo_output_waits_and_shows(monkeypatch):
     assert result.exit_code == 0, result.output
     assert waited == {"job_id": 99}
     assert shown == {"execution_id": 42}
+
+
+def test_run_with_repo_verify_waits_and_verifies(monkeypatch):
+    waited = {}
+    verified = {}
+
+    def post(path, json):
+        return _FakeResponse(
+            {
+                "id": 99,
+                "type": "SCAN",
+                "playbook_source": "satori://code/python/pyspector_v2.yml",
+                "visibility": "PRIVATE",
+                "created_at": "2026-01-01T00:00:00Z",
+                "repository_data": {"repository": "satorici/satori-cli"},
+                "criteria": {"quantity": 1},
+                "status": "FETCHING_DATA",
+            }
+        )
+
+    def wait(job_id):
+        waited["job_id"] = job_id
+
+    def list_ids(execution_id):
+        verified["listed"] = execution_id
+        return [10, 11]
+
+    def batch_verify(finding_ids):
+        verified["finding_ids"] = finding_ids
+
+    monkeypatch.setattr("satori_cli.commands.run.client.post", post)
+    monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
+    monkeypatch.setattr("satori_cli.commands.run.stderr.print", lambda *args: None)
+    monkeypatch.setattr("satori_cli.commands.run.wait_job_until_finished", wait)
+    monkeypatch.setattr(
+        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [42]
+    )
+    monkeypatch.setattr(
+        "satori_cli.commands.run.list_finding_ids_for_execution", list_ids
+    )
+    monkeypatch.setattr(
+        "satori_cli.commands.run.run_verify_findings", batch_verify
+    )
+
+    result = CliRunner().invoke(
+        run,
+        [
+            "satori://code/python/pyspector_v2.yml",
+            "--repo",
+            "satorici/satori-cli",
+            "--verify",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert waited == {"job_id": 99}
+    assert verified == {"listed": 42, "finding_ids": [10, 11]}
+
+
+def test_verify_executions_all_ids(monkeypatch):
+    from satori_cli.commands.run import _verify_executions
+
+    listed: list[int] = []
+    verified_calls: list[list[int]] = []
+
+    def list_ids(execution_id):
+        listed.append(execution_id)
+        return [100 + execution_id]
+
+    def batch_verify(finding_ids):
+        verified_calls.append(list(finding_ids))
+
+    monkeypatch.setattr(
+        "satori_cli.commands.run.list_finding_ids_for_execution", list_ids
+    )
+    monkeypatch.setattr(
+        "satori_cli.commands.run.run_verify_findings", batch_verify
+    )
+    monkeypatch.setattr("satori_cli.commands.run.stderr.print", lambda *args: None)
+
+    _verify_executions([1, 2])
+
+    assert listed == [1, 2]
+    assert verified_calls == [[101], [102]]
+
+
+def test_verify_executions_skips_empty(monkeypatch):
+    from satori_cli.commands.run import _verify_executions
+
+    messages: list[str] = []
+    verified_calls: list[list[int]] = []
+
+    monkeypatch.setattr(
+        "satori_cli.commands.run.list_finding_ids_for_execution",
+        lambda execution_id: [],
+    )
+    monkeypatch.setattr(
+        "satori_cli.commands.run.run_verify_findings",
+        lambda finding_ids: verified_calls.append(list(finding_ids)),
+    )
+    monkeypatch.setattr(
+        "satori_cli.commands.run.stderr.print",
+        lambda *args: messages.append(" ".join(str(a) for a in args)),
+    )
+
+    _verify_executions([9])
+
+    assert verified_calls == []
+    assert any("No findings" in m for m in messages)
+
+
+def test_run_help_lists_verify():
+    result = CliRunner().invoke(run, ["--help"])
+
+    assert result.exit_code == 0
+    assert "--verify" in result.output
 
 
 def test_run_help_lists_repo_alias():

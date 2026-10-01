@@ -25,6 +25,8 @@ from ..utils.console import (
 from ..utils.format import is_json_output
 from ..utils.misc import remove_none_values
 from ..utils.notify import NotifySpecError, parse_notify_specs
+from ..utils.verify_issue import list_finding_ids_for_execution
+from ..utils.verify_issue import verify_findings as run_verify_findings
 from ..utils.wrappers import (
     JobExecutionsWrapper,
     JobWrapper,
@@ -32,6 +34,18 @@ from ..utils.wrappers import (
     ReportWrapper,
 )
 from .issue import list_issues
+
+
+def _verify_executions(execution_ids: list[int]) -> None:
+    for execution_id in execution_ids:
+        finding_ids = list_finding_ids_for_execution(execution_id)
+        if not finding_ids:
+            stderr.print(f"No findings to verify for execution {execution_id}.")
+            continue
+        stderr.print(
+            f"Verifying {len(finding_ids)} finding(s) for execution {execution_id}…"
+        )
+        run_verify_findings(finding_ids)
 
 
 def _require_first_execution_id(run_id) -> int:
@@ -89,6 +103,12 @@ def _compact_job(job: dict, report_ids: list[int] | None = None) -> JobWrapper:
 @click.option("--repository", "--repo", "repository")
 @click.option("--report", "show_report", is_flag=True)
 @click.option("--issues", "show_issues", is_flag=True)
+@click.option(
+    "--verify",
+    "verify_findings",
+    is_flag=True,
+    help="After the run finishes, verify every finding with Claude Code (TP/FP).",
+)
 @click.option("--stdout", "show_stdout", is_flag=True)
 @click.option("--stderr", "show_stderr", is_flag=True)
 @click.option("--save-files", is_flag=True)
@@ -133,6 +153,7 @@ def run(
     live_output: bool,
     show_report: bool,
     show_issues: bool,
+    verify_findings: bool,
     show_stdout: bool,
     show_stderr: bool,
     delete_report: bool,
@@ -240,7 +261,12 @@ def run(
         stdout.print(_compact_job(scan_job, report_ids))
 
         needs_execution = (
-            show_stdout or show_stderr or show_output or show_report or show_issues
+            show_stdout
+            or show_stderr
+            or show_output
+            or show_report
+            or show_issues
+            or verify_findings
         )
         if sync or needs_execution:
             wait_job_until_finished(scan_job["id"])
@@ -275,6 +301,13 @@ def run(
 
             if show_issues:
                 list_issues(page=1, quantity=10, execution_id=execution_id)
+
+            if verify_findings:
+                _verify_executions(
+                    report_ids
+                    if report_ids
+                    else [execution_id]
+                )
         return
 
     body = {
@@ -309,6 +342,7 @@ def run(
         or get_files
         or show_report
         or show_issues
+        or verify_findings
         or show_stderr
         or show_stdout
         or live_output
@@ -318,6 +352,7 @@ def run(
             if show_output
             or show_report
             or show_issues
+            or verify_findings
             or show_stderr
             or show_stdout
             else stdout
@@ -431,3 +466,11 @@ def run(
         if execution_id is None:
             execution_id = _require_first_execution_id(run_id)
         list_issues(page=1, quantity=10, execution_id=execution_id)
+
+    if verify_findings:
+        ids = report_ids
+        if not ids:
+            ids = _wait_execution_ids_for_job(run_id, quantity=count)
+        if not ids:
+            raise SatoriError(f"No executions found for run {run_id}")
+        _verify_executions(ids)
