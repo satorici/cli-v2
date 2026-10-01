@@ -24,6 +24,18 @@ def isodatetime(arg: str):
     return datetime.fromisoformat(arg)
 
 
+def _slack_notify_callback(ctx, param, value: tuple[str, ...]):
+    if not value:
+        return ()
+    for uri in value:
+        if not uri.lower().startswith("slack://"):
+            raise click.BadParameter(
+                f"notify must be a slack:// URI, got {uri!r}",
+                param=param,
+            )
+    return value
+
+
 def search_filter_options(f):
     f = opts.pagination_opts(f)
     f = click.option(
@@ -211,6 +223,12 @@ def reports_delete(**kwargs):
 
 @click.command()
 @search_filter_options
+@click.option(
+    "--notify",
+    multiple=True,
+    callback=_slack_notify_callback,
+    help="Send this page of results to Slack (slack://workspace:channel)",
+)
 @optgroup.group(cls=MutuallyExclusiveOptionGroup)
 @optgroup.option("--download", type=Path, help="Path to download outputs")
 @optgroup.option("--reports", type=Path, help="Path to download reports")
@@ -221,6 +239,7 @@ def search(
     stop: bool,
     delete: bool,
     reports: Optional[Path],
+    notify: tuple[str, ...],
     **kwargs,
 ):
     params = remove_none_values(kwargs)
@@ -237,5 +256,8 @@ def search(
     if reports:
         bulk_get_reports(reports, params)
         return
+
+    if notify:
+        params["notify"] = list(notify)
 
     search_list(**params)

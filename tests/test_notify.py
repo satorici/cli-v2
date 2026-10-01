@@ -1,8 +1,26 @@
 """Tests for CLI --notify spec parsing."""
 
 import pytest
+from click import BadParameter
 
-from satori_cli.utils.notify import NotifySpecError, parse_notify_spec, parse_notify_specs
+from satori_cli.commands.search import _slack_notify_callback
+from satori_cli.utils.notify import (
+    NotifySpecError,
+    parse_notify_spec,
+    parse_notify_specs,
+)
+
+
+def test_search_slack_notify_callback_accepts_uris():
+    assert _slack_notify_callback(None, None, ()) == ()
+    assert _slack_notify_callback(
+        None, None, ("slack://ID1:ID2", "slack://T/C")
+    ) == ("slack://ID1:ID2", "slack://T/C")
+
+
+def test_search_slack_notify_callback_rejects_non_slack():
+    with pytest.raises(BadParameter, match="slack://"):
+        _slack_notify_callback(None, None, ("email://a@b.com",))
 
 
 def test_parse_full_spec_with_status_ignored():
