@@ -36,6 +36,12 @@ LOCAL_JOB = {
     "type": "LOCAL",
 }
 
+LOCAL_JOB_WITH_REPO = {
+    "id": 50,
+    "type": "LOCAL",
+    "repository": "acme/app",
+}
+
 
 class _FakeResponse:
     def __init__(self, data):
@@ -43,6 +49,18 @@ class _FakeResponse:
 
     def json(self):
         return self._data
+
+
+class _FakeTempDir:
+    def __init__(self, path: Path):
+        self.name = str(path)
+        path.mkdir(parents=True, exist_ok=True)
+
+    def __enter__(self):
+        return self.name
+
+    def __exit__(self, *args):
+        return False
 
 
 def _responses(finding=FINDING, execution=EXECUTION, job=SCAN_JOB):
@@ -61,6 +79,17 @@ def _responses(finding=FINDING, execution=EXECUTION, job=SCAN_JOB):
     return get
 
 
+def _patch_binaries(monkeypatch, which=None):
+    which = which or (lambda name: f"/bin/{name}")
+    monkeypatch.setattr("satori_cli.utils.git_clone.shutil.which", which)
+    monkeypatch.setattr("satori_cli.utils.verify_issue.shutil.which", which)
+
+
+def _patch_subprocess(monkeypatch, fake_run):
+    monkeypatch.setattr("satori_cli.utils.git_clone.subprocess.run", fake_run)
+    monkeypatch.setattr("satori_cli.utils.verify_issue.subprocess.run", fake_run)
+
+
 def test_repository_from_job_scan():
     assert verify_mod.repository_from_job(SCAN_JOB) == "acme/app"
 
@@ -69,8 +98,12 @@ def test_repository_from_job_run():
     assert verify_mod.repository_from_job(RUN_JOB) == "acme/app"
 
 
-def test_repository_from_job_local():
+def test_repository_from_job_local_without_repo():
     assert verify_mod.repository_from_job(LOCAL_JOB) is None
+
+
+def test_repository_from_job_local_with_repo():
+    assert verify_mod.repository_from_job(LOCAL_JOB_WITH_REPO) == "acme/app"
 
 
 def test_build_verify_prompt_includes_majority_and_commands():
@@ -96,10 +129,7 @@ def test_issue_verify_scan_happy_path(monkeypatch, tmp_path):
         "satori_cli.utils.verify_issue.client.get",
         lambda path, **kw: (gets.append(path) or _responses()(path)),
     )
-    monkeypatch.setattr(
-        "satori_cli.utils.verify_issue.shutil.which",
-        lambda name: f"/bin/{name}",
-    )
+    _patch_binaries(monkeypatch)
 
     def fake_run(args, cwd=None, stdout=None, stderr=None):
         runs.append({"args": list(args), "cwd": cwd})
@@ -107,7 +137,7 @@ def test_issue_verify_scan_happy_path(monkeypatch, tmp_path):
             Path(args[-1]).mkdir(parents=True, exist_ok=True)
         return type("R", (), {"returncode": 0})()
 
-    monkeypatch.setattr("satori_cli.utils.verify_issue.subprocess.run", fake_run)
+    _patch_subprocess(monkeypatch, fake_run)
     monkeypatch.setattr(
         "satori_cli.utils.verify_issue.tempfile.TemporaryDirectory",
         lambda prefix="": _FakeTempDir(tmp_path / "work"),
@@ -146,10 +176,7 @@ def test_issue_verify_run_job(monkeypatch, tmp_path):
         "satori_cli.utils.verify_issue.client.get",
         _responses(job=RUN_JOB),
     )
-    monkeypatch.setattr(
-        "satori_cli.utils.verify_issue.shutil.which",
-        lambda name: f"/bin/{name}",
-    )
+    _patch_binaries(monkeypatch)
 
     def fake_run(args, cwd=None, stdout=None, stderr=None):
         runs.append({"args": list(args), "cwd": cwd})
@@ -157,7 +184,35 @@ def test_issue_verify_run_job(monkeypatch, tmp_path):
             Path(args[-1]).mkdir(parents=True, exist_ok=True)
         return type("R", (), {"returncode": 0})()
 
-    monkeypatch.setattr("satori_cli.utils.verify_issue.subprocess.run", fake_run)
+    _patch_subprocess(monkeypatch, fake_run)
+    monkeypatch.setattr(
+        "satori_cli.utils.verify_issue.tempfile.TemporaryDirectory",
+        lambda prefix="": _FakeTempDir(tmp_path / "work"),
+    )
+
+    result = CliRunner().invoke(issue, ["10", "verify"])
+
+    assert result.exit_code == 0, result.output
+    clone_args = runs[0]["args"]
+    assert isinstance(clone_args, list)
+    assert "github.com/acme/app.git" in clone_args[4]
+
+
+def test_issue_verify_local_job(monkeypatch, tmp_path):
+    runs: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "satori_cli.utils.verify_issue.client.get",
+        _responses(job=LOCAL_JOB_WITH_REPO),
+    )
+    _patch_binaries(monkeypatch)
+
+    def fake_run(args, cwd=None, stdout=None, stderr=None):
+        runs.append({"args": list(args), "cwd": cwd})
+        if args[1] == "clone":
+            Path(args[-1]).mkdir(parents=True, exist_ok=True)
+        return type("R", (), {"returncode": 0})()
+
+    _patch_subprocess(monkeypatch, fake_run)
     monkeypatch.setattr(
         "satori_cli.utils.verify_issue.tempfile.TemporaryDirectory",
         lambda prefix="": _FakeTempDir(tmp_path / "work"),
@@ -176,10 +231,7 @@ def test_issue_verify_missing_repo(monkeypatch):
         "satori_cli.utils.verify_issue.client.get",
         _responses(job=LOCAL_JOB),
     )
-    monkeypatch.setattr(
-        "satori_cli.utils.verify_issue.shutil.which",
-        lambda name: f"/bin/{name}",
-    )
+    _patch_binaries(monkeypatch)
 
     result = CliRunner().invoke(issue, ["10", "verify"])
 
@@ -188,6 +240,10 @@ def test_issue_verify_missing_repo(monkeypatch):
 
 
 def test_issue_verify_missing_claude(monkeypatch):
+    monkeypatch.setattr(
+        "satori_cli.utils.git_clone.shutil.which",
+        lambda name: "/bin/git" if name == "git" else None,
+    )
     monkeypatch.setattr(
         "satori_cli.utils.verify_issue.shutil.which",
         lambda name: "/bin/git" if name == "git" else None,
@@ -200,10 +256,7 @@ def test_issue_verify_missing_claude(monkeypatch):
 
 
 def test_issue_verify_missing_git(monkeypatch):
-    monkeypatch.setattr(
-        "satori_cli.utils.verify_issue.shutil.which",
-        lambda name: None,
-    )
+    _patch_binaries(monkeypatch, which=lambda name: None)
 
     result = CliRunner().invoke(issue, ["10", "verify"])
 
@@ -216,10 +269,7 @@ def test_issue_verify_claude_nonzero(monkeypatch, tmp_path):
         "satori_cli.utils.verify_issue.client.get",
         _responses(),
     )
-    monkeypatch.setattr(
-        "satori_cli.utils.verify_issue.shutil.which",
-        lambda name: f"/bin/{name}",
-    )
+    _patch_binaries(monkeypatch)
 
     def fake_run(args, cwd=None, stdout=None, stderr=None):
         if args[1] == "clone":
@@ -227,7 +277,7 @@ def test_issue_verify_claude_nonzero(monkeypatch, tmp_path):
             return type("R", (), {"returncode": 0})()
         return type("R", (), {"returncode": 7})()
 
-    monkeypatch.setattr("satori_cli.utils.verify_issue.subprocess.run", fake_run)
+    _patch_subprocess(monkeypatch, fake_run)
     monkeypatch.setattr(
         "satori_cli.utils.verify_issue.tempfile.TemporaryDirectory",
         lambda prefix="": _FakeTempDir(tmp_path / "work"),
@@ -286,10 +336,7 @@ def test_verify_findings_clones_once_and_runs_claude_per_finding(
         raise AssertionError(f"Unexpected GET {path}")
 
     monkeypatch.setattr("satori_cli.utils.verify_issue.client.get", get)
-    monkeypatch.setattr(
-        "satori_cli.utils.verify_issue.shutil.which",
-        lambda name: f"/bin/{name}",
-    )
+    _patch_binaries(monkeypatch)
 
     def fake_run(args, cwd=None, stdout=None, stderr=None):
         runs.append({"args": list(args), "cwd": cwd})
@@ -297,7 +344,7 @@ def test_verify_findings_clones_once_and_runs_claude_per_finding(
             Path(args[-1]).mkdir(parents=True, exist_ok=True)
         return type("R", (), {"returncode": 0})()
 
-    monkeypatch.setattr("satori_cli.utils.verify_issue.subprocess.run", fake_run)
+    _patch_subprocess(monkeypatch, fake_run)
     monkeypatch.setattr(
         "satori_cli.utils.verify_issue.tempfile.TemporaryDirectory",
         lambda prefix="": _FakeTempDir(tmp_path / "work"),
@@ -329,10 +376,7 @@ def test_verify_findings_continues_then_raises_on_failures(monkeypatch, tmp_path
         raise AssertionError(f"Unexpected GET {path}")
 
     monkeypatch.setattr("satori_cli.utils.verify_issue.client.get", get)
-    monkeypatch.setattr(
-        "satori_cli.utils.verify_issue.shutil.which",
-        lambda name: f"/bin/{name}",
-    )
+    _patch_binaries(monkeypatch)
 
     def fake_run(args, cwd=None, stdout=None, stderr=None):
         nonlocal claude_calls
@@ -342,7 +386,7 @@ def test_verify_findings_continues_then_raises_on_failures(monkeypatch, tmp_path
         claude_calls += 1
         return type("R", (), {"returncode": 3 if claude_calls == 1 else 5})()
 
-    monkeypatch.setattr("satori_cli.utils.verify_issue.subprocess.run", fake_run)
+    _patch_subprocess(monkeypatch, fake_run)
     monkeypatch.setattr(
         "satori_cli.utils.verify_issue.tempfile.TemporaryDirectory",
         lambda prefix="": _FakeTempDir(tmp_path / "work"),
@@ -353,15 +397,3 @@ def test_verify_findings_continues_then_raises_on_failures(monkeypatch, tmp_path
     assert claude_calls == 2
     assert "10 (exit 3)" in str(exc.value)
     assert "11 (exit 5)" in str(exc.value)
-
-
-class _FakeTempDir:
-    def __init__(self, path: Path):
-        self.name = str(path)
-        path.mkdir(parents=True, exist_ok=True)
-
-    def __enter__(self):
-        return self.name
-
-    def __exit__(self, *args):
-        return False

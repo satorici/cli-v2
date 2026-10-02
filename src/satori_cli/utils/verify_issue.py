@@ -14,6 +14,7 @@ import rich_click as click
 
 from ..api import client
 from .console import stderr
+from .git_clone import clone_repo, require_git
 
 _SNAPSHOT_MAX_CHARS = 12_000
 _RISK_LABELS = {
@@ -70,7 +71,7 @@ def repository_from_job(job: dict[str, Any]) -> Optional[str]:
         data = job.get("repository_data") or {}
         repo = data.get("repository") if isinstance(data, dict) else None
         return repo or None
-    if job_type == "RUN":
+    if job_type in ("RUN", "LOCAL"):
         return job.get("repository") or None
     return None
 
@@ -132,9 +133,7 @@ def build_verify_prompt(finding: dict[str, Any], repository: str) -> str:
 
 
 def _require_binaries() -> tuple[str, str]:
-    git = shutil.which("git")
-    if not git:
-        raise click.UsageError("`git` is not installed or not on PATH.")
+    git = require_git()
     claude = shutil.which("claude")
     if not claude:
         raise click.UsageError(
@@ -142,23 +141,6 @@ def _require_binaries() -> tuple[str, str]:
             "Install with: npm install -g @anthropic-ai/claude-code"
         )
     return git, claude
-
-
-def _clone_repo(git: str, repository: str, dest: Path) -> Path:
-    url = f"https://github.com/{repository}.git"
-    dest.mkdir(parents=True, exist_ok=True)
-    clone_dir = dest / Path(repository).name
-    stderr.print(f"Cloning {repository} into {clone_dir}…")
-    result = subprocess.run(  # noqa: S603
-        [git, "clone", "--depth", "1", url, str(clone_dir)],
-        stdout=sys.stdout,
-        stderr=sys.stderr,
-    )
-    if result.returncode != 0:
-        raise click.ClickException(
-            f"Failed to clone {url} (exit {result.returncode})."
-        )
-    return clone_dir
 
 
 def _run_claude(claude: str, prompt: str, cwd: Path) -> int:
@@ -229,7 +211,7 @@ def verify_findings(finding_ids: list[int]) -> None:
 
     failures: list[tuple[int, int]] = []
     with tempfile.TemporaryDirectory(prefix="satori-verify-") as tmp:
-        clone_dir = _clone_repo(git, repository, Path(tmp))
+        clone_dir = clone_repo(git, repository, Path(tmp))
         for finding in findings:
             finding_id = finding["id"]
             stderr.print(f"Verifying finding {finding_id}…")
