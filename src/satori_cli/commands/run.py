@@ -134,6 +134,8 @@ def _compact_job(job: dict, report_ids: list[int] | None = None) -> JobWrapper:
     help=(
         "Notification rule replacing playbook settings.notify. "
         "Repeatable. Format: result=fail,severity=high,critical,to=slack://W:C "
+        "or to=email://user@example.com or to=discord://CHANNEL "
+        "or to=telegram://CHAT_ID "
         "(status= is accepted but ignored). watch=issue-status,finish picks when "
         "it fires: on True Positive (TP) and/or execution finish (default)."
     ),

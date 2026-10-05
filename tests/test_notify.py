@@ -3,7 +3,7 @@
 import pytest
 from click import BadParameter
 
-from satori_cli.commands.search import _slack_notify_callback
+from satori_cli.commands.search import _notify_uri_callback
 from satori_cli.utils.notify import (
     NotifySpecError,
     parse_notify_spec,
@@ -11,16 +11,23 @@ from satori_cli.utils.notify import (
 )
 
 
-def test_search_slack_notify_callback_accepts_uris():
-    assert _slack_notify_callback(None, None, ()) == ()
-    assert _slack_notify_callback(
+def test_search_notify_callback_accepts_uris():
+    assert _notify_uri_callback(None, None, ()) == ()
+    assert _notify_uri_callback(
         None, None, ("slack://ID1:ID2", "slack://T/C")
     ) == ("slack://ID1:ID2", "slack://T/C")
+    assert _notify_uri_callback(
+        None,
+        None,
+        ("email://a@b.com", "slack://T:C", "discord://123", "telegram://-1"),
+    ) == ("email://a@b.com", "slack://T:C", "discord://123", "telegram://-1")
 
 
-def test_search_slack_notify_callback_rejects_non_slack():
-    with pytest.raises(BadParameter, match="slack://"):
-        _slack_notify_callback(None, None, ("email://a@b.com",))
+def test_search_notify_callback_rejects_unsupported():
+    with pytest.raises(
+        BadParameter, match="slack://, email://, discord://, or telegram://"
+    ):
+        _notify_uri_callback(None, None, ("datadog://x",))
 
 
 def test_parse_full_spec_with_status_ignored():

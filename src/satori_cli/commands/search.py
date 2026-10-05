@@ -24,13 +24,19 @@ def isodatetime(arg: str):
     return datetime.fromisoformat(arg)
 
 
-def _slack_notify_callback(ctx, param, value: tuple[str, ...]):
+def _notify_uri_callback(ctx, param, value: tuple[str, ...]):
     if not value:
         return ()
     for uri in value:
-        if not uri.lower().startswith("slack://"):
+        lower = uri.lower()
+        if not (
+            lower.startswith("slack://")
+            or lower.startswith("email://")
+            or lower.startswith("discord://")
+            or lower.startswith("telegram://")
+        ):
             raise click.BadParameter(
-                f"notify must be a slack:// URI, got {uri!r}",
+                f"notify must be a slack://, email://, discord://, or telegram:// URI, got {uri!r}",
                 param=param,
             )
     return value
@@ -228,8 +234,12 @@ def reports_delete(**kwargs):
 @click.option(
     "--notify",
     multiple=True,
-    callback=_slack_notify_callback,
-    help="Send this page of results to Slack (slack://workspace:channel)",
+    callback=_notify_uri_callback,
+    help=(
+        "Send this page of results to Slack, email, Discord, or Telegram "
+        "(slack://workspace:channel, email://user@example.com, "
+        "discord://CHANNEL, or telegram://CHAT_ID)"
+    ),
 )
 @optgroup.group(cls=MutuallyExclusiveOptionGroup)
 @optgroup.option("--download", type=Path, help="Path to download outputs")
