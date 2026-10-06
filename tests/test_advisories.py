@@ -25,6 +25,7 @@ ITEMS = [
         "external_id": "GHSA-x",
         "user_id": 7,
         "visibility": "PRIVATE",
+        "repository": "org/repo",
     },
     {
         "id": 2,
@@ -41,6 +42,7 @@ ITEMS = [
         "external_id": None,
         "user_id": 7,
         "visibility": "PUBLIC",
+        "repository": "acme/widget",
     },
 ]
 
@@ -197,11 +199,16 @@ def test_external_issue_list_wrapper_renders():
     assert "injection" in text
     assert "Failed" in text
     assert "advisory" in text
-    assert "Security" in text
+    assert "org/repo" in text
+    assert "acme/" in text
+    assert "Published" in text
+    assert "Unpublish" in text
     assert "High" in text
     assert "N/A" in text
     assert "2026-09-01" in text
     assert "10:00:00" in text
+    assert "Security advisory" not in text
+    assert "https://github.com" not in text
 
 
 def test_external_issue_wrapper_renders():

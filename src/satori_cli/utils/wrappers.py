@@ -307,10 +307,10 @@ class ExternalIssueListWrapper(Wrapper[list]):
         table.add_column("ID")
         table.add_column("Created")
         table.add_column("Execution")
-        table.add_column("Kind")
+        table.add_column("Repo")
         table.add_column("Title")
         table.add_column("Severity")
-        table.add_column("URL")
+        table.add_column("Status")
 
         for item in self.obj:
             severity = item.get("severity")
@@ -321,14 +321,16 @@ class ExternalIssueListWrapper(Wrapper[list]):
                 style = _SEVERITY_STYLE.get(label.upper(), "")
                 severity_text = f"[{style}]{label}[/{style}]" if style else label
 
+            status = "Published" if item.get("external_id") else "Unpublished"
+
             table.add_row(
                 str(item["id"]),
                 ISODateTime(item["created_at"]),
                 str(item["execution_id"]),
-                item["kind"].capitalize().replace("_", " "),
+                item.get("repository") or "N/A",
                 item["title"],
                 severity_text,
-                item.get("external_url") or "N/A",
+                status,
             )
 
         yield table
