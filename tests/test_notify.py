@@ -21,13 +21,16 @@ def test_search_notify_callback_accepts_uris():
         None,
         ("email://a@b.com", "slack://T:C", "discord://123", "telegram://-1"),
     ) == ("email://a@b.com", "slack://T:C", "discord://123", "telegram://-1")
+    assert _notify_uri_callback(
+        None, None, ("slack", "email", "discord", "telegram", "default", "slack://")
+    ) == ("slack", "email", "discord", "telegram", "default", "slack://")
 
 
 def test_search_notify_callback_rejects_unsupported():
-    with pytest.raises(
-        BadParameter, match="slack://, email://, discord://, or telegram://"
-    ):
+    with pytest.raises(BadParameter, match="slack"):
         _notify_uri_callback(None, None, ("datadog://x",))
+    with pytest.raises(BadParameter, match="slack"):
+        _notify_uri_callback(None, None, ("http://x",))
 
 
 def test_parse_full_spec_with_status_ignored():

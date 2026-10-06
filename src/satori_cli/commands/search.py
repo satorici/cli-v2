@@ -27,8 +27,11 @@ def isodatetime(arg: str):
 def _notify_uri_callback(ctx, param, value: tuple[str, ...]):
     if not value:
         return ()
+    known = frozenset({"slack", "email", "discord", "telegram", "default"})
     for uri in value:
-        lower = uri.lower()
+        lower = uri.lower().strip()
+        if lower in known:
+            continue
         if not (
             lower.startswith("slack://")
             or lower.startswith("email://")
@@ -36,7 +39,8 @@ def _notify_uri_callback(ctx, param, value: tuple[str, ...]):
             or lower.startswith("telegram://")
         ):
             raise click.BadParameter(
-                f"notify must be a slack://, email://, discord://, or telegram:// URI, got {uri!r}",
+                f"notify must be slack, email, discord, telegram, default, "
+                f"or a slack:// / email:// / discord:// / telegram:// URI, got {uri!r}",
                 param=param,
             )
     return value
@@ -237,8 +241,9 @@ def reports_delete(**kwargs):
     callback=_notify_uri_callback,
     help=(
         "Send this page of results to Slack, email, Discord, or Telegram "
-        "(slack://workspace:channel, email://user@example.com, "
-        "discord://CHANNEL, or telegram://CHAT_ID)"
+        "(slack / email / discord / telegram / default, or full "
+        "slack://workspace:channel, email://user@example.com, "
+        "discord://CHANNEL, telegram://CHAT_ID URIs)"
     ),
 )
 @optgroup.group(cls=MutuallyExclusiveOptionGroup)
