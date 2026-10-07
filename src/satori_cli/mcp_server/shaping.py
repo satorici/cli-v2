@@ -180,3 +180,74 @@ def paged(items: list, total: int | None, page: int, quantity: int) -> dict:
     if total is not None and page * quantity < total:
         result["next_page"] = page + 1
     return result
+
+
+MAX_TIMELINE_ITEMS = 20
+MAX_COMMENT_CHARS = 2_000
+
+
+def summarize_job(job: dict) -> dict:
+    return {
+        "id": job.get("id"),
+        "type": job.get("type"),
+        "status": job.get("status"),
+        "playbook_source": clip(job.get("playbook_source")),
+        "repository": job.get("repository"),
+        "expression": job.get("expression"),
+        "visibility": job.get("visibility"),
+        "tags": job.get("tags"),
+        "created_at": job.get("created_at"),
+        "finished_at": job.get("finished_at"),
+        "expires_at": job.get("expires_at"),
+    }
+
+
+def summarize_timeline(items: list[dict]) -> dict:
+    """Last MAX_TIMELINE_ITEMS entries (comments and events), clipped."""
+    recent = items[-MAX_TIMELINE_ITEMS:]
+    shaped = []
+    for item in recent:
+        entry = {
+            "kind": item.get("kind"),
+            "created_at": item.get("created_at"),
+            "by": item.get("display_name"),
+        }
+        if item.get("kind") == "comment":
+            entry["body"] = clip(item.get("body"))
+        else:
+            entry["type"] = item.get("type")
+            entry["payload"] = _clip_deep(item.get("payload"))
+        shaped.append(entry)
+    return {
+        "timeline": shaped,
+        "timeline_total": len(items),
+        "timeline_truncated": len(items) > MAX_TIMELINE_ITEMS,
+    }
+
+
+def summarize_catalog_playbook(playbook: dict) -> dict:
+    return {
+        "uri": playbook.get("uri"),
+        "name": clip(playbook.get("name"), 200),
+        "category": playbook.get("category"),
+        "description": clip(playbook.get("description"), 300),
+        "parameters": playbook.get("parameters"),
+    }
+
+
+def summarize_advisory(advisory: dict) -> dict:
+    """List row: no description or vulnerabilities (they can be long)."""
+    return {
+        "id": advisory.get("id"),
+        "kind": advisory.get("kind"),
+        "provider": advisory.get("provider"),
+        "title": clip(advisory.get("title"), 200),
+        "severity": advisory.get("severity"),
+        "repository": advisory.get("repository"),
+        "visibility": advisory.get("visibility"),
+        "external_id": advisory.get("external_id"),
+        "external_url": advisory.get("external_url"),
+        "finding_id": advisory.get("finding_id"),
+        "execution_id": advisory.get("execution_id"),
+        "created_at": advisory.get("created_at"),
+    }

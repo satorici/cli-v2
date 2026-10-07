@@ -110,7 +110,9 @@ token from `satori-v2 config token`. Add it to your agent config:
 
 Tools: `whoami`, `run_playbook`, `get_execution`, `get_execution_output`, `list_findings`,
 `get_finding`, `list_repos`, `list_executions` / `list_reports` (same tool; reports =
-executions), `stop_execution`, `get_execution_playbook`. All responses are size-capped;
+executions), `stop_execution`, `get_execution_playbook`, `list_jobs`, `get_job`,
+`update_finding_status`, `scan_repository`, `list_scans`, `list_playbooks`,
+`get_playbook`, `list_advisories`, `list_monitors`. All responses are size-capped;
 read logs with a `test` filter.
 Playbook syntax is served as resources (`satori-docs://playbooks/language`, fetched from
 `https://docs-v2.satori.ci`, override with `SATORI_DOCS_URL`).

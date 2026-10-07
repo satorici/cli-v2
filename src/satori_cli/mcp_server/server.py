@@ -4,6 +4,7 @@ stdout is the protocol channel. Nothing in here may print to it.
 """
 
 import os
+import re
 import tempfile
 import time
 from functools import wraps
@@ -19,6 +20,7 @@ from ..config import config
 from ..constants import report_url
 from ..exceptions import AuthError, SatoriError
 from ..models import BundleCache
+from ..playbooks_api import client as playbooks_client
 from ..utils.bundler import make_bundle
 from ..utils.console import load_execution_outputs
 from ..utils.output_filter import run_test_filter
@@ -37,6 +39,15 @@ DOC_PAGES = {
 REPORT_STATUSES = ("PASS", "FAIL")
 JOB_TYPES = ("RUN", "SCAN", "MONITOR", "GITHUB", "LOCAL")
 
+FINDING_STATUSES = ("OPEN", "INVESTIGATING", "TP", "FIXED", "FP", "ACCEPTED")
+LISTABLE_JOB_TYPES = ("RUN", "SCAN", "MONITOR")
+FINDING_SOURCES = ("ASSERT", "TOOL")
+ORDERS = ("ASC", "DESC")
+ADVISORY_KINDS = ("SECURITY_ADVISORY", "ISSUE")
+ADVISORY_PROVIDERS = ("GITHUB",)
+REPO_RE = re.compile(r"^[\w.-]+/[\w.-]+$")
+MAX_SCAN_QUANTITY = 10
+
 mcp = FastMCP(
     "satori",
     instructions=(
@@ -45,6 +56,10 @@ mcp = FastMCP(
         "with a `test` filter for logs. In Satori, reports = executions; use "
         "list_executions (or list_reports) to list reports. Use get_execution_playbook "
         "to read the YAML of a run, and stop_execution to cancel a running one. "
+        "Use list_jobs/get_job to find a job and its executions, and "
+        "update_finding_status to triage a finding (only when asked). "
+        "list_playbooks/get_playbook browse ready-made catalog playbooks (use via "
+        "playbook_uri); scan_repository scans one named owner/repo. "
         "Output is always capped."
     ),
 )
@@ -91,9 +106,23 @@ def whoami() -> dict:
     }
 
 
-def _bundle_source(playbook_path: str | None, playbook_yaml: str | None) -> str:
-    if bool(playbook_path) == bool(playbook_yaml):
-        raise SatoriError("Provide exactly one of playbook_path or playbook_yaml.")
+def _bundle_source(
+    playbook_path: str | None,
+    playbook_yaml: str | None,
+    playbook_uri: str | None = None,
+) -> str:
+    if sum(map(bool, (playbook_path, playbook_yaml, playbook_uri))) != 1:
+        raise SatoriError(
+            "Provide exactly one of playbook_path, playbook_yaml or playbook_uri."
+        )
+
+    if playbook_uri:
+        if not playbook_uri.startswith("satori://"):
+            raise SatoriError(
+                "playbook_uri must be a catalog URI like satori://code/python/pyspector_v2.yml "
+                "(see list_playbooks)."
+            )
+        return playbook_uri
 
     if playbook_yaml:
         with tempfile.TemporaryDirectory() as tmp:
@@ -136,6 +165,7 @@ def _execution_summary(execution_id: int) -> dict:
 def run_playbook(
     playbook_path: str | None = None,
     playbook_yaml: str | None = None,
+    playbook_uri: str | None = None,
     repository: str | None = None,
     parameters: dict[str, list[str]] | None = None,
     regions: list[str] | None = None,
@@ -144,12 +174,13 @@ def run_playbook(
 ) -> dict:
     """Run a playbook on Satori and (optionally) wait for the result.
 
-    Provide EXACTLY ONE of playbook_path (local .yml file) or playbook_yaml (inline YAML).
+    Provide EXACTLY ONE of playbook_path (local .yml file), playbook_yaml (inline YAML) or
+    playbook_uri (a catalog playbook such as satori://code/python/pyspector_v2.yml; see list_playbooks).
     `repository` is an optional "owner/repo" to associate the run with (see list_repos).
     If the run is still going after wait_seconds (max 600), call get_execution later.
     Playbook syntax: read the satori-docs://playbooks/language resource first.
     """
-    source = _bundle_source(playbook_path, playbook_yaml)
+    source = _bundle_source(playbook_path, playbook_yaml, playbook_uri)
     body = {
         "playbook_source": source,
         "parameters": parameters or {},
@@ -245,7 +276,10 @@ def list_executions(
     params.update({k: v for k, v in optional.items() if v})
     data = client.get("/executions", params=params).json()
     return shaping.paged(
-        [shaping.summarize_execution_row(e, report_url(e["id"])) for e in data["items"]],
+        [
+            shaping.summarize_execution_row(e, report_url(e["id"]))
+            for e in data["items"]
+        ],
         data.get("total"),
         page,
         quantity,
@@ -365,10 +399,25 @@ def list_findings(
     execution_id: int | None = None,
     severity: list[int] | None = None,
     status: str | None = None,
+    source: str | None = None,
+    order: str | None = None,
     quantity: int = 25,
     page: int = 1,
 ) -> dict:
-    """List findings (severity 0-5; status OPEN, INVESTIGATING, TP, FIXED, FP, ACCEPTED)."""
+    """List findings (severity 0-5; status OPEN, INVESTIGATING, TP, FIXED, FP, ACCEPTED).
+
+    source: ASSERT (playbook assertion failures) or TOOL (findings parsed from tool output).
+    order: ASC or DESC by creation time.
+    """
+    status = status.upper() if status else None
+    source = source.upper() if source else None
+    order = order.upper() if order else None
+    if status and status not in FINDING_STATUSES:
+        return {"error": f"status must be one of {FINDING_STATUSES}"}
+    if source and source not in FINDING_SOURCES:
+        return {"error": f"source must be one of {FINDING_SOURCES}"}
+    if order and order not in ORDERS:
+        return {"error": f"order must be one of {ORDERS}"}
     quantity = max(1, min(quantity, 25))
     params: dict[str, Any] = {"quantity": quantity, "page": page}
     if execution_id is not None:
@@ -377,6 +426,10 @@ def list_findings(
         params["severity"] = severity
     if status:
         params["status"] = status
+    if source:
+        params["source"] = source
+    if order:
+        params["order"] = order
     data = client.get("/findings", params=params).json()
     return shaping.paged(
         [shaping.summarize_finding(f) for f in data["items"]],
@@ -388,9 +441,231 @@ def list_findings(
 
 @mcp.tool()
 @_safe
-def get_finding(finding_id: int) -> dict:
-    """Details of one finding (snapshot is truncated)."""
-    return shaping.detail_finding(client.get(f"/findings/{finding_id}").json())
+def get_finding(finding_id: int, include_timeline: bool = True) -> dict:
+    """Details of one finding plus its recent timeline (status changes and comments)."""
+    result = shaping.detail_finding(client.get(f"/findings/{finding_id}").json())
+    if include_timeline:
+        result.update(
+            shaping.summarize_timeline(
+                client.get(f"/findings/{finding_id}/timeline").json()
+            )
+        )
+    return result
+
+
+@mcp.tool()
+@_safe
+def update_finding_status(
+    finding_id: int, status: str, comment: str | None = None
+) -> dict:
+    """Triage a finding: set its status, optionally adding a comment explaining why.
+
+    status: OPEN, INVESTIGATING, TP (true positive), FIXED, FP (false positive) or ACCEPTED.
+    Changes shared triage state; use only when the user asked to triage this finding.
+    """
+    status = status.upper()
+    if status not in FINDING_STATUSES:
+        return {"error": f"status must be one of {FINDING_STATUSES}"}
+    if comment is not None and len(comment) > shaping.MAX_COMMENT_CHARS:
+        return {"error": f"comment exceeds {shaping.MAX_COMMENT_CHARS} characters."}
+
+    updated = client.patch(f"/findings/{finding_id}", json={"status": status}).json()
+    result: dict[str, Any] = {"id": finding_id, "status": updated.get("status", status)}
+    if comment:
+        try:
+            result["comment_id"] = client.post(
+                f"/findings/{finding_id}/comments", json={"body": comment}
+            ).json()["id"]
+        except httpx2.HTTPStatusError as e:
+            result["comment_error"] = shaping.clip(e.response.text, 500)
+    return result
+
+
+@mcp.tool()
+@_safe
+def list_jobs(type: str | None = None, quantity: int = 25, page: int = 1) -> dict:
+    """List jobs, newest first (a job is the parent of executions; use it to recover a job_id).
+
+    type: RUN, SCAN or MONITOR. Max 25 per page; use next_page to continue.
+    """
+    if type and type not in LISTABLE_JOB_TYPES:
+        return {"error": f"type must be one of {LISTABLE_JOB_TYPES}"}
+    quantity = max(1, min(quantity, 25))
+    params: dict[str, Any] = {"quantity": quantity, "page": page, "order": "DESC"}
+    if type:
+        params["type"] = type
+    data = client.get("/jobs", params=params).json()
+    return shaping.paged(
+        [shaping.summarize_job(j) for j in data["items"]],
+        data.get("total"),
+        page,
+        quantity,
+    )
+
+
+@mcp.tool()
+@_safe
+def get_job(job_id: int) -> dict:
+    """A job and its 5 most recent executions (no playbook body; see get_execution_playbook)."""
+    result = shaping.summarize_job(client.get(f"/jobs/{job_id}").json())
+    items = client.get(
+        "/executions", params={"job_id": job_id, "quantity": 5, "order": "DESC"}
+    ).json()["items"]
+    result["executions"] = [
+        shaping.summarize_execution_row(e, report_url(e["id"])) for e in items
+    ]
+    return result
+
+
+@mcp.tool()
+@_safe
+def scan_repository(
+    repository: str,
+    playbook_path: str | None = None,
+    playbook_yaml: str | None = None,
+    playbook_uri: str | None = None,
+    parameters: dict[str, list[str]] | None = None,
+    regions: list[str] | None = None,
+    quantity: int = 1,
+) -> dict:
+    """Start a scan of ONE GitHub repository with a playbook. Returns immediately.
+
+    `repository` is required, as "owner/repo" (see list_repos). Provide EXACTLY ONE of
+    playbook_path, playbook_yaml or playbook_uri (e.g. satori://code/python/pyspector_v2.yml,
+    see list_playbooks). `quantity` is how many executions to create (max 10).
+    Poll with get_job(job_id) / list_executions(job_id=...); results via get_execution.
+    """
+    if not REPO_RE.match(repository or ""):
+        return {"error": "repository must be 'owner/repo'."}
+    source = _bundle_source(playbook_path, playbook_yaml, playbook_uri)
+    quantity = max(1, min(quantity, MAX_SCAN_QUANTITY))
+    body = {
+        "playbook_source": source,
+        "parameters": parameters or {},
+        "regions": regions or [],
+        "repository_data": {"repository": repository},
+        "criteria": {"quantity": quantity},
+        "visibility": "PRIVATE",
+    }
+    scan = client.post("/jobs/scans", json=body).json()
+    return {
+        "job_id": scan["id"],
+        "status": scan.get("status"),
+        "repository": repository,
+        "playbook_source": source,
+        "hint": "Call get_job(job_id) to follow progress and see its executions.",
+    }
+
+
+@mcp.tool()
+@_safe
+def list_scans(quantity: int = 25, page: int = 1) -> dict:
+    """List scan jobs, newest first (same as list_jobs with type=SCAN)."""
+    return list_jobs(type="SCAN", quantity=quantity, page=page)
+
+
+@mcp.tool()
+@_safe
+def list_playbooks(
+    q: str | None = None,
+    category: str | None = None,
+    quantity: int = 25,
+    page: int = 1,
+) -> dict:
+    """Search the catalog of ready-made playbooks (satori://...) instead of writing YAML.
+
+    q: case-insensitive match on id, name or description. category: e.g. api, code, cloud.
+    Run one with run_playbook/scan_repository(playbook_uri=...); read details with get_playbook.
+    """
+    quantity = max(1, min(quantity, 25))
+    catalog = playbooks_client.get("/playbooks").json()["playbooks"]
+    needle = q.lower() if q else None
+    matches = [
+        p
+        for p in catalog
+        if (not category or p.get("category", "").lower() == category.lower())
+        and (
+            not needle
+            or needle
+            in " ".join(
+                str(p.get(k, "")) for k in ("id", "name", "description")
+            ).lower()
+        )
+    ]
+    start = (page - 1) * quantity
+    return shaping.paged(
+        [
+            shaping.summarize_catalog_playbook(p)
+            for p in matches[start : start + quantity]
+        ],
+        len(matches),
+        page,
+        quantity,
+    )
+
+
+@mcp.tool()
+@_safe
+def get_playbook(playbook_uri: str) -> dict:
+    """Details and YAML of a catalog playbook (satori://... URI or its id), capped."""
+    playbook_id = playbook_uri.removeprefix("satori://")
+    data = playbooks_client.get(f"/playbooks/{playbook_id}").json()
+    result = shaping.summarize_catalog_playbook(data)
+    content = data.get("content") or ""
+    result["image"] = data.get("image")
+    result["example"] = data.get("example")
+    result["yaml"] = shaping.clip(content, shaping.MAX_PLAYBOOK_CHARS)
+    result["truncated"] = len(content) > shaping.MAX_PLAYBOOK_CHARS
+    return result
+
+
+@mcp.tool()
+@_safe
+def list_advisories(
+    execution_id: int | None = None,
+    kind: str | None = None,
+    provider: str | None = None,
+    order: str | None = None,
+    quantity: int = 25,
+    page: int = 1,
+) -> dict:
+    """List external issues you already created from findings (read-only).
+
+    kind: SECURITY_ADVISORY or ISSUE. provider: GITHUB. order: ASC or DESC.
+    Returns titles and links (external_url), not the full advisory text.
+    """
+    kind = kind.upper() if kind else None
+    provider = provider.upper() if provider else None
+    order = order.upper() if order else None
+    if kind and kind not in ADVISORY_KINDS:
+        return {"error": f"kind must be one of {ADVISORY_KINDS}"}
+    if provider and provider not in ADVISORY_PROVIDERS:
+        return {"error": f"provider must be one of {ADVISORY_PROVIDERS}"}
+    if order and order not in ORDERS:
+        return {"error": f"order must be one of {ORDERS}"}
+    quantity = max(1, min(quantity, 25))
+    optional = {
+        "execution_id": execution_id,
+        "kind": kind,
+        "provider": provider,
+        "order": order,
+    }
+    params: dict[str, Any] = {"quantity": quantity, "page": page}
+    params.update({k: v for k, v in optional.items() if v is not None})
+    data = client.get("/external_issues", params=params).json()
+    return shaping.paged(
+        [shaping.summarize_advisory(a) for a in data["items"]],
+        data.get("total"),
+        page,
+        quantity,
+    )
+
+
+@mcp.tool()
+@_safe
+def list_monitors(quantity: int = 25, page: int = 1) -> dict:
+    """List monitor jobs with their schedule `expression` (read-only; same as list_jobs type=MONITOR)."""
+    return list_jobs(type="MONITOR", quantity=quantity, page=page)
 
 
 @mcp.tool()

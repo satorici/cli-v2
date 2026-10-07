@@ -59,3 +59,23 @@ def test_summarize_execution_row_without_report():
 
     row = shaping.summarize_execution_row({"id": 1, "status": "QUEUED"}, "u")
     assert row["id"] == 1 and row["total_fails"] is None and row["job_type"] is None
+
+
+def test_summarize_timeline_keeps_last_20_and_clips():
+    items = [
+        {"kind": "comment", "body": "c" * 5000, "created_at": str(i)}
+        for i in range(100)
+    ]
+    items[-1] = {"kind": "event", "type": "STATUS", "payload": {"x": "p" * 5000}}
+    result = shaping.summarize_timeline(items)
+    assert len(result["timeline"]) == 20
+    assert result["timeline_total"] == 100 and result["timeline_truncated"] is True
+    assert len(result["timeline"][0]["body"]) < 600
+    assert len(result["timeline"][-1]["payload"]["x"]) < 600
+
+
+def test_summarize_job_keeps_compact_fields():
+    job = shaping.summarize_job(
+        {"id": 1, "type": "RUN", "status": "FINISHED", "container_settings": {"big": 1}}
+    )
+    assert job["id"] == 1 and "container_settings" not in job
