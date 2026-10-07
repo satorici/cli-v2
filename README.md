@@ -55,6 +55,7 @@ Running `satori-v2` with no subcommand lists your jobs (dashboard). Use `--publi
 | `config [key] [value]` | View or set config values for a profile |
 | `local` | Run a playbook locally against the Satori API |
 | `run` | Submit and run a playbook job remotely |
+| `mcp` | Run a local MCP server over stdio for AI agents (see below) |
 | `scan` | Start a repository scan job |
 | `scans` | List scan jobs (paginated) |
 | `monitor` | Create a monitor job with a cron expression |
@@ -93,3 +94,21 @@ Running `satori-v2` with no subcommand lists your jobs (dashboard). Use `--publi
 | Subcommand | Description |
 | --- | --- |
 | `shell sessions` | List SSH shell sessions (paginated); supports `--page`, `--quantity`, `--json` |
+
+## MCP server (Cursor, Claude Code, Codex)
+
+`satori-v2 mcp` starts a local stdio [MCP](https://modelcontextprotocol.io) server that uses the
+token from `satori-v2 config token`. Add it to your agent config:
+
+```json
+{
+  "mcpServers": {
+    "satori": { "command": "satori-v2", "args": ["mcp"] }
+  }
+}
+```
+
+Tools: `whoami`, `run_playbook`, `get_execution`, `get_execution_output`, `list_findings`,
+`get_finding`, `list_repos`. All responses are size-capped; read logs with a `test` filter.
+Playbook syntax is served as resources (`satori-docs://playbooks/language`, fetched from
+`https://docs-v2.satori.ci`, override with `SATORI_DOCS_URL`).
