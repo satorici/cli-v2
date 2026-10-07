@@ -11,6 +11,7 @@ MAX_FIELD_CHARS = 500
 MAX_OUTPUT_TAIL_LINES = 500
 MAX_OUTPUT_CHARS = 20_000
 MAX_SNAPSHOT_CHARS = 4_000
+MAX_PLAYBOOK_CHARS = 20_000
 OUTPUT_STREAMS = ("stdout", "stderr", "os_error")
 
 
@@ -66,6 +67,21 @@ def summarize_execution(execution: dict, report_url: str | None = None) -> dict:
             "Use list_findings(execution_id=...) for the failures."
         )
     return summary
+
+
+def summarize_execution_row(execution: dict, report_url: str | None = None) -> dict:
+    """One line per execution for list results: no tests, no data blob."""
+    report = execution.get("report") or {}
+    job = execution.get("job") or {}
+    return {
+        "id": execution.get("id"),
+        "status": execution.get("status"),
+        "created_at": execution.get("created_at"),
+        "job_id": execution.get("job_id"),
+        "job_type": job.get("type"),
+        "total_fails": report.get("total_fails"),
+        "report_url": report_url,
+    }
 
 
 def output_index(outputs: list[dict]) -> list[dict]:

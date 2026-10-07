@@ -97,3 +97,87 @@ def test_output_with_test_tails(monkeypatch):
     assert result["next_offset_from_end"] == 5
     stderr = server.get_execution_output(1, test="cmd.0.stderr")
     assert stderr["text"] == ""
+
+
+def test_list_executions_maps_params_and_caps_quantity(monkeypatch):
+    seen = {}
+
+    def get(url, params=None, **kw):
+        seen.update(params)
+        return _Resp(
+            {
+                "items": [
+                    {
+                        "id": 5,
+                        "status": "FINISHED",
+                        "job_id": 2,
+                        "job": {"type": "RUN"},
+                        "report": {"total_fails": 1},
+                    }
+                ],
+                "total": 60,
+            }
+        )
+
+    monkeypatch.setattr(server.client, "get", get)
+    result = server.list_executions(
+        job_id=2, status=["FINISHED"], from_="2026-01-01", to="2026-02-01", quantity=500
+    )
+    assert seen["quantity"] == 25
+    assert seen["from"] == "2026-01-01" and seen["job_id"] == 2
+    assert seen["order"] == "DESC"
+    assert result["next_page"] == 2
+    assert result["items"][0]["total_fails"] == 1
+    assert result["items"][0]["job_type"] == "RUN"
+
+
+def test_list_executions_validates_input():
+    assert "report_status" in server.list_executions(report_status="MAYBE")["error"]
+    assert "job_type" in server.list_executions(job_type="X")["error"]
+    assert "earlier" in server.list_executions(from_="2026-02-01", to="2026-01-01")["error"]
+
+
+def test_list_reports_aliases_list_executions(monkeypatch):
+    seen = {}
+
+    def get(url, params=None, **kw):
+        seen.update(params or {})
+        return _Resp({"items": [{"id": 1, "status": "FINISHED", "report": {}}], "total": 1})
+
+    monkeypatch.setattr(server.client, "get", get)
+    result = server.list_reports(job_id=9, quantity=10)
+    assert seen["job_id"] == 9 and seen["quantity"] == 10
+    assert result["items"][0]["id"] == 1
+
+
+def test_stop_execution_only_patches_running(monkeypatch):
+    patches = []
+    status = {"v": "FINISHED"}
+    monkeypatch.setattr(
+        server.client, "get", lambda url, **kw: _Resp({"status": status["v"]})
+    )
+    monkeypatch.setattr(
+        server.client, "patch", lambda url, **kw: patches.append((url, kw)) or _Resp()
+    )
+
+    assert server.stop_execution(3)["stopped"] is False
+    assert patches == []
+
+    status["v"] = "RUNNING"
+    assert server.stop_execution(3)["stopped"] is True
+    assert patches == [("/executions/3", {"json": {"status": "CANCELED"}})]
+
+
+def test_get_execution_playbook_truncates(monkeypatch):
+    big = "x" * (server.shaping.MAX_PLAYBOOK_CHARS + 10)
+    monkeypatch.setattr(server.client, "get", lambda url, **kw: _Resp(text=big))
+    result = server.get_execution_playbook(4)
+    assert result["truncated"] is True
+    assert "truncated" in result["yaml"]
+
+    monkeypatch.setattr(server.client, "get", lambda url, **kw: _Resp(text="a: 1"))
+    assert server.get_execution_playbook(4) == {
+        "execution_id": 4,
+        "yaml": "a: 1",
+        "truncated": False,
+    }

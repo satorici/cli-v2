@@ -34,12 +34,18 @@ DOC_PAGES = {
     "execution": "playbooks/execution",
 }
 
+REPORT_STATUSES = ("PASS", "FAIL")
+JOB_TYPES = ("RUN", "SCAN", "MONITOR", "GITHUB", "LOCAL")
+
 mcp = FastMCP(
     "satori",
     instructions=(
         "Satori CI. Write a playbook (read the satori-docs://playbooks/language resource), "
         "call run_playbook, then get_execution for pass/fail and get_execution_output "
-        "with a `test` filter for logs. Output is always capped."
+        "with a `test` filter for logs. In Satori, reports = executions; use "
+        "list_executions (or list_reports) to list reports. Use get_execution_playbook "
+        "to read the YAML of a run, and stop_execution to cancel a running one. "
+        "Output is always capped."
     ),
 )
 
@@ -168,7 +174,10 @@ def run_playbook(
         result["report_url"] = report_url(execution_id)
 
     if not wait or execution_id is None:
-        result["hint"] = "Call get_execution(execution_id) to check progress."
+        result["hint"] = (
+            "Call get_execution(execution_id) to check progress, "
+            "or stop_execution(execution_id) to cancel."
+        )
         return result
 
     deadline = time.monotonic() + max(0, min(wait_seconds, 600))
@@ -193,6 +202,113 @@ def run_playbook(
 def get_execution(execution_id: int) -> dict:
     """Status and assertion results of an execution (no logs; use get_execution_output)."""
     return _execution_summary(execution_id)
+
+
+@mcp.tool()
+@_safe
+def list_executions(
+    job_id: int | None = None,
+    status: list[str] | None = None,
+    report_status: str | None = None,
+    job_type: str | None = None,
+    from_: str | None = None,
+    to: str | None = None,
+    q: str | None = None,
+    quantity: int = 25,
+    page: int = 1,
+) -> dict:
+    """List reports (executions), newest first.
+
+    In Satori, reports = executions. Use list_executions (or list_reports) to list reports.
+    status: any of QUEUED, RUNNING, FINISHED, CANCELED. report_status: PASS or FAIL.
+    job_type: RUN, SCAN, MONITOR, GITHUB or LOCAL. from_/to: ISO datetimes (from_ < to).
+    q: free-text search. Max 25 per page; use next_page to continue.
+    """
+    if report_status and report_status not in REPORT_STATUSES:
+        return {"error": f"report_status must be one of {REPORT_STATUSES}"}
+    if job_type and job_type not in JOB_TYPES:
+        return {"error": f"job_type must be one of {JOB_TYPES}"}
+    if from_ and to and from_ >= to:
+        return {"error": "from_ must be earlier than to."}
+
+    quantity = max(1, min(quantity, 25))
+    params: dict[str, Any] = {"quantity": quantity, "page": page, "order": "DESC"}
+    optional = {
+        "job_id": job_id,
+        "status": status,
+        "report_status": report_status,
+        "job_type": job_type,
+        "from": from_,
+        "to": to,
+        "q": q,
+    }
+    params.update({k: v for k, v in optional.items() if v})
+    data = client.get("/executions", params=params).json()
+    return shaping.paged(
+        [shaping.summarize_execution_row(e, report_url(e["id"])) for e in data["items"]],
+        data.get("total"),
+        page,
+        quantity,
+    )
+
+
+@mcp.tool()
+@_safe
+def list_reports(
+    job_id: int | None = None,
+    status: list[str] | None = None,
+    report_status: str | None = None,
+    job_type: str | None = None,
+    from_: str | None = None,
+    to: str | None = None,
+    q: str | None = None,
+    quantity: int = 25,
+    page: int = 1,
+) -> dict:
+    """Alias for list_executions. In Satori, reports = executions."""
+    return list_executions(
+        job_id=job_id,
+        status=status,
+        report_status=report_status,
+        job_type=job_type,
+        from_=from_,
+        to=to,
+        q=q,
+        quantity=quantity,
+        page=page,
+    )
+
+
+@mcp.tool()
+@_safe
+def stop_execution(execution_id: int) -> dict:
+    """Cancel a RUNNING execution (e.g. after run_playbook with wait=false)."""
+    status = client.get(f"/executions/{execution_id}").json().get("status")
+    if status != "RUNNING":
+        return {
+            "execution_id": execution_id,
+            "status": status,
+            "stopped": False,
+            "hint": "Only RUNNING executions can be stopped.",
+        }
+    client.patch(f"/executions/{execution_id}", json={"status": "CANCELED"})
+    return {
+        "execution_id": execution_id,
+        "stopped": True,
+        "hint": "Cancellation is asynchronous; call get_execution to confirm.",
+    }
+
+
+@mcp.tool()
+@_safe
+def get_execution_playbook(execution_id: int) -> dict:
+    """The playbook YAML an execution ran (capped), to debug or iterate on it."""
+    text = client.get(f"/executions/{execution_id}/playbook").text
+    return {
+        "execution_id": execution_id,
+        "yaml": shaping.clip(text, shaping.MAX_PLAYBOOK_CHARS),
+        "truncated": len(text) > shaping.MAX_PLAYBOOK_CHARS,
+    }
 
 
 @mcp.tool()

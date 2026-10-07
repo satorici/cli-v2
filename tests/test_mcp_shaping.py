@@ -52,3 +52,10 @@ def test_output_index_has_counts_not_content():
 def test_detail_finding_clips_snapshot():
     result = shaping.detail_finding({"id": 1, "snapshot": "z" * 100_000})
     assert len(result["snapshot"]) < shaping.MAX_SNAPSHOT_CHARS + 100
+
+
+def test_summarize_execution_row_without_report():
+    from satori_cli.mcp_server import shaping
+
+    row = shaping.summarize_execution_row({"id": 1, "status": "QUEUED"}, "u")
+    assert row["id"] == 1 and row["total_fails"] is None and row["job_type"] is None
