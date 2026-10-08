@@ -60,6 +60,8 @@ mcp = FastMCP(
         "to read the YAML of a run, and stop_execution to cancel a running one. "
         "Use list_jobs/get_job to find a job and its executions, and "
         "update_finding_status to triage a finding (only when asked). "
+        "Use add_finding_comment to comment without changing status, and "
+        "get_finding_timeline for status/comment history. "
         "list_playbooks/get_playbook browse ready-made catalog playbooks (use via "
         "playbook_uri); scan_repository scans one named owner/repo. "
         "Output is always capped."
@@ -511,6 +513,18 @@ def get_finding(finding_id: int, include_timeline: bool = True) -> dict:
 
 @mcp.tool()
 @_safe
+def get_finding_timeline(finding_id: int) -> dict:
+    """Status changes and comments for a finding (capped), without the finding body.
+
+    Prefer this when you only need history; use get_finding for full details.
+    """
+    return shaping.summarize_timeline(
+        client.get(f"/findings/{finding_id}/timeline").json()
+    )
+
+
+@mcp.tool()
+@_safe
 def update_finding_status(
     finding_id: int, status: str, comment: str | None = None
 ) -> dict:
@@ -535,6 +549,24 @@ def update_finding_status(
         except httpx2.HTTPStatusError as e:
             result["comment_error"] = shaping.clip(e.response.text, 500)
     return result
+
+
+@mcp.tool()
+@_safe
+def add_finding_comment(finding_id: int, body: str) -> dict:
+    """Post a comment on a finding without changing its status.
+
+    Use only when the user asked to comment. To triage and comment together, use
+    update_finding_status with comment=... instead.
+    """
+    if not body or not body.strip():
+        return {"error": "body must be a non-empty comment."}
+    if len(body) > shaping.MAX_COMMENT_CHARS:
+        return {"error": f"comment exceeds {shaping.MAX_COMMENT_CHARS} characters."}
+    comment_id = client.post(
+        f"/findings/{finding_id}/comments", json={"body": body}
+    ).json()["id"]
+    return {"finding_id": finding_id, "comment_id": comment_id}
 
 
 @mcp.tool()

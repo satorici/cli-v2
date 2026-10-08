@@ -263,6 +263,49 @@ def test_get_finding_includes_capped_timeline(monkeypatch):
     assert "timeline" not in server.get_finding(1, include_timeline=False)
 
 
+def test_get_finding_timeline_shapes_history(monkeypatch):
+    def get(url, **kw):
+        assert url == "/findings/7/timeline"
+        return _Resp(
+            [
+                {"kind": "comment", "body": "hi", "created_at": "t1", "display_name": "a"},
+                {"kind": "event", "type": "STATUS", "payload": {"to": "TP"}},
+            ]
+        )
+
+    monkeypatch.setattr(server.client, "get", get)
+    result = server.get_finding_timeline(7)
+    assert result["timeline_total"] == 2
+    assert result["timeline_truncated"] is False
+    assert result["timeline"][0]["kind"] == "comment"
+    assert result["timeline"][0]["body"] == "hi"
+    assert result["timeline"][1]["type"] == "STATUS"
+
+
+def test_add_finding_comment_posts_body(monkeypatch):
+    seen = {}
+
+    def post(url, **kw):
+        seen["url"], seen["json"] = url, kw["json"]
+        return _Resp({"id": 42})
+
+    monkeypatch.setattr(server.client, "post", post)
+    result = server.add_finding_comment(3, "looks real")
+    assert seen == {"url": "/findings/3/comments", "json": {"body": "looks real"}}
+    assert result == {"finding_id": 3, "comment_id": 42}
+
+
+def test_add_finding_comment_rejects_empty_and_overlong(monkeypatch):
+    def boom(*a, **k):
+        raise AssertionError("API must not be called")
+
+    monkeypatch.setattr(server.client, "post", boom)
+    assert "non-empty" in server.add_finding_comment(1, "   ")["error"]
+    assert "non-empty" in server.add_finding_comment(1, "")["error"]
+    long = "x" * (server.shaping.MAX_COMMENT_CHARS + 1)
+    assert "exceeds" in server.add_finding_comment(1, long)["error"]
+
+
 def test_list_jobs_caps_quantity_and_validates_type(monkeypatch):
     seen = {}
 
