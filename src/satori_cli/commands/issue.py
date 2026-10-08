@@ -30,6 +30,38 @@ ISSUE_STATUSES = [
 SEVERITY_ALIASES = ("INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL", "BLOCKER")
 
 
+def severity_name_to_int(name: str) -> int | None:
+    """Map a severity name (case-insensitive) to 0–5, or None if unknown."""
+    upper = name.upper()
+    if upper not in SEVERITY_ALIASES:
+        return None
+    return SEVERITY_ALIASES.index(upper)
+
+
+def normalize_severities(values: list[int | str]) -> list[int] | str:
+    """Normalize ints/names to severity ints. Returns an error string on failure."""
+    result: list[int] = []
+    seen: set[int] = set()
+    for value in values:
+        if isinstance(value, int):
+            if value < 0 or value > 5:
+                return f"severity ints must be 0-5; got {value}."
+            index = value
+        elif isinstance(value, str):
+            index = severity_name_to_int(value)
+            if index is None:
+                return (
+                    f"Invalid severity {value!r}. "
+                    f"Choose from {', '.join(SEVERITY_ALIASES)} or ints 0-5."
+                )
+        else:
+            return f"severity entries must be ints or names; got {type(value).__name__}."
+        if index not in seen:
+            seen.add(index)
+            result.append(index)
+    return result
+
+
 def parse_severity_csv(
     ctx: click.Context, param: click.Parameter, value: Optional[str]
 ) -> Optional[list[int]]:
@@ -40,20 +72,10 @@ def parse_severity_csv(
         raise click.BadParameter(
             f"Expected comma-separated severities from {', '.join(SEVERITY_ALIASES)}."
         )
-    result: list[int] = []
-    seen: set[int] = set()
-    for part in parts:
-        upper = part.upper()
-        if upper not in SEVERITY_ALIASES:
-            raise click.BadParameter(
-                f"Invalid severity {part!r}. "
-                f"Choose from {', '.join(SEVERITY_ALIASES)}."
-            )
-        index = SEVERITY_ALIASES.index(upper)
-        if index not in seen:
-            seen.add(index)
-            result.append(index)
-    return result
+    normalized = normalize_severities(parts)
+    if isinstance(normalized, str):
+        raise click.BadParameter(normalized)
+    return normalized
 
 
 def list_issues(

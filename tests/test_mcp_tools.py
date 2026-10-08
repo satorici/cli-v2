@@ -121,11 +121,28 @@ def test_list_executions_maps_params_and_caps_quantity(monkeypatch):
 
     monkeypatch.setattr(server.client, "get", get)
     result = server.list_executions(
-        job_id=2, status=["FINISHED"], from_="2026-01-01", to="2026-02-01", quantity=500
+        job_id=2,
+        status=["FINISHED"],
+        from_="2026-01-01",
+        to="2026-02-01",
+        visibility="public",
+        severity=0,
+        playbook="satori://a.yml",
+        tags=["env:prod"],
+        id_gt=10,
+        id_lt=99,
+        global_=True,
+        quantity=500,
     )
     assert seen["quantity"] == 25
     assert seen["from"] == "2026-01-01" and seen["job_id"] == 2
     assert seen["order"] == "DESC"
+    assert seen["visibility"] == "PUBLIC"
+    assert seen["severity"] == 0
+    assert seen["playbook"] == "satori://a.yml"
+    assert seen["tags"] == ["env:prod"]
+    assert seen["id_gt"] == 10 and seen["id_lt"] == 99
+    assert seen["global"] is True
     assert result["next_page"] == 2
     assert result["items"][0]["total_fails"] == 1
     assert result["items"][0]["job_type"] == "RUN"
@@ -134,6 +151,9 @@ def test_list_executions_maps_params_and_caps_quantity(monkeypatch):
 def test_list_executions_validates_input():
     assert "report_status" in server.list_executions(report_status="MAYBE")["error"]
     assert "job_type" in server.list_executions(job_type="X")["error"]
+    assert "visibility" in server.list_executions(visibility="SECRET")["error"]
+    assert "order" in server.list_executions(order="up")["error"]
+    assert "severity" in server.list_executions(severity=9)["error"]
     assert (
         "earlier"
         in server.list_executions(from_="2026-02-01", to="2026-01-01")["error"]
@@ -150,8 +170,9 @@ def test_list_reports_aliases_list_executions(monkeypatch):
         )
 
     monkeypatch.setattr(server.client, "get", get)
-    result = server.list_reports(job_id=9, quantity=10)
+    result = server.list_reports(job_id=9, playbook="satori://x.yml", quantity=10)
     assert seen["job_id"] == 9 and seen["quantity"] == 10
+    assert seen["playbook"] == "satori://x.yml"
     assert result["items"][0]["id"] == 1
 
 
@@ -250,10 +271,12 @@ def test_list_jobs_caps_quantity_and_validates_type(monkeypatch):
         return _Resp({"total": 100, "items": [{"id": 1, "type": "RUN"}]})
 
     monkeypatch.setattr(server.client, "get", get)
-    result = server.list_jobs(type="RUN", quantity=500)
+    result = server.list_jobs(type="RUN", visibility="public", quantity=500)
     assert seen["quantity"] == 25 and seen["type"] == "RUN"
+    assert seen["visibility"] == "PUBLIC"
     assert result["next_page"] == 2
     assert "type must be" in server.list_jobs(type="LOCAL")["error"]
+    assert "visibility" in server.list_jobs(visibility="SECRET")["error"]
 
 
 def test_get_job_combines_job_and_recent_executions(monkeypatch):
@@ -353,6 +376,20 @@ def test_list_findings_source_and_order(monkeypatch):
     assert "order must be" in server.list_findings(order="up")["error"]
 
 
+def test_list_findings_accepts_severity_names(monkeypatch):
+    seen = {}
+
+    def get(url, params=None, **kw):
+        seen.update(params)
+        return _Resp({"total": 0, "items": []})
+
+    monkeypatch.setattr(server.client, "get", get)
+    server.list_findings(severity=["HIGH", "low", 5])
+    assert seen["severity"] == [3, 1, 5]
+    assert "Invalid severity" in server.list_findings(severity=["NOPE"])["error"]
+    assert "0-5" in server.list_findings(severity=[9])["error"]
+
+
 def test_list_advisories_validates_and_omits_long_text(monkeypatch):
     seen = {}
 
@@ -388,6 +425,32 @@ def test_list_monitors_filters_monitor_jobs(monkeypatch):
         )
 
     monkeypatch.setattr(server.client, "get", get)
-    result = server.list_monitors()
+    result = server.list_monitors(visibility="private")
     assert seen["type"] == "MONITOR"
+    assert seen["visibility"] == "PRIVATE"
     assert result["items"][0]["expression"] == "rate(1 hours)"
+
+
+def test_list_scans_forwards_visibility(monkeypatch):
+    seen = {}
+
+    def get(url, params=None, **kw):
+        seen.update(params)
+        return _Resp({"total": 0, "items": []})
+
+    monkeypatch.setattr(server.client, "get", get)
+    server.list_scans(visibility="unlisted")
+    assert seen["type"] == "SCAN" and seen["visibility"] == "UNLISTED"
+
+
+def test_list_repos_order(monkeypatch):
+    seen = {}
+
+    def get(url, params=None, **kw):
+        seen.update(url=url, **(params or {}))
+        return _Resp({"total": 0, "items": []})
+
+    monkeypatch.setattr(server.client, "get", get)
+    server.list_repos(order="asc")
+    assert seen["url"] == "/repos" and seen["order"] == "ASC"
+    assert "order must be" in server.list_repos(order="up")["error"]

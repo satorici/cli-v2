@@ -16,6 +16,7 @@ import httpx2
 from mcp.server.fastmcp import FastMCP
 
 from ..api import client
+from ..commands.issue import normalize_severities
 from ..config import config
 from ..constants import report_url
 from ..exceptions import AuthError, SatoriError
@@ -38,6 +39,7 @@ DOC_PAGES = {
 
 REPORT_STATUSES = ("PASS", "FAIL")
 JOB_TYPES = ("RUN", "SCAN", "MONITOR", "GITHUB", "LOCAL")
+VISIBILITIES = ("PUBLIC", "PRIVATE", "UNLISTED")
 
 FINDING_STATUSES = ("OPEN", "INVESTIGATING", "TP", "FIXED", "FP", "ACCEPTED")
 LISTABLE_JOB_TYPES = ("RUN", "SCAN", "MONITOR")
@@ -245,6 +247,14 @@ def list_executions(
     from_: str | None = None,
     to: str | None = None,
     q: str | None = None,
+    visibility: str | None = None,
+    severity: int | None = None,
+    playbook: str | None = None,
+    tags: list[str] | None = None,
+    id_gt: int | None = None,
+    id_lt: int | None = None,
+    global_: bool = False,
+    order: str | None = None,
     quantity: int = 25,
     page: int = 1,
 ) -> dict:
@@ -253,17 +263,32 @@ def list_executions(
     In Satori, reports = executions. Use list_executions (or list_reports) to list reports.
     status: any of QUEUED, RUNNING, FINISHED, CANCELED. report_status: PASS or FAIL.
     job_type: RUN, SCAN, MONITOR, GITHUB or LOCAL. from_/to: ISO datetimes (from_ < to).
+    visibility: PUBLIC, PRIVATE or UNLISTED. severity: report severity 0-5.
+    playbook: playbook filter. tags: key:value strings. id_gt/id_lt: id range.
+    global_: include public executions from others. order: ASC or DESC (default DESC).
     q: free-text search. Max 25 per page; use next_page to continue.
     """
+    visibility = visibility.upper() if visibility else None
+    order = order.upper() if order else None
     if report_status and report_status not in REPORT_STATUSES:
         return {"error": f"report_status must be one of {REPORT_STATUSES}"}
     if job_type and job_type not in JOB_TYPES:
         return {"error": f"job_type must be one of {JOB_TYPES}"}
+    if visibility and visibility not in VISIBILITIES:
+        return {"error": f"visibility must be one of {VISIBILITIES}"}
+    if severity is not None and (severity < 0 or severity > 5):
+        return {"error": "severity must be an int 0-5."}
+    if order and order not in ORDERS:
+        return {"error": f"order must be one of {ORDERS}"}
     if from_ and to and from_ >= to:
         return {"error": "from_ must be earlier than to."}
 
     quantity = max(1, min(quantity, 25))
-    params: dict[str, Any] = {"quantity": quantity, "page": page, "order": "DESC"}
+    params: dict[str, Any] = {
+        "quantity": quantity,
+        "page": page,
+        "order": order or "DESC",
+    }
     optional = {
         "job_id": job_id,
         "status": status,
@@ -272,8 +297,16 @@ def list_executions(
         "from": from_,
         "to": to,
         "q": q,
+        "visibility": visibility,
+        "severity": severity,
+        "playbook": playbook,
+        "tags": tags,
+        "id_gt": id_gt,
+        "id_lt": id_lt,
     }
-    params.update({k: v for k, v in optional.items() if v})
+    params.update({k: v for k, v in optional.items() if v is not None and v != []})
+    if global_:
+        params["global"] = True
     data = client.get("/executions", params=params).json()
     return shaping.paged(
         [
@@ -296,6 +329,14 @@ def list_reports(
     from_: str | None = None,
     to: str | None = None,
     q: str | None = None,
+    visibility: str | None = None,
+    severity: int | None = None,
+    playbook: str | None = None,
+    tags: list[str] | None = None,
+    id_gt: int | None = None,
+    id_lt: int | None = None,
+    global_: bool = False,
+    order: str | None = None,
     quantity: int = 25,
     page: int = 1,
 ) -> dict:
@@ -308,6 +349,14 @@ def list_reports(
         from_=from_,
         to=to,
         q=q,
+        visibility=visibility,
+        severity=severity,
+        playbook=playbook,
+        tags=tags,
+        id_gt=id_gt,
+        id_lt=id_lt,
+        global_=global_,
+        order=order,
         quantity=quantity,
         page=page,
     )
@@ -397,15 +446,16 @@ def get_execution_output(
 @_safe
 def list_findings(
     execution_id: int | None = None,
-    severity: list[int] | None = None,
+    severity: list[int | str] | None = None,
     status: str | None = None,
     source: str | None = None,
     order: str | None = None,
     quantity: int = 25,
     page: int = 1,
 ) -> dict:
-    """List findings (severity 0-5; status OPEN, INVESTIGATING, TP, FIXED, FP, ACCEPTED).
+    """List findings (severity 0-5 or INFO/LOW/MEDIUM/HIGH/CRITICAL/BLOCKER).
 
+    status: OPEN, INVESTIGATING, TP, FIXED, FP, ACCEPTED.
     source: ASSERT (playbook assertion failures) or TOOL (findings parsed from tool output).
     order: ASC or DESC by creation time.
     """
@@ -418,12 +468,18 @@ def list_findings(
         return {"error": f"source must be one of {FINDING_SOURCES}"}
     if order and order not in ORDERS:
         return {"error": f"order must be one of {ORDERS}"}
+    severities: list[int] | None = None
+    if severity:
+        normalized = normalize_severities(severity)
+        if isinstance(normalized, str):
+            return {"error": normalized}
+        severities = normalized
     quantity = max(1, min(quantity, 25))
     params: dict[str, Any] = {"quantity": quantity, "page": page}
     if execution_id is not None:
         params["execution_id"] = execution_id
-    if severity:
-        params["severity"] = severity
+    if severities:
+        params["severity"] = severities
     if status:
         params["status"] = status
     if source:
@@ -483,17 +539,28 @@ def update_finding_status(
 
 @mcp.tool()
 @_safe
-def list_jobs(type: str | None = None, quantity: int = 25, page: int = 1) -> dict:
+def list_jobs(
+    type: str | None = None,
+    visibility: str | None = None,
+    quantity: int = 25,
+    page: int = 1,
+) -> dict:
     """List jobs, newest first (a job is the parent of executions; use it to recover a job_id).
 
-    type: RUN, SCAN or MONITOR. Max 25 per page; use next_page to continue.
+    type: RUN, SCAN or MONITOR. visibility: PUBLIC, PRIVATE or UNLISTED.
+    Max 25 per page; use next_page to continue.
     """
+    visibility = visibility.upper() if visibility else None
     if type and type not in LISTABLE_JOB_TYPES:
         return {"error": f"type must be one of {LISTABLE_JOB_TYPES}"}
+    if visibility and visibility not in VISIBILITIES:
+        return {"error": f"visibility must be one of {VISIBILITIES}"}
     quantity = max(1, min(quantity, 25))
     params: dict[str, Any] = {"quantity": quantity, "page": page, "order": "DESC"}
     if type:
         params["type"] = type
+    if visibility:
+        params["visibility"] = visibility
     data = client.get("/jobs", params=params).json()
     return shaping.paged(
         [shaping.summarize_job(j) for j in data["items"]],
@@ -559,9 +626,13 @@ def scan_repository(
 
 @mcp.tool()
 @_safe
-def list_scans(quantity: int = 25, page: int = 1) -> dict:
+def list_scans(
+    visibility: str | None = None, quantity: int = 25, page: int = 1
+) -> dict:
     """List scan jobs, newest first (same as list_jobs with type=SCAN)."""
-    return list_jobs(type="SCAN", quantity=quantity, page=page)
+    return list_jobs(
+        type="SCAN", visibility=visibility, quantity=quantity, page=page
+    )
 
 
 @mcp.tool()
@@ -663,17 +734,32 @@ def list_advisories(
 
 @mcp.tool()
 @_safe
-def list_monitors(quantity: int = 25, page: int = 1) -> dict:
+def list_monitors(
+    visibility: str | None = None, quantity: int = 25, page: int = 1
+) -> dict:
     """List monitor jobs with their schedule `expression` (read-only; same as list_jobs type=MONITOR)."""
-    return list_jobs(type="MONITOR", quantity=quantity, page=page)
+    return list_jobs(
+        type="MONITOR", visibility=visibility, quantity=quantity, page=page
+    )
 
 
 @mcp.tool()
 @_safe
-def list_repos(quantity: int = 50, page: int = 1) -> dict:
-    """List repositories (owner/repo) Satori can target, with their last execution."""
+def list_repos(
+    order: str | None = None, quantity: int = 50, page: int = 1
+) -> dict:
+    """List repositories (owner/repo) Satori can target, with their last execution.
+
+    order: ASC or DESC by last activity.
+    """
+    order = order.upper() if order else None
+    if order and order not in ORDERS:
+        return {"error": f"order must be one of {ORDERS}"}
     quantity = max(1, min(quantity, 50))
-    data = client.get("/repos", params={"quantity": quantity, "page": page}).json()
+    params: dict[str, Any] = {"quantity": quantity, "page": page}
+    if order:
+        params["order"] = order
+    data = client.get("/repos", params=params).json()
     return shaping.paged(
         [shaping.summarize_repo(r) for r in data["items"]],
         data.get("total"),
