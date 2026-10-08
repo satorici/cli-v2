@@ -35,6 +35,7 @@ DOC_PAGES = {
     "inputs": "playbooks/inputs",
     "settings": "playbooks/settings",
     "execution": "playbooks/execution",
+    "tool-output": "playbooks/tool-output",
 }
 
 REPORT_STATUSES = ("PASS", "FAIL")
@@ -55,7 +56,9 @@ mcp = FastMCP(
     instructions=(
         "Satori CI. Write a playbook (read the satori-docs://playbooks/language resource), "
         "call run_playbook, then get_execution for pass/fail and get_execution_output "
-        "with a `test` filter for logs. In Satori, reports = executions; use "
+        "with a `test` filter for logs. When a playbook runs a security/analysis tool, "
+        "prefer that tool's JSON/JSONL stdout flags (read satori-docs://playbooks/tool-output). "
+        "In Satori, reports = executions; use "
         "list_executions (or list_reports) to list reports. Use get_execution_playbook "
         "to read the YAML of a run, and stop_execution to cancel a running one. "
         "Use list_jobs/get_job to find a job and its executions, and "
@@ -183,6 +186,8 @@ def run_playbook(
     `repository` is an optional "owner/repo" to associate the run with (see list_repos).
     If the run is still going after wait_seconds (max 600), call get_execution later.
     Playbook syntax: read the satori-docs://playbooks/language resource first.
+    For security/analysis tools, prefer JSON/JSONL stdout flags
+    (satori-docs://playbooks/tool-output).
     """
     source = _bundle_source(playbook_path, playbook_yaml, playbook_uri)
     body = {
@@ -843,17 +848,26 @@ def doc_execution() -> str:
     return _fetch_doc("execution")
 
 
+@mcp.resource("satori-docs://playbooks/tool-output")
+def doc_tool_output() -> str:
+    """Prefer JSON tool stdout so Satori can parse TOOL findings."""
+    return _fetch_doc("tool-output")
+
+
 @mcp.prompt()
 def write_and_run_playbook(goal: str) -> str:
     """Write a Satori playbook for a goal, run it and report the result."""
     return (
         f"Goal: {goal}\n\n"
         "1. Read the satori-docs://playbooks/language resource (and asserts if needed).\n"
-        "2. Write the playbook YAML.\n"
-        "3. Call run_playbook with playbook_yaml (a validation error is returned verbatim; fix and retry).\n"
-        "4. Call get_execution; if there are failures, call get_execution_output with a `test` "
+        "2. If the playbook runs a security/analysis tool, read "
+        "satori-docs://playbooks/tool-output and prefer that tool's JSON/JSONL flags "
+        "over human-readable defaults.\n"
+        "3. Write the playbook YAML.\n"
+        "4. Call run_playbook with playbook_yaml (a validation error is returned verbatim; fix and retry).\n"
+        "5. Call get_execution; if there are failures, call get_execution_output with a `test` "
         "filter (never request full logs) and list_findings(execution_id=...).\n"
-        "5. Summarize the result and include the report_url."
+        "6. Summarize the result and include the report_url."
     )
 
 

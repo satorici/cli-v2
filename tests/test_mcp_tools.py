@@ -497,3 +497,13 @@ def test_list_repos_order(monkeypatch):
     server.list_repos(order="asc")
     assert seen["url"] == "/repos" and seen["order"] == "ASC"
     assert "order must be" in server.list_repos(order="up")["error"]
+
+
+def test_doc_pages_includes_tool_output():
+    assert server.DOC_PAGES["tool-output"] == "playbooks/tool-output"
+
+
+def test_write_and_run_playbook_prefers_json_tool_output():
+    text = server.write_and_run_playbook("scan for secrets")
+    assert "satori-docs://playbooks/tool-output" in text
+    assert "JSON" in text
