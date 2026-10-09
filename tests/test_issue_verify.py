@@ -166,6 +166,8 @@ def test_issue_verify_scan_happy_path(monkeypatch, tmp_path):
     assert "satori-v2 issue 10 status TP" in prompt
     assert "--allowedTools" in claude_args
     assert "--no-session-persistence" in claude_args
+    assert claude_args[claude_args.index("--model") + 1] == "sonnet"
+    assert claude_args[claude_args.index("--effort") + 1] == "low"
     assert Path(claude_cwd).name == "app"
     assert str(tmp_path / "work") in claude_cwd
 
