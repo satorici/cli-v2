@@ -16,15 +16,17 @@ log.setLevel(logging.INFO)
 log.addHandler(logging.StreamHandler())
 
 
-timeout_event = asyncio.Event()
-
-
 async def run_command(
     stop_event: asyncio.Event,
     command_timeout_event: asyncio.Event,
     command: str,
     shell: bool | None = None,
+    timeout_event: asyncio.Event | None = None,
+    cwd: str | None = None,
 ) -> Result:
+    if timeout_event is None:
+        timeout_event = asyncio.Event()
+
     buffer_limit = 1024 * 1024 * 10
 
     try:
@@ -34,6 +36,7 @@ async def run_command(
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 limit=buffer_limit,
+                cwd=cwd,
             )
         else:
             p = await subprocess.create_subprocess_shell(
@@ -42,6 +45,7 @@ async def run_command(
                 stderr=subprocess.PIPE,
                 start_new_session=True,
                 limit=buffer_limit,
+                cwd=cwd,
             )
     except (OSError, ValueError) as e:
         return {
@@ -104,67 +108,84 @@ async def process_commands(
     cache_class: type[ResultCache] = FileBasedResultCache,
     stop_event: asyncio.Event | None = None,
     on_running: Callable[[str], None] | None = None,
+    cwd: str | None = None,
 ):
     if not stop_event:
         stop_event = asyncio.Event()
 
-    if timeout is not None:
+    # Per call: the module is reused by the long-lived MCP process.
+    timeout_event = asyncio.Event()
+    timeout_task = (
         asyncio.create_task(set_after(timeout_event, timeout))
+        if timeout is not None
+        else None
+    )
 
-    grouped = groupby(command_lines, lambda x: x["path"])
-    grouped_data = ((commands_data[path], clines) for path, clines in grouped)
+    try:
+        grouped = groupby(command_lines, lambda x: x["path"])
+        grouped_data = ((commands_data[path], clines) for path, clines in grouped)
 
-    def check_events():
-        if stop_event.is_set():
-            raise Stopped
-        if timeout_event.is_set():
-            raise TimedOut
+        def check_events():
+            if stop_event.is_set():
+                raise Stopped
+            if timeout_event.is_set():
+                raise TimedOut
 
-    with cache_class() as result_cache:
+        with cache_class() as result_cache:
 
-        def build_command(cl: CommandLine):
-            return replace_results(
-                replace_testcase(cl["original"], cl["testcase"]), result_cache
-            )
+            def build_command(cl: CommandLine):
+                return replace_results(
+                    replace_testcase(cl["original"], cl["testcase"]), result_cache
+                )
 
-        for data, clgroup in grouped_data:
-            check_events()
-
-            inner_timeout = data["settings"].get("setCommandTimeout")
-            parallel = data["settings"].get("setParallel")
-            shell = data["settings"].get("setShell")
-
-            if parallel:
-                add_command = [((cl, build_command(cl)) for cl in clgroup)]
-            else:
-                add_command = ([(cl, build_command(cl))] for cl in clgroup)
-
-            for group_to_run in add_command:
-                command_timeout_event = asyncio.Event()
-
-                tasks: dict[asyncio.Task[Result], CommandLine] = {
-                    asyncio.create_task(
-                        run_command(stop_event, command_timeout_event, command, shell)
-                    ): cline
-                    for cline, command in group_to_run
-                }
-
-                for _, v in tasks.items():
-                    log.debug(f"Running {v['path']}: {v['original']}")
-                    if on_running is not None:
-                        on_running(v["path"])
-
-                if inner_timeout is not None:
-                    asyncio.create_task(set_after(command_timeout_event, inner_timeout))
-
-                await asyncio.gather(*tasks)
-
-                for task, command_line in tasks.items():
-                    result = await task
-
-                    if data.get("cache", True):
-                        result_cache.store(command_line["path"], result)
-
-                    yield command_line, result
-
+            for data, clgroup in grouped_data:
                 check_events()
+
+                inner_timeout = data["settings"].get("setCommandTimeout")
+                parallel = data["settings"].get("setParallel")
+                shell = data["settings"].get("setShell")
+
+                if parallel:
+                    add_command = [((cl, build_command(cl)) for cl in clgroup)]
+                else:
+                    add_command = ([(cl, build_command(cl))] for cl in clgroup)
+
+                for group_to_run in add_command:
+                    command_timeout_event = asyncio.Event()
+
+                    tasks: dict[asyncio.Task[Result], CommandLine] = {
+                        asyncio.create_task(
+                            run_command(
+                                stop_event,
+                                command_timeout_event,
+                                command,
+                                shell,
+                                timeout_event,
+                                cwd,
+                            )
+                        ): cline
+                        for cline, command in group_to_run
+                    }
+
+                    for _, v in tasks.items():
+                        log.debug(f"Running {v['path']}: {v['original']}")
+                        if on_running is not None:
+                            on_running(v["path"])
+
+                    if inner_timeout is not None:
+                        asyncio.create_task(set_after(command_timeout_event, inner_timeout))
+
+                    await asyncio.gather(*tasks)
+
+                    for task, command_line in tasks.items():
+                        result = await task
+
+                        if data.get("cache", True):
+                            result_cache.store(command_line["path"], result)
+
+                        yield command_line, result
+
+                    check_events()
+    finally:
+        if timeout_task is not None:
+            timeout_task.cancel()

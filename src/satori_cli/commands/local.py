@@ -1,28 +1,23 @@
 import asyncio
-import os
 import tempfile
-import time
 from pathlib import Path
 from tempfile import SpooledTemporaryFile
 from typing import Optional
 
-import httpx2
-import msgpack
 import rich_click as click
 from rich import progress
 from rich.live import Live
 from rich.table import Table
 
-from ..api import client
 from ..exceptions import SatoriError
 from ..models import Playbook
 from ..utils import options as opts
 from ..utils.arguments import Source, source_arg
 from ..utils.console import format_raw_results, stderr, stdout
-from ..utils.execution.runner import TimedOut, process_commands
 from ..utils.format import is_json_output
 from ..utils.git_clone import clone_repo, require_git
 from ..utils.highlight import highlight_result
+from ..utils.local_run import run_local_job
 from ..utils.verify_issue import list_finding_ids_for_execution
 from ..utils.verify_issue import verify_findings as run_verify_findings
 from ..utils.wrappers import JobWrapper, ReportWrapper
@@ -92,16 +87,6 @@ def local(
     else:
         tags_obj = {}
 
-    body = {
-        "playbook_source": playbook_data,
-        "parameters": input,
-        "visibility": visibility or "PRIVATE",
-        "tags": tags_obj,
-        "repository": repository,
-    }
-
-    local_job = client.post("/jobs/locals", json=body).json()
-
     use_progress = not is_json_output() and not show_output
     execution_id = None
     report = None
@@ -109,76 +94,33 @@ def local(
 
     clone_tmpdir = None
     work_dir: Optional[str] = None
-    original_cwd = os.getcwd()
     if repository:
         git = require_git()
         clone_tmpdir = tempfile.TemporaryDirectory(prefix="satori-local-")
         work_dir = str(clone_repo(git, repository, Path(clone_tmpdir.name)))
+    elif source.type == "DIR":
+        work_dir = source._arg
+
+    def run_job(on_running=None, on_job=None, results=None):
+        return asyncio.run(
+            run_local_job(
+                playbook_data,
+                parameters=input,
+                visibility=visibility or "PRIVATE",
+                tags=tags_obj,
+                repository=repository,
+                workdir=work_dir,
+                run=tuple(run or ()),
+                timeout=timeout,
+                needs_report=needs_report,
+                results=results,
+                on_running=on_running,
+                on_job=on_job,
+            )
+        )
 
     try:
-        with SpooledTemporaryFile() as recipe, SpooledTemporaryFile() as results:
-            res = httpx2.get(local_job["recipe_url"])
-            recipe.write(res.content)
-            recipe.seek(0)
-
-            unpacked = msgpack.Unpacker(recipe)
-
-            if run:
-                unpacked = (
-                    cline for cline in unpacked if cline["path"].startswith(run)
-                )
-
-            settings = httpx2.get(local_job["settings_url"]).json()
-
-            async def execute(on_running=None):
-                if work_dir is not None:
-                    os.chdir(work_dir)
-                elif source.type == "DIR":
-                    os.chdir(source._arg)
-
-                async for cline, result in process_commands(
-                    unpacked,
-                    settings,
-                    timeout,
-                    on_running=on_running,
-                ):
-                    msgpack.pack(cline | {"output": result}, results)
-
-            fields = {"x-amz-meta-status": "FINISHED"}
-            timed_out = False
-
-            def upload_and_poll():
-                nonlocal execution_id, report
-
-                results.seek(0)
-                results_upload = local_job["results_upload"]
-                res = httpx2.post(
-                    results_upload["url"],
-                    data=results_upload["fields"] | fields,
-                    files={"file": results},
-                )
-                res.raise_for_status()
-
-                # The execution (and its report) are created by the backend after
-                # results are uploaded, so poll instead of querying once.
-                for _ in range(60):
-                    res = client.get(
-                        "/executions",
-                        params={"job_id": local_job["id"], "quantity": 1},
-                    )
-
-                    if items := res.json()["items"]:
-                        execution_id = items[0]["id"]
-
-                        if not needs_report:
-                            break
-
-                        execution = client.get(f"/executions/{execution_id}").json()
-                        if report := execution.get("report"):
-                            break
-
-                    time.sleep(2)
-
+        with SpooledTemporaryFile() as results:
             if use_progress:
                 p = progress.Progress(
                     progress.SpinnerColumn("dots2"),
@@ -188,54 +130,51 @@ def local(
                     progress.TimeElapsedColumn(),
                 )
                 task = p.add_task("Starting execution")
+                local_job: dict = {}
 
                 def make_grid(report_ids=None):
                     grid = Table.grid("")
-                    grid.add_row(
-                        JobWrapper(local_job, compact=True, report_ids=report_ids)
-                    )
+                    if local_job:
+                        grid.add_row(
+                            JobWrapper(local_job, compact=True, report_ids=report_ids)
+                        )
                     grid.add_row(p)
                     return grid
 
                 def on_running(path: str) -> None:
                     p.update(task, description="Running [b]" + path)
 
-                with Live(make_grid(), console=stdout, refresh_per_second=10) as live:
-                    try:
-                        asyncio.run(execute(on_running))
-                        p.update(task, description="Completed")
-                    except TimedOut:
-                        timed_out = True
-                        fields["x-amz-meta-status"] = "CANCELED"
-                        p.update(task, description="Timeout")
+                def on_job(job: dict) -> None:
+                    local_job.update(job)
+                    live.update(make_grid())
 
-                    upload_and_poll()
+                with Live(make_grid(), console=stdout, refresh_per_second=10) as live:
+                    outcome = run_job(on_running, on_job, results)
+                    p.update(
+                        task, description="Timeout" if outcome.timed_out else "Completed"
+                    )
+                    execution_id = outcome.execution_id
                     report_ids = [execution_id] if execution_id is not None else None
                     live.update(make_grid(report_ids))
             else:
-                try:
-                    asyncio.run(execute())
-                except TimedOut:
-                    timed_out = True
-                    fields["x-amz-meta-status"] = "CANCELED"
-
-                upload_and_poll()
+                outcome = run_job(results=results)
+                execution_id = outcome.execution_id
 
                 if not is_json_output():
                     report_ids = [execution_id] if execution_id is not None else None
                     stdout.print(
-                        JobWrapper(local_job, compact=True, report_ids=report_ids)
+                        JobWrapper(outcome.job, compact=True, report_ids=report_ids)
                     )
 
-            if timed_out:
+            report = outcome.report
+
+            if outcome.timed_out:
                 stdout.print("Execution timed out")
 
             if show_output:
                 results.seek(0)
                 format_raw_results(results)
     finally:
-        if work_dir is not None or source.type == "DIR":
-            os.chdir(original_cwd)
         if clone_tmpdir is not None:
             clone_tmpdir.cleanup()
 

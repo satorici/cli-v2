@@ -61,7 +61,6 @@ def test_local_repo_clones_and_posts_repository(monkeypatch, tmp_path):
     clone_calls: list[dict] = []
     chdirs: list[str] = []
     verify_calls: list[int] = []
-    original_cwd = str(tmp_path / "start")
 
     def fake_post(path, json=None, **kwargs):
         posts.append({"path": path, "json": json})
@@ -77,33 +76,34 @@ def test_local_repo_clones_and_posts_repository(monkeypatch, tmp_path):
             )
         raise AssertionError(f"Unexpected GET {path}")
 
-    monkeypatch.setattr("satori_cli.commands.local.client.post", fake_post)
-    monkeypatch.setattr("satori_cli.commands.local.client.get", fake_client_get)
+    monkeypatch.setattr("satori_cli.utils.local_run.client.post", fake_post)
+    monkeypatch.setattr("satori_cli.utils.local_run.client.get", fake_client_get)
     monkeypatch.setattr(
         "satori_cli.models.BundleCache.get_bundle_id",
         lambda *_a, **_k: "cached-bundle",
     )
     monkeypatch.setattr(
-        "satori_cli.commands.local.httpx2.get",
+        "satori_cli.utils.local_run.httpx2.get",
         lambda url: _FakeResponse(
             data={} if "settings" in url else None, content=b""
         ),
     )
     monkeypatch.setattr(
-        "satori_cli.commands.local.httpx2.post",
+        "satori_cli.utils.local_run.httpx2.post",
         lambda *a, **k: _FakeResponse(),
     )
     monkeypatch.setattr(
-        "satori_cli.commands.local.msgpack.Unpacker",
+        "satori_cli.utils.local_run.msgpack.Unpacker",
         lambda *_a, **_k: iter([]),
     )
 
-    async def fake_process_commands(*_a, **_k):
+    async def fake_process_commands(*_a, **k):
+        chdirs.append(k.get("cwd"))
         if False:
             yield None
 
     monkeypatch.setattr(
-        "satori_cli.commands.local.process_commands",
+        "satori_cli.utils.local_run.process_commands",
         fake_process_commands,
     )
     monkeypatch.setattr(
@@ -124,17 +124,8 @@ def test_local_repo_clones_and_posts_repository(monkeypatch, tmp_path):
         "satori_cli.commands.local.tempfile.TemporaryDirectory",
         lambda prefix="": _FakeTempDir(tmp_path / "clone"),
     )
-    monkeypatch.setattr(
-        "satori_cli.commands.local.os.getcwd",
-        lambda: original_cwd,
-    )
-    monkeypatch.setattr(
-        "satori_cli.commands.local.os.chdir",
-        lambda path: chdirs.append(path),
-    )
 
     def fake_verify(execution_id):
-        assert chdirs[-1] == original_cwd
         verify_calls.append(execution_id)
 
     monkeypatch.setattr(
@@ -145,7 +136,6 @@ def test_local_repo_clones_and_posts_repository(monkeypatch, tmp_path):
         "satori_cli.commands.local.list_issues",
         lambda **kwargs: None,
     )
-    monkeypatch.setattr("satori_cli.commands.local.time.sleep", lambda *_a, **_k: None)
 
     result = CliRunner().invoke(
         local,
@@ -162,5 +152,4 @@ def test_local_repo_clones_and_posts_repository(monkeypatch, tmp_path):
         }
     ]
     assert any(Path(p).name == "app" for p in chdirs)
-    assert chdirs[-1] == original_cwd
     assert verify_calls == [100]

@@ -3,6 +3,8 @@
 stdout is the protocol channel. Nothing in here may print to it.
 """
 
+import asyncio
+import inspect
 import os
 import re
 import tempfile
@@ -24,6 +26,8 @@ from ..models import BundleCache
 from ..playbooks_api import client as playbooks_client
 from ..utils.bundler import make_bundle
 from ..utils.console import load_execution_outputs
+from ..utils.git_clone import clone_repo, require_git
+from ..utils.local_run import run_local_job
 from ..utils.output_filter import run_test_filter
 from . import shaping
 
@@ -67,33 +71,56 @@ mcp = FastMCP(
         "get_finding_timeline for status/comment history. "
         "list_playbooks/get_playbook browse ready-made catalog playbooks (use via "
         "playbook_uri); scan_repository scans one named owner/repo. "
+        "run_local runs a playbook's commands on THIS machine (results are uploaded; "
+        "analyze them with get_execution_output/list_findings). "
         "Output is always capped."
     ),
 )
 
 
+def _error_result(e: Exception) -> dict | None:
+    if isinstance(e, AuthError):
+        return {"error": "Not logged in. Run: satori-v2 config token <token>"}
+    if isinstance(e, httpx2.HTTPStatusError):
+        status = e.response.status_code
+        result: dict[str, Any] = {
+            "error": shaping.clip(e.response.text, 2000),
+            "status": status,
+        }
+        if status == 403:
+            result["hint"] = "This action needs a PRO or ENTERPRISE plan."
+        return result
+    if isinstance(e, httpx2.TimeoutException):
+        return {"error": "Request to the Satori API timed out."}
+    if isinstance(e, SatoriError):
+        return {"error": str(e)}
+    return None
+
+
 def _safe(fn):
     """Turn API/auth failures into small error dicts instead of protocol errors."""
+
+    if inspect.iscoroutinefunction(fn):
+
+        @wraps(fn)
+        async def async_wrapper(*args, **kwargs):
+            try:
+                return await fn(*args, **kwargs)
+            except (AuthError, httpx2.HTTPError, SatoriError) as e:
+                if (result := _error_result(e)) is None:
+                    raise
+                return result
+
+        return async_wrapper
 
     @wraps(fn)
     def wrapper(*args, **kwargs):
         try:
             return fn(*args, **kwargs)
-        except AuthError:
-            return {"error": "Not logged in. Run: satori-v2 config token <token>"}
-        except httpx2.HTTPStatusError as e:
-            status = e.response.status_code
-            result: dict[str, Any] = {
-                "error": shaping.clip(e.response.text, 2000),
-                "status": status,
-            }
-            if status == 403:
-                result["hint"] = "This action needs a PRO or ENTERPRISE plan."
+        except (AuthError, httpx2.HTTPError, SatoriError) as e:
+            if (result := _error_result(e)) is None:
+                raise
             return result
-        except httpx2.TimeoutException:
-            return {"error": "Request to the Satori API timed out."}
-        except SatoriError as e:
-            return {"error": str(e)}
 
     return wrapper
 
@@ -234,6 +261,94 @@ def run_playbook(
             f"Still {status} after {wait_seconds}s. "
             "Call get_execution(execution_id) later."
         )
+    return result
+
+
+LOCAL_DEFAULT_TIMEOUT = 300
+LOCAL_MAX_TIMEOUT = 3600
+
+
+@mcp.tool()
+@_safe
+async def run_local(
+    playbook_path: str | None = None,
+    playbook_yaml: str | None = None,
+    playbook_uri: str | None = None,
+    repository: str | None = None,
+    directory: str | None = None,
+    parameters: dict[str, list[str]] | None = None,
+    run: list[str] | None = None,
+    timeout_seconds: int = LOCAL_DEFAULT_TIMEOUT,
+) -> dict:
+    """Run a playbook's commands on THIS machine, upload the results and return the execution.
+
+    Unlike run_playbook, commands execute locally with the user's privileges, so only run
+    playbooks the user asked for or that you wrote for them. Provide EXACTLY ONE of
+    playbook_path, playbook_yaml or playbook_uri. Working directory: `repository`
+    ("owner/repo", shallow-cloned to a temp dir) OR `directory` (existing local dir);
+    default is the server's current directory. `run` limits execution to test paths with
+    those prefixes. timeout_seconds max 3600.
+    Returns the same shape as run_playbook; analyze with get_execution_output and list_findings.
+    """
+    if repository and directory:
+        return {"error": "Provide only one of repository or directory."}
+    if repository and not REPO_RE.match(repository):
+        return {"error": "repository must be 'owner/repo'."}
+    if directory and not Path(directory).expanduser().is_dir():
+        return {"error": f"directory must be an existing directory: {directory}"}
+
+    source = await asyncio.to_thread(
+        _bundle_source, playbook_path, playbook_yaml, playbook_uri
+    )
+    timeout = max(1, min(timeout_seconds, LOCAL_MAX_TIMEOUT))
+
+    clone_tmpdir = None
+    try:
+        workdir = str(Path(directory).expanduser()) if directory else None
+        if repository:
+            git = require_git(quiet=True)
+            clone_tmpdir = tempfile.TemporaryDirectory(prefix="satori-local-")
+            workdir = str(
+                await asyncio.to_thread(
+                    clone_repo, git, repository, Path(clone_tmpdir.name), True
+                )
+            )
+        outcome = await run_local_job(
+            source,
+            parameters=parameters or {},
+            repository=repository,
+            workdir=workdir,
+            run=tuple(run or ()),
+            timeout=timeout,
+            needs_report=True,
+        )
+    finally:
+        if clone_tmpdir is not None:
+            clone_tmpdir.cleanup()
+
+    result: dict[str, Any] = {
+        "job_id": outcome.job["id"],
+        "status": "CANCELED" if outcome.timed_out else "FINISHED",
+        "playbook_source": source,
+        "execution_id": outcome.execution_id,
+    }
+    if outcome.timed_out:
+        result["timed_out"] = True
+    if outcome.execution_id is None:
+        result["hint"] = (
+            "Results were uploaded but no execution appeared yet; "
+            "call get_job(job_id) or list_executions(job_id=...) later."
+        )
+        return result
+
+    result["report_url"] = report_url(outcome.execution_id)
+    result["execution"] = await asyncio.to_thread(
+        _execution_summary, outcome.execution_id
+    )
+    result["hint"] = (
+        "Call get_execution_output(execution_id, test=...) for logs and "
+        "list_findings(execution_id=...) for findings."
+    )
     return result
 
 

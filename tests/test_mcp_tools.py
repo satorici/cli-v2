@@ -507,3 +507,42 @@ def test_write_and_run_playbook_prefers_json_tool_output():
     text = server.write_and_run_playbook("scan for secrets")
     assert "satori-docs://playbooks/tool-output" in text
     assert "JSON" in text
+
+
+def test_run_local_validation():
+    import asyncio
+
+    run = lambda **kw: asyncio.run(server.run_local(**kw))  # noqa: E731
+    assert "only one" in run(playbook_yaml="x", repository="a/b", directory="/")["error"]
+    assert "owner/repo" in run(playbook_yaml="x", repository="nope")["error"]
+    assert "existing directory" in run(playbook_yaml="x", directory="/nonexistent-dir")["error"]
+    assert "exactly one" in run()["error"]
+
+
+def test_run_local_returns_run_playbook_shape(monkeypatch, capsys, tmp_path):
+    import asyncio
+
+    from satori_cli.utils.local_run import LocalRunResult
+
+    seen = {}
+
+    async def fake_run_local_job(source, **kw):
+        seen.update(kw)
+        return LocalRunResult({"id": 5}, 77, {"total_fails": 0}, False)
+
+    monkeypatch.setattr(server, "run_local_job", fake_run_local_job)
+    monkeypatch.setattr(server, "_bundle_source", lambda *a: "bundle://b1")
+    monkeypatch.setattr(
+        server, "_execution_summary", lambda i: {"id": i, "status": "FINISHED"}
+    )
+
+    result = asyncio.run(
+        server.run_local(playbook_yaml="x", directory=str(tmp_path), run=["a"])
+    )
+    assert result["execution_id"] == 77
+    assert result["job_id"] == 5
+    assert result["execution"]["id"] == 77
+    assert result["report_url"]
+    assert "get_execution_output" in result["hint"]
+    assert seen["workdir"] == str(tmp_path) and seen["run"] == ("a",)
+    assert capsys.readouterr().out == ""
