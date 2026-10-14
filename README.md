@@ -14,13 +14,13 @@ And use the CLI via `satori-v2` command.
 
 ### From local repository
 
-You'll need pdm to install dependencies and run inside a virtual environment.
+You'll need [uv](https://docs.astral.sh/uv/) to install dependencies and run inside a virtual environment.
 
 ```
 git clone https://github.com/satorici/cli-v2
 cd cli-v2
-pdm install
-pdm run satori-v2
+uv sync
+uv run satori-v2
 ```
 
 This method does not place a `satori-v2` command in your `PATH`, you must be in the
