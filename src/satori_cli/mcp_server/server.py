@@ -29,7 +29,7 @@ from ..utils.console import load_execution_outputs
 from ..utils.git_clone import clone_repo, require_git
 from ..utils.local_run import run_local_job
 from ..utils.output_filter import run_test_filter
-from . import shaping
+from . import recommend, shaping
 
 DOCS_URL = os.getenv("SATORI_DOCS_URL", "https://docs-v2.satori.ci").rstrip("/")
 DOC_MAX_CHARS = 30_000
@@ -73,6 +73,11 @@ mcp = FastMCP(
         "playbook_uri); scan_repository scans one named owner/repo. "
         "run_local runs a playbook's commands on THIS machine (results are uploaded; "
         "analyze them with get_execution_output/list_findings). "
+        "recommend_playbook inspects a repo and proposes a lint/format/types/unit/security "
+        "playbook (or the changes to an existing .satori.yml); relay its `questions` to the "
+        "user, call it again with `prefs`, and write the file only with their approval. "
+        "Before editing code, run_local the playbook once as a baseline; afterwards fix only "
+        "failures that were not in the baseline. "
         "Output is always capped."
     ),
 )
@@ -192,6 +197,76 @@ def _first_execution_id(job_id: int, attempts: int = 15) -> int | None:
 def _execution_summary(execution_id: int) -> dict:
     execution = client.get(f"/executions/{execution_id}").json()
     return shaping.summarize_execution(execution, report_url(execution_id))
+
+
+@mcp.tool()
+@_safe
+def recommend_playbook(
+    directory: str | None = None,
+    prefs: dict[str, Any] | None = None,
+) -> dict:
+    """Recommend a quality-check playbook (lint, format, types, unit, security) for a repo.
+
+    Detects the stack in `directory` (default: the server's current directory) for Python,
+    JS/TS, Go, Java or C#, and returns `playbook_yaml` plus a `checks` list explaining why
+    each check is there. If `.satori.yml` already exists it returns `changes` (missing or
+    different checks with `suggested_yaml`) instead of the full file; merge them yourself.
+    Only questions the repo cannot answer come back in `questions`: ask the user in chat,
+    then call again with `prefs` (e.g. {"formatter": "black", "dead_code": false}).
+    Prefs are saved in the playbook's `# satori:recommended` header, so updates only ask
+    about checks added since. Never write the file without the user's approval.
+    Workflow: run_local the playbook BEFORE changing code to capture a baseline, and after
+    each change fix only the failures that are not in the baseline.
+    """
+    root = Path(directory or ".").expanduser()
+    if not root.is_dir():
+        return {"error": f"directory must be an existing directory: {directory}"}
+    root = root.resolve()
+
+    existing_path = root / recommend.EXISTING_PLAYBOOK
+    existing = (
+        existing_path.read_text("utf-8", errors="replace")
+        if existing_path.is_file()
+        else None
+    )
+    previous = recommend.parse_header(existing) if existing else None
+
+    profile = recommend.detect(root)
+    rec = recommend.build(profile, prefs, previous)
+
+    result: dict[str, Any] = {
+        "language": profile.language,
+        "package_manager": profile.manager,
+        "rules_version": rec.rules_version,
+        "checks": [
+            {k: c[k] for k in ("id", "category", "command", "blocking", "why")}
+            for c in rec.checks
+        ],
+        "questions": rec.questions,
+        "prefs": rec.prefs_used,
+        "notes": rec.notes,
+    }
+    if existing is None:
+        result["playbook_yaml"] = shaping.clip(rec.yaml, shaping.MAX_PLAYBOOK_CHARS)
+        result["hint"] = (
+            f"Write playbook_yaml to {recommend.EXISTING_PLAYBOOK} with the user's approval, "
+            "then run_local it."
+        )
+    else:
+        result["existing"] = True
+        result["changes"] = recommend.diff_existing(existing, rec)
+        result["header"] = rec.header
+        result["hint"] = (
+            "Merge `changes` into the existing file and replace its "
+            "`# satori:recommended` header line with `header` (add it if missing), "
+            "with the user's approval."
+        )
+    if rec.questions:
+        result["hint"] += (
+            " Ask the user the `questions` first and call again with `prefs`; "
+            "defaults were applied meanwhile."
+        )
+    return result
 
 
 @mcp.tool()
