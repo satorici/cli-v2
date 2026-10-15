@@ -23,6 +23,7 @@ from .commands.report import report, reports
 from .commands.run import run
 from .commands.scan import list_scans, scan
 from .commands.search import search
+from .commands.settings import settings
 from .commands.shards import shards
 from .commands.shell import shell
 from .commands.stop import stop
@@ -92,6 +93,7 @@ cli.add_command(update)
 cli.add_command(output)
 cli.add_command(shell)
 cli.add_command(whoami)
+cli.add_command(settings)
 cli.add_command(mcp)
 
 
