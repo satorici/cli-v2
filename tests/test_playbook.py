@@ -30,9 +30,9 @@ def test_monitor_expression_rate(tmp_path):
 
 def test_monitor_expression_cron(tmp_path):
     playbook_path = tmp_path / "playbook.yml"
-    playbook_path.write_text('settings:\n  cron: "0 12 * * ? *"\n')
+    playbook_path.write_text('settings:\n  cron: "0 12 * * *"\n')
     playbook_model = Playbook(str(playbook_path))
-    assert playbook_model.monitor_expression == "cron(0 12 * * ? *)"
+    assert playbook_model.monitor_expression == "cron(0 12 * * *)"
 
 
 def test_container_settings_extracts_only_image(tmp_path):

@@ -149,11 +149,12 @@ class Playbook:
 
     @property
     def monitor_expression(self) -> Optional[str]:
-        """Returns the AWS EventBridge schedule expression for a monitor playbook.
+        """Returns the schedule expression for a monitor playbook.
 
         Reads ``settings.rate``/``settings.cron`` (wrapping them in
         ``rate(...)``/``cron(...)``) or an already-formatted ``settings.monitor``
-        expression. Returns ``None`` for non-monitor playbooks.
+        expression. Cron is 5-field standard cron in UTC (AWS 6-field syntax is
+        rejected by the API). Returns ``None`` for non-monitor playbooks.
         """
 
         if self.type != "FILE":
