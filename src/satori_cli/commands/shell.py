@@ -130,9 +130,11 @@ def shell(ctx, cpu, memory, image, region_filter):
 
             while True:
                 try:
-                    res = client.get(f"/ssh_sessions/{id}")
-                    session_data = res.json()
-                    break
+                    res = client.get(f"/ssh_sessions/{id}").json()
+
+                    if res["host"] and res["token"]:
+                        session_data = res
+                        break
                 except Exception:
                     time.sleep(2)
 
