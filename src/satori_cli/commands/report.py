@@ -128,6 +128,13 @@ def report_delete(execution_id: int):
     stdout.print(f"Report {execution_id} deleted")
 
 
+@report.command(name="stop")
+@click.pass_obj
+def report_stop(execution_id: int):
+    client.patch(f"/executions/{execution_id}", json={"status": "CANCELED"})
+    stdout.print(f"Report {execution_id} stopped")
+
+
 @report.command(name="visibility")
 @click.argument(
     "value", type=click.Choice(["PUBLIC", "PRIVATE", "UNLISTED"], case_sensitive=False)
