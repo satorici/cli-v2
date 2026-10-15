@@ -31,6 +31,20 @@ REPOS = {
     "go": {"go.mod": "module x\n"},
     "java_maven": {"pom.xml": "<project/>"},
     "csharp": {"App.csproj": "<Project/>"},
+    "rust": {"Cargo.toml": '[package]\nname = "x"\n'},
+    "ruby_rails": {
+        "Gemfile": 'gem "rails"\ngem "rspec-rails"\ngem "rubocop"\n',
+        ".rubocop.yml": "",
+    },
+    "php": {
+        "composer.json": (
+            '{"require-dev": {"phpunit/phpunit": "^11", "phpstan/phpstan": "^2"}}'
+        ),
+        "phpunit.xml": "<phpunit/>",
+    },
+    "swift": {"Package.swift": "// swift-tools-version:6.0\n"},
+    "cpp": {"CMakeLists.txt": "project(x)\n", ".clang-format": ""},
+    "solidity": {"foundry.toml": "[profile.default]\n", "package.json": "{}"},
     "py_updated": {
         "pyproject.toml": '[project]\nname = "d"\n\n[tool.black]\nline-length = 100\n',
         "uv.lock": "",
@@ -47,6 +61,12 @@ EXPECTED_IDS = {
     "go": {"go_vet", "gofmt", "go_test", "govulncheck"},
     "java_maven": {"maven_test"},
     "csharp": {"dotnet_build", "dotnet_format", "dotnet_test", "dotnet_vulnerable"},
+    "rust": {"clippy", "rustfmt", "cargo_test", "cargo_audit"},
+    "ruby_rails": {"rubocop", "rspec", "bundler_audit", "brakeman"},
+    "php": {"phpstan", "phpunit", "composer_audit"},
+    "swift": {"swift_format", "swift_test"},
+    "cpp": {"cppcheck", "clang_format", "ctest"},
+    "solidity": {"forge_fmt", "forge_test"},
     "py_docker": {
         "ruff_check",
         "ruff_format",
@@ -155,7 +175,7 @@ def test_explicit_prefs_are_applied_and_persisted_in_header():
     assert "ruff_format" not in ids
     assert (
         rec.header
-        == "# satori:recommended v1 python/uv prefs: formatter=black dead_code=true"
+        == "# satori:recommended v2 python/uv prefs: formatter=black dead_code=true"
     )
     assert {q["pref"] for q in rec.questions} == {"types", "security"}
 
@@ -225,6 +245,24 @@ def test_node_without_lockfile_uses_plain_install():
     assert "node_tests" not in {c["id"] for c in rec.checks}
 
 
+def test_on_demand_tools_are_installed_without_project_prefix():
+    rec = _recommend("ruby_rails")
+    assert rec.install[0] == "bundle install"
+    assert {
+        "gem install bundler-audit -v 0.9.3",
+        "gem install brakeman -v 8.1.0",
+    } <= set(rec.install)
+    commands = {c["id"]: c["command"] for c in rec.checks}
+    assert commands["brakeman"] == "brakeman -q -f json"
+    assert commands["rubocop"] == "bundle exec rubocop --format json"
+
+
+def test_foundry_wins_over_package_json():
+    profile = recommend.detect(FIXTURES / "solidity")
+    assert (profile.language, profile.manager) == ("solidity", "foundry")
+    assert profile.other_languages == ["node"]
+
+
 def test_recommend_tool_new_playbook_and_existing(tmp_path):
     empty = tmp_path / "empty"
     empty.mkdir()
@@ -234,7 +272,7 @@ def test_recommend_tool_new_playbook_and_existing(tmp_path):
 
     existing = server.recommend_playbook(str(FIXTURES / "py_updated"))
     assert existing["existing"] and "playbook_yaml" not in existing
-    assert existing["header"].startswith("# satori:recommended v1")
+    assert existing["header"].startswith("# satori:recommended v2")
 
     assert (
         "existing directory"

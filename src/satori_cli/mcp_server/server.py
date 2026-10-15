@@ -208,7 +208,8 @@ def recommend_playbook(
     """Recommend a quality-check playbook (lint, format, types, unit, security) for a repo.
 
     Detects the stack in `directory` (default: the server's current directory) for Python,
-    JS/TS, Go, Java or C#, and returns `playbook_yaml` plus a `checks` list explaining why
+    JS/TS, Go, Java, C#, Rust, Ruby, PHP, Swift, C/C++ (CMake) or Solidity (Foundry), and
+    returns `playbook_yaml` plus a `checks` list explaining why
     each check is there. If `.satori.yml` already exists it returns `changes` (missing or
     different checks with `suggested_yaml`) instead of the full file; merge them yourself.
     Only questions the repo cannot answer come back in `questions`: ask the user in chat,
@@ -857,9 +858,7 @@ def list_scans(
     visibility: str | None = None, quantity: int = 25, page: int = 1
 ) -> dict:
     """List scan jobs, newest first (same as list_jobs with type=SCAN)."""
-    return list_jobs(
-        type="SCAN", visibility=visibility, quantity=quantity, page=page
-    )
+    return list_jobs(type="SCAN", visibility=visibility, quantity=quantity, page=page)
 
 
 @mcp.tool()
@@ -972,9 +971,7 @@ def list_monitors(
 
 @mcp.tool()
 @_safe
-def list_repos(
-    order: str | None = None, quantity: int = 50, page: int = 1
-) -> dict:
+def list_repos(order: str | None = None, quantity: int = 50, page: int = 1) -> dict:
     """List repositories (owner/repo) Satori can target, with their last execution.
 
     order: ASC or DESC by last activity.

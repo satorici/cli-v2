@@ -25,7 +25,29 @@ HEADER_RE = re.compile(
 )
 EXISTING_PLAYBOOK = ".satori.yml"
 PREDICATES = ("has_file", "has_dir", "has_dep", "pkg_script", "manager", "has_any")
-LANGUAGES = ("python", "node", "go", "java", "csharp")
+LANGUAGES = (
+    "python",
+    "node",
+    "go",
+    "java",
+    "csharp",
+    "rust",
+    "ruby",
+    "php",
+    "swift",
+    "cpp",
+    "solidity",
+)
+MANAGERS = {
+    "go": "go",
+    "csharp": "dotnet",
+    "rust": "cargo",
+    "ruby": "bundler",
+    "php": "composer",
+    "swift": "swiftpm",
+    "cpp": "cmake",
+    "solidity": "foundry",
+}
 
 
 @dataclass
@@ -38,6 +60,8 @@ class Profile:
     pyproject: str = ""
     requirements: str = ""
     package_json: dict = field(default_factory=dict)
+    manifest: str = ""
+    composer_json: dict = field(default_factory=dict)
 
     # ---- predicates -------------------------------------------------------
     def has_file(self, pattern: str) -> bool:
@@ -47,18 +71,21 @@ class Profile:
         return (self.root / name).is_dir()
 
     def has_dep(self, name: str) -> bool:
+        pattern = re.compile(rf"(?<![\w.-]){re.escape(name)}(?![\w.-])", re.IGNORECASE)
         if self.language == "python":
-            pattern = re.compile(
-                rf"(?<![\w.-]){re.escape(name)}(?![\w.-])", re.IGNORECASE
-            )
             return bool(
                 pattern.search(self.pyproject) or pattern.search(self.requirements)
             )
+        if self.language in ("ruby", "rust"):
+            return bool(pattern.search(self.manifest))
         if self.language == "node":
             pkg = self.package_json
             return any(
                 name in pkg.get(k, {}) for k in ("dependencies", "devDependencies")
             )
+        if self.language == "php":
+            pkg = self.composer_json
+            return any(name in pkg.get(k, {}) for k in ("require", "require-dev"))
         return False
 
     def pkg_script(self, name: str) -> bool:
@@ -124,12 +151,18 @@ def validate_rules(rules: dict) -> None:
             raise ValueError(f"{tid}: unknown category {tool['category']!r}")
         if tool["language"] not in (*LANGUAGES, "dockerfile"):
             raise ValueError(f"{tid}: unknown language {tool['language']!r}")
-        if tool["kind"] not in ("python-tool", "project"):
+        if tool["kind"] not in ("python-tool", "tool", "project"):
             raise ValueError(f"{tid}: unknown kind {tool['kind']!r}")
-        if tool["kind"] == "python-tool" and not (
+        if tool["kind"] in ("python-tool", "tool") and not (
             tool.get("package") and tool.get("version")
         ):
-            raise ValueError(f"{tid}: python-tool needs package and version")
+            raise ValueError(f"{tid}: {tool['kind']} needs package and version")
+        if tool["kind"] == "tool":
+            managers = rules["profiles"].get(tool["language"], {})
+            if not managers or not all("tool_install" in m for m in managers.values()):
+                raise ValueError(
+                    f"{tid}: every {tool['language']} profile needs tool_install"
+                )
         if not 0 <= tool["severity"] <= 5:
             raise ValueError(f"{tid}: severity must be 0-5")
         if tool["since"] > rules["rules_version"]:
@@ -170,6 +203,9 @@ def detect(directory: Path) -> Profile:
         (root / f).is_file() for f in ("pyproject.toml", "setup.py", "Pipfile")
     ) or any(root.glob("requirements*.txt")):
         found.append("python")
+    # Foundry repos usually carry a package.json too; Solidity must win over Node.
+    if (root / "foundry.toml").is_file():
+        found.append("solidity")
     if (root / "package.json").is_file():
         found.append("node")
     if (root / "go.mod").is_file():
@@ -182,10 +218,19 @@ def detect(directory: Path) -> Profile:
         or any(root.glob("*/*.csproj"))
     ):
         found.append("csharp")
+    for manifest, lang in (
+        ("Cargo.toml", "rust"),
+        ("Gemfile", "ruby"),
+        ("composer.json", "php"),
+        ("Package.swift", "swift"),
+        ("CMakeLists.txt", "cpp"),
+    ):
+        if (root / manifest).is_file():
+            found.append(lang)
     if not found:
         raise SatoriError(
-            "No supported project detected (looked for Python, JS/TS, Go, Java and C# "
-            f"manifests) in {root}."
+            "No supported project detected (looked for Python, JS/TS, Go, Java, C#, "
+            f"Rust, Ruby, PHP, Swift, C/C++ and Solidity manifests) in {root}."
         )
 
     language = found[0]
@@ -201,6 +246,15 @@ def detect(directory: Path) -> Profile:
             profile.package_json = json.loads(_read(root / "package.json")) or {}
         except json.JSONDecodeError:
             raise SatoriError("package.json is not valid JSON.") from None
+    elif language == "php":
+        try:
+            profile.composer_json = json.loads(_read(root / "composer.json")) or {}
+        except json.JSONDecodeError:
+            raise SatoriError("composer.json is not valid JSON.") from None
+    elif language == "ruby":
+        profile.manifest = _read(root / "Gemfile") + "\n" + _read(root / "Gemfile.lock")
+    elif language == "rust":
+        profile.manifest = _read(root / "Cargo.toml")
 
     if language == "python":
         uv = (root / "uv.lock").is_file() or profile.has_pyproject_section("tool.uv")
@@ -219,7 +273,7 @@ def detect(directory: Path) -> Profile:
     elif language == "java":
         profile.manager = "maven" if (root / "pom.xml").is_file() else "gradle"
     else:
-        profile.manager = {"go": "go", "csharp": "dotnet"}[language]
+        profile.manager = MANAGERS[language]
     return profile
 
 
@@ -383,6 +437,11 @@ def _render_command(
             if step not in install:
                 install.append(step)
         return f"{cfg['run']}{command}"
+    if tool["kind"] == "tool":
+        step = cfg["tool_install"].format(package=package, version=version)
+        if step not in install:
+            install.append(step)
+        return cfg.get("tool", "") + command
     return command if verbatim else f"{cfg['run']}{command}"
 
 

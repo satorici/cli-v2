@@ -5,7 +5,7 @@
 # Bump `rules_version` whenever tools are added; give each new tool `since: <that version>`
 # so repos already on an older recommendation are only asked about what is new.
 
-rules_version: 1
+rules_version: 2
 
 # User-facing preferences. `choice` prefs pick one tool among several; `bool` prefs turn an
 # optional tool on or off. A pref is only asked when the repo does not already settle it.
@@ -37,6 +37,7 @@ prefs:
 #   install   commands for the `install` section (`install_nolock` when no lockfile exists)
 #   run       prefix for tools that live in the project environment
 #   exec      prefix for tools fetched on demand (python-tool kind uses `--from`)
+#   tool_install / tool   install step and run prefix for `kind: tool` entries
 profiles:
   python:
     uv:
@@ -97,11 +98,47 @@ profiles:
       image: mcr.microsoft.com/dotnet/sdk:9.0
       install: ["dotnet restore"]
       run: ""
+  rust:
+    cargo:
+      image: rust:1
+      install: ["rustup component add clippy rustfmt", "cargo fetch"]
+      run: ""
+      tool_install: "cargo install --locked {package}@{version}"
+  ruby:
+    bundler:
+      image: ruby:3.4
+      install: ["bundle install"]
+      run: "bundle exec "
+      tool_install: "gem install {package} -v {version}"
+      tool: ""
+  php:
+    composer:
+      image: composer:2
+      install: ["composer install --no-interaction --no-progress"]
+      run: "vendor/bin/"
+  swift:
+    swiftpm:
+      image: swift:6.2
+      install: ["swift package resolve"]
+      run: ""
+  cpp:
+    cmake:
+      image: gcc:14
+      install:
+        - "apt-get update && apt-get install -y --no-install-recommends cmake cppcheck clang-format"
+        - "cmake -S . -B build"
+      run: ""
+  solidity:
+    foundry:
+      image: ghcr.io/foundry-rs/foundry:stable
+      install: []
+      run: ""
 
 # Tool entries.
 #   language / category   category is one of lint|format|types|unit|security
-#   kind                  python-tool (fetched on demand, `package`+`version`), or project
-#                         (runs in the project environment)
+#   kind                  python-tool (fetched on demand, `package`+`version`), tool (same,
+#                         via the profile's `tool_install`), or project (runs in the
+#                         project environment)
 #   when                  AND of predicates: has_file, has_dir, has_dep, pkg_script, manager
 #   configured_by         tokens that mean "the repo already uses this tool":
 #                         file:<glob>, pyproject:<dotted.path>, dep:<name>
@@ -386,6 +423,247 @@ tools:
     severity: 4
     since: 1
     why: "Known-vulnerable NuGet packages."
+
+  # ------------------------------------------------------------------ rust
+  - id: clippy
+    language: rust
+    category: lint
+    kind: project
+    command: "cargo clippy --all-targets --message-format=json -- -D warnings"
+    configured_by: ["file:clippy.toml", "file:.clippy.toml"]
+    blocking_if_present: true
+    severity: 2
+    since: 2
+    why: "Rust lints; JSON messages feed findings."
+
+  - id: rustfmt
+    language: rust
+    category: format
+    kind: project
+    command: "cargo fmt --all --check"
+    configured_by: ["file:rustfmt.toml", "file:.rustfmt.toml"]
+    blocking_if_present: true
+    severity: 1
+    since: 2
+    why: "Formatting drift check."
+
+  - id: cargo_test
+    language: rust
+    category: unit
+    kind: project
+    command: "cargo test"
+    configured_by: []
+    blocking_if_present: true
+    severity: 3
+    since: 2
+    why: "Runs the unit and integration tests."
+
+  - id: cargo_audit
+    language: rust
+    category: security
+    kind: tool
+    package: cargo-audit
+    version: "0.22.2"
+    command: "cargo audit --json"
+    configured_by: []
+    blocking_if_present: false
+    severity: 4
+    since: 2
+    why: "Crates with known vulnerabilities (RustSec); JSON output feeds findings."
+
+  # ------------------------------------------------------------------ ruby
+  - id: rubocop
+    language: ruby
+    category: lint
+    kind: project
+    command: "rubocop --format json"
+    when: { has_any: [{ has_file: ".rubocop.yml" }, { has_dep: rubocop }] }
+    configured_by: ["file:.rubocop.yml", "dep:rubocop"]
+    blocking_if_present: true
+    severity: 2
+    since: 2
+    why: "Lint and style with the repo's RuboCop setup; JSON output feeds findings."
+
+  - id: rspec
+    language: ruby
+    category: unit
+    kind: project
+    command: "rspec"
+    when: { has_any: [{ has_dep: rspec }, { has_dep: rspec-rails }, { has_dir: spec }] }
+    configured_by: ["dep:rspec", "dep:rspec-rails", "file:.rspec"]
+    blocking_if_present: true
+    severity: 3
+    since: 2
+    why: "Runs the RSpec suite."
+
+  - id: rake_test
+    language: ruby
+    category: unit
+    kind: project
+    command: "rake test"
+    when: { has_dir: test, has_file: Rakefile }
+    configured_by: ["file:Rakefile"]
+    blocking_if_present: true
+    severity: 3
+    since: 2
+    why: "Runs the Minitest/Test::Unit suite through Rake."
+
+  - id: bundler_audit
+    language: ruby
+    category: security
+    kind: tool
+    package: bundler-audit
+    version: "0.9.3"
+    command: "bundle-audit check --update"
+    configured_by: []
+    blocking_if_present: false
+    severity: 4
+    since: 2
+    why: "Gems with known vulnerabilities in Gemfile.lock."
+
+  - id: brakeman
+    language: ruby
+    category: security
+    kind: tool
+    package: brakeman
+    version: "8.1.0"
+    command: "brakeman -q -f json"
+    when: { has_dep: rails }
+    configured_by: []
+    blocking_if_present: false
+    severity: 4
+    since: 2
+    why: "Rails SAST; JSON output feeds findings."
+
+  # ------------------------------------------------------------------- php
+  - id: phpstan
+    language: php
+    category: types
+    kind: project
+    command: "phpstan analyse --no-progress --error-format=json"
+    when: { has_any: [{ has_file: "phpstan.neon*" }, { has_dep: phpstan/phpstan }] }
+    configured_by: ["file:phpstan.neon*", "dep:phpstan/phpstan"]
+    blocking_if_present: true
+    severity: 2
+    since: 2
+    why: "Static analysis with the repo's PHPStan setup; JSON output feeds findings."
+
+  - id: php_cs_fixer
+    language: php
+    category: format
+    kind: project
+    command: "php-cs-fixer fix --dry-run --diff"
+    when: { has_any: [{ has_file: ".php-cs-fixer*.php" }, { has_dep: friendsofphp/php-cs-fixer }] }
+    configured_by: ["file:.php-cs-fixer*.php", "dep:friendsofphp/php-cs-fixer"]
+    blocking_if_present: true
+    severity: 1
+    since: 2
+    why: "Formatting drift check with the repo's PHP-CS-Fixer setup."
+
+  - id: phpunit
+    language: php
+    category: unit
+    kind: project
+    command: "phpunit"
+    when: { has_any: [{ has_file: "phpunit.xml*" }, { has_dep: phpunit/phpunit }] }
+    configured_by: ["file:phpunit.xml*", "dep:phpunit/phpunit"]
+    blocking_if_present: true
+    severity: 3
+    since: 2
+    why: "Runs the PHPUnit suite."
+
+  - id: composer_audit
+    language: php
+    category: security
+    kind: project
+    command:
+      default: "composer audit --format=json"
+    configured_by: []
+    blocking_if_present: false
+    severity: 4
+    since: 2
+    why: "Packages with known vulnerabilities; JSON output feeds findings."
+
+  # ----------------------------------------------------------------- swift
+  - id: swift_format
+    language: swift
+    category: format
+    kind: project
+    command: "swift format lint --recursive --strict ."
+    configured_by: ["file:.swift-format"]
+    blocking_if_present: true
+    severity: 1
+    since: 2
+    why: "Formatting drift check with the toolchain's swift-format."
+
+  - id: swift_test
+    language: swift
+    category: unit
+    kind: project
+    command: "swift test"
+    configured_by: []
+    blocking_if_present: true
+    severity: 3
+    since: 2
+    why: "Builds and runs the SwiftPM tests."
+
+  # ------------------------------------------------------------------- cpp
+  - id: cppcheck
+    language: cpp
+    category: lint
+    kind: project
+    command: "cppcheck --enable=warning,style,performance,portability --error-exitcode=1 -q -i build ."
+    configured_by: []
+    blocking_if_present: true
+    severity: 2
+    since: 2
+    why: "C/C++ static analysis for bugs and undefined behavior."
+
+  - id: clang_format
+    language: cpp
+    category: format
+    kind: project
+    command: 'find . -path ./build -prune -o -type f \( -name "*.c" -o -name "*.cc" -o -name "*.cpp" -o -name "*.cxx" -o -name "*.h" -o -name "*.hh" -o -name "*.hpp" \) -print | xargs -r clang-format --dry-run --Werror'
+    when: { has_file: ".clang-format" }
+    configured_by: ["file:.clang-format"]
+    blocking_if_present: true
+    severity: 1
+    since: 2
+    why: "Formatting drift check with the repo's .clang-format."
+
+  - id: ctest
+    language: cpp
+    category: unit
+    kind: project
+    command: "cmake --build build && ctest --test-dir build --output-on-failure"
+    configured_by: []
+    blocking_if_present: true
+    severity: 3
+    since: 2
+    why: "Builds the project and runs the CTest suite."
+
+  # -------------------------------------------------------------- solidity
+  - id: forge_fmt
+    language: solidity
+    category: format
+    kind: project
+    command: "forge fmt --check"
+    configured_by: []
+    blocking_if_present: true
+    severity: 1
+    since: 2
+    why: "Formatting drift check."
+
+  - id: forge_test
+    language: solidity
+    category: unit
+    kind: project
+    command: "forge test"
+    configured_by: []
+    blocking_if_present: true
+    severity: 3
+    since: 2
+    why: "Compiles the contracts and runs the Foundry tests."
 
   # ------------------------------------------------------------ dockerfile
   # Cross-cutting: applies to any repo with a Dockerfile, but only where a Python
