@@ -3,7 +3,7 @@ import logging
 import os
 import shlex
 import signal
-from asyncio import subprocess
+from asyncio import StreamReader, subprocess
 from collections.abc import Callable, Iterable
 from itertools import groupby
 from time import perf_counter
@@ -15,6 +15,26 @@ log = logging.getLogger("runner")
 log.setLevel(logging.INFO)
 log.addHandler(logging.StreamHandler())
 
+OnChunk = Callable[[bytes], None]
+OnCommandStart = Callable[[CommandLine], None]
+OnCommandDone = Callable[[CommandLine, Result], None]
+
+
+async def _drain_stream(
+    stream: StreamReader | None,
+    buf: bytearray,
+    on_chunk: OnChunk | None,
+) -> None:
+    if stream is None:
+        return
+    while True:
+        chunk = await stream.read(65536)
+        if not chunk:
+            break
+        buf.extend(chunk)
+        if on_chunk is not None:
+            on_chunk(chunk)
+
 
 async def run_command(
     stop_event: asyncio.Event,
@@ -23,6 +43,8 @@ async def run_command(
     shell: bool | None = None,
     timeout_event: asyncio.Event | None = None,
     cwd: str | None = None,
+    on_stdout: OnChunk | None = None,
+    on_stderr: OnChunk | None = None,
 ) -> Result:
     if timeout_event is None:
         timeout_event = asyncio.Event()
@@ -57,16 +79,21 @@ async def run_command(
         }
 
     start = perf_counter()
-    p_task = asyncio.create_task(p.wait())
+    stdout_buf = bytearray()
+    stderr_buf = bytearray()
 
-    tasks: list[asyncio.Task] = [
+    p_task = asyncio.create_task(p.wait())
+    stdout_task = asyncio.create_task(_drain_stream(p.stdout, stdout_buf, on_stdout))
+    stderr_task = asyncio.create_task(_drain_stream(p.stderr, stderr_buf, on_stderr))
+
+    waiters: list[asyncio.Task] = [
         p_task,
         asyncio.create_task(timeout_event.wait()),
         asyncio.create_task(command_timeout_event.wait()),
         asyncio.create_task(stop_event.wait()),
     ]
 
-    done, pending = await asyncio.wait(tasks, return_when="FIRST_COMPLETED")
+    done, pending = await asyncio.wait(waiters, return_when="FIRST_COMPLETED")
 
     if done != {p_task}:
         if not shell:
@@ -77,13 +104,13 @@ async def run_command(
     for t in done | pending:
         t.cancel()
 
-    stdout, stderr = await p.communicate()
+    await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
     return_code = await p.wait()
     time = perf_counter() - start
 
     return {
-        "stdout": stdout,
-        "stderr": stderr,
+        "stdout": bytes(stdout_buf),
+        "stderr": bytes(stderr_buf),
         "return_code": return_code,
         "time": time,
         "os_error": None,
@@ -109,6 +136,10 @@ async def process_commands(
     stop_event: asyncio.Event | None = None,
     on_running: Callable[[str], None] | None = None,
     cwd: str | None = None,
+    on_stdout: OnChunk | None = None,
+    on_stderr: OnChunk | None = None,
+    on_command_start: OnCommandStart | None = None,
+    on_command_done: OnCommandDone | None = None,
 ):
     if not stop_event:
         stop_event = asyncio.Event()
@@ -152,25 +183,46 @@ async def process_commands(
 
                 for group_to_run in add_command:
                     command_timeout_event = asyncio.Event()
+                    group_list = list(group_to_run)
 
-                    tasks: dict[asyncio.Task[Result], CommandLine] = {
-                        asyncio.create_task(
-                            run_command(
-                                stop_event,
-                                command_timeout_event,
-                                command,
-                                shell,
-                                timeout_event,
-                                cwd,
-                            )
-                        ): cline
-                        for cline, command in group_to_run
-                    }
+                    def _stream_cbs(cline: CommandLine):
+                        if not parallel or (on_stdout is None and on_stderr is None):
+                            return on_stdout, on_stderr
 
-                    for _, v in tasks.items():
-                        log.debug(f"Running {v['path']}: {v['original']}")
+                        def wrap(cb: OnChunk | None) -> OnChunk | None:
+                            if cb is None:
+                                return None
+
+                            def prefixed(chunk: bytes) -> None:
+                                cb(chunk)
+
+                            return prefixed
+
+                        return wrap(on_stdout), wrap(on_stderr)
+
+                    tasks: dict[asyncio.Task[Result], CommandLine] = {}
+                    for cline, command in group_list:
+                        log.debug(f"Running {cline['path']}: {cline['original']}")
                         if on_running is not None:
-                            on_running(v["path"])
+                            on_running(cline["path"])
+                        if on_command_start is not None:
+                            on_command_start(cline)
+
+                        out_cb, err_cb = _stream_cbs(cline)
+                        tasks[
+                            asyncio.create_task(
+                                run_command(
+                                    stop_event,
+                                    command_timeout_event,
+                                    command,
+                                    shell,
+                                    timeout_event,
+                                    cwd,
+                                    on_stdout=out_cb,
+                                    on_stderr=err_cb,
+                                )
+                            )
+                        ] = cline
 
                     if inner_timeout is not None:
                         asyncio.create_task(set_after(command_timeout_event, inner_timeout))
@@ -182,6 +234,9 @@ async def process_commands(
 
                         if data.get("cache", True):
                             result_cache.store(command_line["path"], result)
+
+                        if on_command_done is not None:
+                            on_command_done(command_line, result)
 
                         yield command_line, result
 

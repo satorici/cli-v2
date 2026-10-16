@@ -1,4 +1,5 @@
 import asyncio
+import sys
 import tempfile
 from pathlib import Path
 from tempfile import SpooledTemporaryFile
@@ -9,18 +10,20 @@ from rich import progress
 from rich.live import Live
 from rich.table import Table
 
+from ..constants import report_url
 from ..exceptions import SatoriError
 from ..models import Playbook
 from ..utils import options as opts
 from ..utils.arguments import Source, source_arg
 from ..utils.console import format_raw_results, stderr, stdout
+from ..utils.execution.models import CommandLine, Result
 from ..utils.format import is_json_output
 from ..utils.git_clone import clone_repo, require_git
 from ..utils.highlight import highlight_result
 from ..utils.local_run import run_local_job
 from ..utils.verify_issue import list_finding_ids_for_execution
 from ..utils.verify_issue import verify_findings as run_verify_findings
-from ..utils.wrappers import JobWrapper, ReportWrapper
+from ..utils.wrappers import JobWrapper, OutputWrapper, ReportWrapper
 from .issue import list_issues
 
 
@@ -87,6 +90,10 @@ def local(
     else:
         tags_obj = {}
 
+    # --output + text mode: tee subprocess bytes live.
+    # --output + json: keep buffering and dump the spool at the end (below).
+    # neither: Rich progress spinner (no command output).
+    stream_output = show_output and not is_json_output()
     use_progress = not is_json_output() and not show_output
     execution_id = None
     report = None
@@ -101,7 +108,17 @@ def local(
     elif source.type == "DIR":
         work_dir = source._arg
 
-    def run_job(on_running=None, on_job=None, results=None):
+    def run_job(
+        on_running=None,
+        on_job=None,
+        results=None,
+        on_stdout=None,
+        on_stderr=None,
+        on_command_start=None,
+        on_command_done=None,
+    ):
+        # Thin sync wrapper: callbacks are optional so MCP/local_run stay silent
+        # when they are omitted.
         return asyncio.run(
             run_local_job(
                 playbook_data,
@@ -116,6 +133,10 @@ def local(
                 results=results,
                 on_running=on_running,
                 on_job=on_job,
+                on_stdout=on_stdout,
+                on_stderr=on_stderr,
+                on_command_start=on_command_start,
+                on_command_done=on_command_done,
             )
         )
 
@@ -157,21 +178,116 @@ def local(
                     report_ids = [execution_id] if execution_id is not None else None
                     live.update(make_grid(report_ids))
             else:
-                outcome = run_job(results=results)
+                # Live --output path (or json without progress). Layout per command:
+                #   Command: …
+                #   Stdout:
+                #   <bytes as they arrive>
+                #   Stderr:
+                #   <bytes, or empty label if none>
+                #   Return code / Time   (no re-print of streams)
+                live_path = ""
+                # Last streamed chunk had no trailing \n → pad before the next label.
+                stream_needs_nl = False
+                # "Stderr:" is printed on first stderr byte, or once at command end.
+                stderr_label_printed = False
+
+                def _ensure_nl() -> None:
+                    """Start the next Rich label on its own line after raw bytes."""
+                    nonlocal stream_needs_nl
+                    if stream_needs_nl:
+                        sys.stdout.buffer.write(b"\n")
+                        sys.stdout.buffer.flush()
+                        stream_needs_nl = False
+
+                def on_job_live(job: dict) -> None:
+                    # ASAP after POST /jobs/locals (status still WAITING_RESULTS).
+                    stdout.print(JobWrapper(job, compact=True))
+
+                def on_running_live(path: str) -> None:
+                    # Path rule once per test group (groupby path in the runner).
+                    nonlocal live_path
+                    if path != live_path:
+                        stdout.rule(path)
+                        live_path = path
+
+                def on_command_start(cline: CommandLine) -> None:
+                    # Headers before the process starts so stdout appears under them.
+                    nonlocal stderr_label_printed, stream_needs_nl
+                    stderr_label_printed = False
+                    stream_needs_nl = False
+                    stdout.print(f"[green]Command:[/green]  {cline['original']}")
+                    stdout.print("Stdout:")
+
+                def on_stdout_chunk(chunk: bytes) -> None:
+                    # Raw tee: keep bytes intact (no Rich markup/encoding).
+                    nonlocal stream_needs_nl
+                    sys.stdout.buffer.write(chunk)
+                    sys.stdout.buffer.flush()
+                    stream_needs_nl = not chunk.endswith(b"\n")
+
+                def on_stderr_chunk(chunk: bytes) -> None:
+                    # Same console as classic OutputWrapper (not sys.stderr).
+                    nonlocal stream_needs_nl, stderr_label_printed
+                    if not stderr_label_printed:
+                        _ensure_nl()
+                        stdout.print("Stderr:")
+                        stderr_label_printed = True
+                    sys.stdout.buffer.write(chunk)
+                    sys.stdout.buffer.flush()
+                    stream_needs_nl = not chunk.endswith(b"\n")
+
+                def on_command_done(cline: CommandLine, result: Result) -> None:
+                    # Footer only: streams already teed. Always show "Stderr:" even
+                    # when empty so the layout matches format_raw_results.
+                    nonlocal stderr_label_printed
+                    _ensure_nl()
+                    if not stderr_label_printed:
+                        stdout.print("Stderr:")
+                        stderr_label_printed = True
+                    stdout.print(
+                        OutputWrapper(
+                            cline | {"output": result},
+                            include_streams=False,
+                            include_command=False,
+                        )
+                    )
+
+                outcome = run_job(
+                    results=results,
+                    on_job=on_job_live if stream_output else None,
+                    on_running=on_running_live if stream_output else None,
+                    on_stdout=on_stdout_chunk if stream_output else None,
+                    on_stderr=on_stderr_chunk if stream_output else None,
+                    on_command_start=on_command_start if stream_output else None,
+                    on_command_done=on_command_done if stream_output else None,
+                )
                 execution_id = outcome.execution_id
 
                 if not is_json_output():
-                    report_ids = [execution_id] if execution_id is not None else None
-                    stdout.print(
-                        JobWrapper(outcome.job, compact=True, report_ids=report_ids)
-                    )
+                    if stream_output:
+                        # Avoid reprinting JobWrapper: its status is still stale
+                        # WAITING_RESULTS after upload/poll.
+                        if execution_id is not None:
+                            stdout.rule()
+                            stdout.print(f"Report ID  {execution_id}")
+                            stdout.print(f"Report     {report_url(execution_id)}")
+                    else:
+                        report_ids = (
+                            [execution_id] if execution_id is not None else None
+                        )
+                        stdout.print(
+                            JobWrapper(
+                                outcome.job, compact=True, report_ids=report_ids
+                            )
+                        )
 
             report = outcome.report
 
             if outcome.timed_out:
                 stdout.print("Execution timed out")
 
-            if show_output:
+            # JSON --output: spool was filled during the run; dump it once here.
+            if show_output and not stream_output:
                 results.seek(0)
                 format_raw_results(results)
     finally:

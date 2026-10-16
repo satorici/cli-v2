@@ -10,7 +10,13 @@ import httpx2
 import msgpack
 
 from ..api import client
-from .execution.runner import TimedOut, process_commands
+from .execution.runner import (
+    OnChunk,
+    OnCommandDone,
+    OnCommandStart,
+    TimedOut,
+    process_commands,
+)
 
 
 @dataclass
@@ -35,6 +41,10 @@ async def run_local_job(
     results: Optional[IO[bytes]] = None,
     on_running: Optional[Callable[[str], None]] = None,
     on_job: Optional[Callable[[dict], None]] = None,
+    on_stdout: Optional[OnChunk] = None,
+    on_stderr: Optional[OnChunk] = None,
+    on_command_start: Optional[OnCommandStart] = None,
+    on_command_done: Optional[OnCommandDone] = None,
     poll_attempts: int = 60,
     poll_interval: float = 2,
 ) -> LocalRunResult:
@@ -73,6 +83,10 @@ async def run_local_job(
                     timeout,
                     on_running=on_running,
                     cwd=workdir,
+                    on_stdout=on_stdout,
+                    on_stderr=on_stderr,
+                    on_command_start=on_command_start,
+                    on_command_done=on_command_done,
                 ):
                     msgpack.pack(cline | {"output": result}, results)
             except TimedOut:

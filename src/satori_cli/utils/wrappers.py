@@ -812,12 +812,24 @@ class DynamicFindingsWrapper(Wrapper[list[tuple[str, list]]]):
 
 
 class OutputWrapper(Wrapper[dict]):
+    def __init__(
+        self,
+        obj: dict,
+        *,
+        include_streams: bool = True,
+        include_command: bool = True,
+    ):
+        super().__init__(obj)
+        self.include_streams = include_streams
+        self.include_command = include_command
+
     def __rich_console__(self, console, options):
         output = self.obj
         result = output["output"]
 
         grid = Table.grid("", "", padding=(0, 2))
-        grid.add_row("[green]Command:[/green]", output["original"])
+        if self.include_command:
+            grid.add_row("[green]Command:[/green]", output["original"])
 
         if result["return_code"] is not None:
             grid.add_row("Return code:", str(result["return_code"]))
@@ -843,6 +855,9 @@ class OutputWrapper(Wrapper[dict]):
             grid.add_row("Time:", str(timedelta(seconds=result["time"])))
 
         yield grid
+
+        if not self.include_streams:
+            return
 
         yield "Stdout:"
         if stdout := result["stdout"]:
