@@ -336,7 +336,7 @@ def test_run_with_repo_verify_waits_and_verifies(monkeypatch):
         verified["listed"] = execution_id
         return [10, 11]
 
-    def batch_verify(finding_ids):
+    def batch_verify(finding_ids, min_severity=None):
         verified["finding_ids"] = finding_ids
 
     monkeypatch.setattr("satori_cli.commands.run.client.post", post)
@@ -378,7 +378,7 @@ def test_verify_executions_all_ids(monkeypatch):
         listed.append(execution_id)
         return [100 + execution_id]
 
-    def batch_verify(finding_ids):
+    def batch_verify(finding_ids, min_severity=None):
         verified_calls.append(list(finding_ids))
 
     monkeypatch.setattr(

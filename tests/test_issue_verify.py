@@ -1,6 +1,8 @@
+import json
+import re
+import subprocess
 from pathlib import Path
 
-import pytest
 from click.testing import CliRunner
 
 from satori_cli.commands.issue import issue
@@ -13,34 +15,15 @@ FINDING = {
     "status": "OPEN",
     "source": "TOOL",
     "severity": 3,
-    "identity": "sqli:login",
-    "snapshot": {"cwe": "CWE-89", "file": "app/login.py"},
+    "identity": {"path": "app/login.py", "start_line": 42},
+    "snapshot": {"cwe": "CWE-89", "filePath": "app/login.py", "lineNumber": 42},
 }
 
 EXECUTION = {"id": 100, "job_id": 50}
-
-SCAN_JOB = {
-    "id": 50,
-    "type": "SCAN",
-    "repository_data": {"repository": "acme/app"},
-}
-
-RUN_JOB = {
-    "id": 50,
-    "type": "RUN",
-    "repository": "acme/app",
-}
-
-LOCAL_JOB = {
-    "id": 50,
-    "type": "LOCAL",
-}
-
-LOCAL_JOB_WITH_REPO = {
-    "id": 50,
-    "type": "LOCAL",
-    "repository": "acme/app",
-}
+SCAN_JOB = {"id": 50, "type": "SCAN", "repository_data": {"repository": "acme/app"}}
+RUN_JOB = {"id": 50, "type": "RUN", "repository": "acme/app"}
+LOCAL_JOB = {"id": 50, "type": "LOCAL"}
+LOCAL_JOB_WITH_REPO = {"id": 50, "type": "LOCAL", "repository": "acme/app"}
 
 
 class _FakeResponse:
@@ -64,11 +47,7 @@ class _FakeTempDir:
 
 
 def _responses(finding=FINDING, execution=EXECUTION, job=SCAN_JOB):
-    by_prefix = {
-        "/findings/": finding,
-        "/executions/": execution,
-        "/jobs/": job,
-    }
+    by_prefix = {"/findings/": finding, "/executions/": execution, "/jobs/": job}
 
     def get(path, **kwargs):
         for prefix, data in by_prefix.items():
@@ -90,6 +69,44 @@ def _patch_subprocess(monkeypatch, fake_run):
     monkeypatch.setattr("satori_cli.utils.verify_issue.subprocess.run", fake_run)
 
 
+def _claude_stdout(prompt: str, verdict: str) -> str:
+    """A Claude --output-format json envelope assigning `verdict` to every id in the prompt."""
+    ids = [int(x) for x in re.findall(r"- id: (\d+)", prompt)]
+    arr = [{"id": i, "verdict": verdict, "line": 1, "evidence": "x"} for i in ids]
+    return json.dumps({"subtype": "success", "is_error": False, "result": json.dumps(arr)})
+
+
+def _fake_run_factory(by_role, runs=None):
+    """Fake subprocess.run: handles git clone and the claude calls, returning the verdict in
+    by_role for the role found in --system-prompt."""
+
+    def run(args, **kwargs):
+        if runs is not None:
+            runs.append(list(args))
+        if args[1] == "clone":
+            Path(args[-1]).mkdir(parents=True, exist_ok=True)
+            return subprocess.CompletedProcess(args, 0, "", "")
+        system = args[args.index("--system-prompt") + 1]
+        if system.startswith(verify_mod.ANALYST):
+            role = "analyst"
+        elif system.startswith(verify_mod.ADVERSARY):
+            role = "adversary"
+        else:
+            role = "tiebreak"
+        return subprocess.CompletedProcess(
+            args, 0, _claude_stdout(args[2], by_role[role]), ""
+        )
+
+    return run
+
+
+def _patch_tempdir(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "satori_cli.utils.verify_issue.tempfile.TemporaryDirectory",
+        lambda prefix="": _FakeTempDir(tmp_path / "work"),
+    )
+
+
 def test_repository_from_job_scan():
     assert verify_mod.repository_from_job(SCAN_JOB) == "acme/app"
 
@@ -106,142 +123,146 @@ def test_repository_from_job_local_with_repo():
     assert verify_mod.repository_from_job(LOCAL_JOB_WITH_REPO) == "acme/app"
 
 
-def test_build_verify_prompt_includes_majority_and_commands():
-    prompt = verify_mod.build_verify_prompt(FINDING, "acme/app")
+def test_location_from_snapshot_then_identity():
+    assert verify_mod._location(FINDING) == "app/login.py:42"
+    assert verify_mod._location({"identity": {"path": "c/d.py", "start_line": 3}}) == "c/d.py:3"
+    assert verify_mod._location({"snapshot": "bad"}) == "?:?"
+
+
+def test_build_verify_prompt_puts_data_first_and_contract_last():
+    prompt = verify_mod.build_verify_prompt([FINDING])
     assert "id: 10" in prompt
+    assert "location: app/login.py:42" in prompt
     assert "SQL injection in login" in prompt
-    assert "acme/app" in prompt
-    assert "3 independent Agent" in prompt
-    assert "majority" in prompt.lower()
-    assert "satori-v2 issue 10 comment" in prompt
-    assert 'comment "Conclusion:' in prompt
-    assert "Do not print a separate verification summary" in prompt
-    assert "Do not include per-agent analysis" in prompt
-    assert "satori-v2 issue 10 status TP" in prompt
     assert "CWE-89" in prompt
+    assert "JSON array" in prompt
+    assert "Agent" not in prompt  # no 3-subagent instruction anymore
+    assert prompt.index("id: 10") < prompt.index("JSON array")  # data before task
 
 
-def test_issue_verify_scan_happy_path(monkeypatch, tmp_path):
-    gets: list[str] = []
-    runs: list[dict[str, object]] = []
+def test_verdicts_parses_array_and_tolerates_fences():
+    assert verify_mod._verdicts('[{"id": 5, "verdict": "TP"}]') == {5: "TP"}
+    assert verify_mod._verdicts('```json\n[{"id":5,"verdict":"FP"}]\n```') == {5: "FP"}
+    assert verify_mod._verdicts("not json") is None
+    assert verify_mod._verdicts('[{"id":1,"verdict":"maybe"}]') == {}
 
-    monkeypatch.setattr(
-        "satori_cli.utils.verify_issue.client.get",
-        lambda path, **kw: (gets.append(path) or _responses()(path)),
-    )
+
+def test_judge_findings_agreement_skips_tiebreaker(monkeypatch, tmp_path):
+    runs = []
+    _patch_subprocess(monkeypatch, _fake_run_factory(
+        {"analyst": "TP", "adversary": "TP"}, runs))
+    verdicts = verify_mod.judge_findings([FINDING], tmp_path, "/bin/claude")
+    assert verdicts == {10: "TP"}
+    assert len(runs) == 2  # analyst + adversary only, no tie-breaker
+
+
+def test_judge_findings_disagreement_uses_tiebreaker(monkeypatch, tmp_path):
+    runs = []
+    _patch_subprocess(monkeypatch, _fake_run_factory(
+        {"analyst": "TP", "adversary": "FP", "tiebreak": "FP"}, runs))
+    verdicts = verify_mod.judge_findings([FINDING], tmp_path, "/bin/claude")
+    assert verdicts == {10: "FP"}
+    assert len(runs) == 3  # analyst + adversary + tie-breaker
+
+
+def test_claude_argv_caps_tools_and_replaces_system_prompt(monkeypatch, tmp_path):
+    runs = []
+    _patch_subprocess(monkeypatch, _fake_run_factory(
+        {"analyst": "FP", "adversary": "FP"}, runs))
+    verify_mod.judge_findings([FINDING], tmp_path, "/bin/claude")
+    argv = runs[0]
+    assert "--tools" in argv and {"Read", "Grep", "Glob"} <= set(argv)
+    assert "--append-system-prompt" not in argv
+    assert "--no-session-persistence" in argv
+    assert "Agent" not in argv  # the Agent tool is gone
+
+
+def test_adversary_runs_on_opus_analyst_on_sonnet(monkeypatch, tmp_path):
+    runs = []
+    _patch_subprocess(monkeypatch, _fake_run_factory(
+        {"analyst": "TP", "adversary": "TP"}, runs))
+    verify_mod.judge_findings([FINDING], tmp_path, "/bin/claude")
+    models = {}
+    for argv in runs:
+        system = argv[argv.index("--system-prompt") + 1]
+        role = "analyst" if system.startswith(verify_mod.ANALYST) else "adversary"
+        models[role] = argv[argv.index("--model") + 1]
+    assert models == {"analyst": "sonnet", "adversary": "opus"}
+
+
+def test_verify_findings_for_repo_filters_min_severity(monkeypatch, tmp_path):
+    low = {**FINDING, "id": 11, "severity": 2}
+    runs = []
     _patch_binaries(monkeypatch)
+    _patch_subprocess(monkeypatch, _fake_run_factory(
+        {"analyst": "TP", "adversary": "TP"}, runs))
+    _patch_tempdir(monkeypatch, tmp_path)
+    patches = []
+    monkeypatch.setattr("satori_cli.utils.verify_issue.client.patch",
+                        lambda path, **kw: patches.append((path, kw.get("json"))))
+    verdicts = verify_mod.verify_findings_for_repo(
+        [FINDING, low], "acme/app", min_severity="High")
+    assert verdicts == {10: "TP"}  # the Medium (sev 2) finding was skipped
+    assert patches == [("/findings/10", {"status": "TP"})]
 
-    def fake_run(args, cwd=None, stdout=None, stderr=None):
-        runs.append({"args": list(args), "cwd": cwd})
+
+def test_verify_findings_for_repo_no_eligible_findings_does_nothing(monkeypatch, tmp_path):
+    ran = []
+    _patch_binaries(monkeypatch)
+    _patch_subprocess(monkeypatch, _fake_run_factory({"analyst": "TP", "adversary": "TP"}, ran))
+    verdicts = verify_mod.verify_findings_for_repo(
+        [{**FINDING, "severity": 1}], "acme/app", min_severity="High")
+    assert verdicts == {} and ran == []  # nothing eligible -> no clone, no claude
+
+
+def test_verify_findings_persists_via_patch(monkeypatch, tmp_path):
+    patches = []
+    monkeypatch.setattr("satori_cli.utils.verify_issue.client.get", _responses())
+    monkeypatch.setattr("satori_cli.utils.verify_issue.client.patch",
+                        lambda path, **kw: patches.append((path, kw.get("json"))))
+    _patch_binaries(monkeypatch)
+    _patch_subprocess(monkeypatch, _fake_run_factory({"analyst": "TP", "adversary": "TP"}))
+    _patch_tempdir(monkeypatch, tmp_path)
+    verdicts = verify_mod.verify_findings([10])
+    assert verdicts == {10: "TP"}
+    assert patches == [("/findings/10", {"status": "TP"})]
+
+
+def test_verify_findings_usage_limit_is_clean_error(monkeypatch, tmp_path):
+    monkeypatch.setattr("satori_cli.utils.verify_issue.client.get", _responses())
+    _patch_binaries(monkeypatch)
+    _patch_tempdir(monkeypatch, tmp_path)
+
+    def fake_run(args, **kwargs):
         if args[1] == "clone":
             Path(args[-1]).mkdir(parents=True, exist_ok=True)
-        return type("R", (), {"returncode": 0})()
+            return subprocess.CompletedProcess(args, 0, "", "")
+        return subprocess.CompletedProcess(args, 1, "Claude usage limit reached", "")
 
     _patch_subprocess(monkeypatch, fake_run)
-    monkeypatch.setattr(
-        "satori_cli.utils.verify_issue.tempfile.TemporaryDirectory",
-        lambda prefix="": _FakeTempDir(tmp_path / "work"),
-    )
-
     result = CliRunner().invoke(issue, ["10", "verify"])
-
-    assert result.exit_code == 0, result.output
-    assert gets == ["/findings/10", "/executions/100", "/jobs/50"]
-    assert len(runs) == 2
-    clone_args = runs[0]["args"]
-    claude_args = runs[1]["args"]
-    claude_cwd = runs[1]["cwd"]
-    assert isinstance(clone_args, list)
-    assert isinstance(claude_args, list)
-    assert isinstance(claude_cwd, str)
-    assert clone_args[1:4] == ["clone", "--depth", "1"]
-    assert "github.com/acme/app.git" in clone_args[4]
-    assert claude_args[0] == "/bin/claude"
-    assert claude_args[1] == "-p"
-    prompt = claude_args[2]
-    assert "3 independent Agent" in prompt
-    assert "satori-v2 issue 10 comment" in prompt
-    assert 'comment "Conclusion:' in prompt
-    assert "Do not print a separate verification summary" in prompt
-    assert "satori-v2 issue 10 status TP" in prompt
-    assert "--allowedTools" in claude_args
-    assert "--no-session-persistence" in claude_args
-    assert claude_args[claude_args.index("--model") + 1] == "sonnet"
-    assert claude_args[claude_args.index("--effort") + 1] == "low"
-    assert Path(claude_cwd).name == "app"
-    assert str(tmp_path / "work") in claude_cwd
-
-
-def test_issue_verify_run_job(monkeypatch, tmp_path):
-    runs: list[dict[str, object]] = []
-    monkeypatch.setattr(
-        "satori_cli.utils.verify_issue.client.get",
-        _responses(job=RUN_JOB),
-    )
-    _patch_binaries(monkeypatch)
-
-    def fake_run(args, cwd=None, stdout=None, stderr=None):
-        runs.append({"args": list(args), "cwd": cwd})
-        if args[1] == "clone":
-            Path(args[-1]).mkdir(parents=True, exist_ok=True)
-        return type("R", (), {"returncode": 0})()
-
-    _patch_subprocess(monkeypatch, fake_run)
-    monkeypatch.setattr(
-        "satori_cli.utils.verify_issue.tempfile.TemporaryDirectory",
-        lambda prefix="": _FakeTempDir(tmp_path / "work"),
-    )
-
-    result = CliRunner().invoke(issue, ["10", "verify"])
-
-    assert result.exit_code == 0, result.output
-    clone_args = runs[0]["args"]
-    assert isinstance(clone_args, list)
-    assert "github.com/acme/app.git" in clone_args[4]
-
-
-def test_issue_verify_local_job(monkeypatch, tmp_path):
-    runs: list[dict[str, object]] = []
-    monkeypatch.setattr(
-        "satori_cli.utils.verify_issue.client.get",
-        _responses(job=LOCAL_JOB_WITH_REPO),
-    )
-    _patch_binaries(monkeypatch)
-
-    def fake_run(args, cwd=None, stdout=None, stderr=None):
-        runs.append({"args": list(args), "cwd": cwd})
-        if args[1] == "clone":
-            Path(args[-1]).mkdir(parents=True, exist_ok=True)
-        return type("R", (), {"returncode": 0})()
-
-    _patch_subprocess(monkeypatch, fake_run)
-    monkeypatch.setattr(
-        "satori_cli.utils.verify_issue.tempfile.TemporaryDirectory",
-        lambda prefix="": _FakeTempDir(tmp_path / "work"),
-    )
-
-    result = CliRunner().invoke(issue, ["10", "verify"])
-
-    assert result.exit_code == 0, result.output
-    clone_args = runs[0]["args"]
-    assert isinstance(clone_args, list)
-    assert "github.com/acme/app.git" in clone_args[4]
-
-
-def test_issue_verify_missing_repo(monkeypatch):
-    monkeypatch.setattr(
-        "satori_cli.utils.verify_issue.client.get",
-        _responses(job=LOCAL_JOB),
-    )
-    _patch_binaries(monkeypatch)
-
-    result = CliRunner().invoke(issue, ["10", "verify"])
-
     assert result.exit_code != 0
-    assert "no associated repository" in result.output
+    assert "usage limit" in result.output.lower()
+
+
+def test_issue_verify_happy_path_clones_once(monkeypatch, tmp_path):
+    runs = []
+    monkeypatch.setattr("satori_cli.utils.verify_issue.client.get",
+                        lambda path, **kw: _responses()(path))
+    monkeypatch.setattr("satori_cli.utils.verify_issue.client.patch", lambda path, **kw: None)
+    _patch_binaries(monkeypatch)
+    _patch_subprocess(monkeypatch, _fake_run_factory({"analyst": "TP", "adversary": "TP"}, runs))
+    _patch_tempdir(monkeypatch, tmp_path)
+    result = CliRunner().invoke(issue, ["10", "verify"])
+    assert result.exit_code == 0, result.output
+    clone_runs = [r for r in runs if r[1] == "clone"]
+    claude_runs = [r for r in runs if r[1] == "-p"]
+    assert len(clone_runs) == 1  # cloned once
+    assert len(claude_runs) == 2  # analyst + adversary
 
 
 def test_issue_verify_missing_claude(monkeypatch):
+    monkeypatch.setattr("satori_cli.utils.verify_issue.client.get", _responses())
     monkeypatch.setattr(
         "satori_cli.utils.git_clone.shutil.which",
         lambda name: "/bin/git" if name == "git" else None,
@@ -250,57 +271,23 @@ def test_issue_verify_missing_claude(monkeypatch):
         "satori_cli.utils.verify_issue.shutil.which",
         lambda name: "/bin/git" if name == "git" else None,
     )
-
     result = CliRunner().invoke(issue, ["10", "verify"])
-
     assert result.exit_code != 0
     assert "claude" in result.output.lower()
 
 
-def test_issue_verify_missing_git(monkeypatch):
-    _patch_binaries(monkeypatch, which=lambda name: None)
-
-    result = CliRunner().invoke(issue, ["10", "verify"])
-
-    assert result.exit_code != 0
-    assert "git" in result.output.lower()
-
-
-def test_issue_verify_claude_nonzero(monkeypatch, tmp_path):
-    monkeypatch.setattr(
-        "satori_cli.utils.verify_issue.client.get",
-        _responses(),
-    )
+def test_issue_verify_missing_repo(monkeypatch):
+    monkeypatch.setattr("satori_cli.utils.verify_issue.client.get", _responses(job=LOCAL_JOB))
     _patch_binaries(monkeypatch)
-
-    def fake_run(args, cwd=None, stdout=None, stderr=None):
-        if args[1] == "clone":
-            Path(args[-1]).mkdir(parents=True, exist_ok=True)
-            return type("R", (), {"returncode": 0})()
-        return type("R", (), {"returncode": 7})()
-
-    _patch_subprocess(monkeypatch, fake_run)
-    monkeypatch.setattr(
-        "satori_cli.utils.verify_issue.tempfile.TemporaryDirectory",
-        lambda prefix="": _FakeTempDir(tmp_path / "work"),
-    )
-
     result = CliRunner().invoke(issue, ["10", "verify"])
-
     assert result.exit_code != 0
-    assert "exited with status 7" in result.output
+    assert "no associated repository" in result.output
 
 
 def test_list_finding_ids_for_execution_paginates(monkeypatch):
     pages = {
-        1: {
-            "items": [{"id": 1}, {"id": 2}],
-            "total": 3,
-        },
-        2: {
-            "items": [{"id": 3}],
-            "total": 3,
-        },
+        1: {"items": [{"id": 1}, {"id": 2}], "total": 3},
+        2: {"items": [{"id": 3}], "total": 3},
     }
     calls: list[dict] = []
 
@@ -312,90 +299,8 @@ def test_list_finding_ids_for_execution_paginates(monkeypatch):
 
     monkeypatch.setattr("satori_cli.utils.verify_issue.client.get", get)
     monkeypatch.setattr("satori_cli.utils.verify_issue._FINDINGS_PAGE_SIZE", 2)
-
     assert verify_mod.list_finding_ids_for_execution(100) == [1, 2, 3]
     assert calls == [
         {"execution_id": 100, "page": 1, "quantity": 2},
         {"execution_id": 100, "page": 2, "quantity": 2},
     ]
-
-
-def test_verify_findings_clones_once_and_runs_claude_per_finding(
-    monkeypatch, tmp_path
-):
-    finding_b = {**FINDING, "id": 11, "title": "XSS"}
-    by_id = {10: FINDING, 11: finding_b}
-    runs: list[dict[str, object]] = []
-
-    def get(path, **kwargs):
-        if path.startswith("/findings/"):
-            fid = int(path.rsplit("/", 1)[-1])
-            return _FakeResponse(by_id[fid])
-        if path.startswith("/executions/"):
-            return _FakeResponse(EXECUTION)
-        if path.startswith("/jobs/"):
-            return _FakeResponse(SCAN_JOB)
-        raise AssertionError(f"Unexpected GET {path}")
-
-    monkeypatch.setattr("satori_cli.utils.verify_issue.client.get", get)
-    _patch_binaries(monkeypatch)
-
-    def fake_run(args, cwd=None, stdout=None, stderr=None):
-        runs.append({"args": list(args), "cwd": cwd})
-        if args[1] == "clone":
-            Path(args[-1]).mkdir(parents=True, exist_ok=True)
-        return type("R", (), {"returncode": 0})()
-
-    _patch_subprocess(monkeypatch, fake_run)
-    monkeypatch.setattr(
-        "satori_cli.utils.verify_issue.tempfile.TemporaryDirectory",
-        lambda prefix="": _FakeTempDir(tmp_path / "work"),
-    )
-
-    verify_mod.verify_findings([10, 11])
-
-    clone_runs = [r for r in runs if r["args"][1] == "clone"]
-    claude_runs = [r for r in runs if r["args"][0] == "/bin/claude"]
-    assert len(clone_runs) == 1
-    assert len(claude_runs) == 2
-    assert "satori-v2 issue 10 comment" in claude_runs[0]["args"][2]
-    assert "satori-v2 issue 11 comment" in claude_runs[1]["args"][2]
-
-
-def test_verify_findings_continues_then_raises_on_failures(monkeypatch, tmp_path):
-    finding_b = {**FINDING, "id": 11}
-    by_id = {10: FINDING, 11: finding_b}
-    claude_calls = 0
-
-    def get(path, **kwargs):
-        if path.startswith("/findings/"):
-            fid = int(path.rsplit("/", 1)[-1])
-            return _FakeResponse(by_id[fid])
-        if path.startswith("/executions/"):
-            return _FakeResponse(EXECUTION)
-        if path.startswith("/jobs/"):
-            return _FakeResponse(SCAN_JOB)
-        raise AssertionError(f"Unexpected GET {path}")
-
-    monkeypatch.setattr("satori_cli.utils.verify_issue.client.get", get)
-    _patch_binaries(monkeypatch)
-
-    def fake_run(args, cwd=None, stdout=None, stderr=None):
-        nonlocal claude_calls
-        if args[1] == "clone":
-            Path(args[-1]).mkdir(parents=True, exist_ok=True)
-            return type("R", (), {"returncode": 0})()
-        claude_calls += 1
-        return type("R", (), {"returncode": 3 if claude_calls == 1 else 5})()
-
-    _patch_subprocess(monkeypatch, fake_run)
-    monkeypatch.setattr(
-        "satori_cli.utils.verify_issue.tempfile.TemporaryDirectory",
-        lambda prefix="": _FakeTempDir(tmp_path / "work"),
-    )
-
-    with pytest.raises(Exception, match="failed for 2 finding") as exc:
-        verify_mod.verify_findings([10, 11])
-    assert claude_calls == 2
-    assert "10 (exit 3)" in str(exc.value)
-    assert "11 (exit 5)" in str(exc.value)

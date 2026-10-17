@@ -125,7 +125,7 @@ def test_local_repo_clones_and_posts_repository(monkeypatch, tmp_path):
         lambda prefix="": _FakeTempDir(tmp_path / "clone"),
     )
 
-    def fake_verify(execution_id):
+    def fake_verify(execution_id, min_severity=None):
         verify_calls.append(execution_id)
 
     monkeypatch.setattr(

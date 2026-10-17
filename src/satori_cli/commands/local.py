@@ -27,7 +27,7 @@ from ..utils.wrappers import JobWrapper, OutputWrapper, ReportWrapper
 from .issue import list_issues
 
 
-def _verify_execution(execution_id: int) -> None:
+def _verify_execution(execution_id: int, min_severity: str | None = None) -> None:
     finding_ids = list_finding_ids_for_execution(execution_id)
     if not finding_ids:
         stderr.print(f"No findings to verify for execution {execution_id}.")
@@ -35,7 +35,7 @@ def _verify_execution(execution_id: int) -> None:
     stderr.print(
         f"Verifying {len(finding_ids)} finding(s) for execution {execution_id}…"
     )
-    run_verify_findings(finding_ids)
+    run_verify_findings(finding_ids, min_severity=min_severity)
 
 
 @click.command()
@@ -58,6 +58,12 @@ def _verify_execution(execution_id: int) -> None:
     is_flag=True,
     help="After the local run finishes, verify every finding with Claude Code (TP/FP).",
 )
+@click.option(
+    "--min-severity",
+    "min_severity",
+    default=None,
+    help="With --verify, only verify findings at or above this severity (e.g. High).",
+)
 @opts.sync_opt
 def local(
     source: Source,
@@ -74,6 +80,7 @@ def local(
     show_issues: bool,
     repository: Optional[str],
     do_verify: bool,
+    min_severity: str | None,
     sync: bool,
     **kwargs,
 ):
@@ -320,4 +327,4 @@ def local(
     if do_verify:
         if execution_id is None:
             raise SatoriError("No execution available to verify findings.")
-        _verify_execution(execution_id)
+        _verify_execution(execution_id, min_severity)

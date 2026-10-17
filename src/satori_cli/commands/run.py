@@ -36,7 +36,9 @@ from ..utils.wrappers import (
 from .issue import list_issues
 
 
-def _verify_executions(execution_ids: list[int]) -> None:
+def _verify_executions(
+    execution_ids: list[int], min_severity: str | None = None
+) -> None:
     for execution_id in execution_ids:
         finding_ids = list_finding_ids_for_execution(execution_id)
         if not finding_ids:
@@ -45,7 +47,7 @@ def _verify_executions(execution_ids: list[int]) -> None:
         stderr.print(
             f"Verifying {len(finding_ids)} finding(s) for execution {execution_id}…"
         )
-        run_verify_findings(finding_ids)
+        run_verify_findings(finding_ids, min_severity=min_severity)
 
 
 def _require_first_execution_id(run_id) -> int:
@@ -109,6 +111,12 @@ def _compact_job(job: dict, report_ids: list[int] | None = None) -> JobWrapper:
     is_flag=True,
     help="After the run finishes, verify every finding with Claude Code (TP/FP).",
 )
+@click.option(
+    "--min-severity",
+    "min_severity",
+    default=None,
+    help="With --verify, only verify findings at or above this severity (e.g. High).",
+)
 @click.option("--stdout", "show_stdout", is_flag=True)
 @click.option("--stderr", "show_stderr", is_flag=True)
 @click.option("--save-files", is_flag=True)
@@ -156,6 +164,7 @@ def run(
     show_report: bool,
     show_issues: bool,
     verify_findings: bool,
+    min_severity: str | None,
     show_stdout: bool,
     show_stderr: bool,
     delete_report: bool,
@@ -306,9 +315,8 @@ def run(
 
             if verify_findings:
                 _verify_executions(
-                    report_ids
-                    if report_ids
-                    else [execution_id]
+                    report_ids if report_ids else [execution_id],
+                    min_severity,
                 )
         return
 
@@ -475,4 +483,4 @@ def run(
             ids = _wait_execution_ids_for_job(run_id, quantity=count)
         if not ids:
             raise SatoriError(f"No executions found for run {run_id}")
-        _verify_executions(ids)
+        _verify_executions(ids, min_severity)
