@@ -147,6 +147,16 @@ def test_verdicts_parses_array_and_tolerates_fences():
     assert verify_mod._verdicts('[{"id":1,"verdict":"maybe"}]') == {}
 
 
+def test_verdicts_recovers_from_invalid_json():
+    # a model echoed a source line with unescaped quotes into a field -> invalid JSON, but the
+    # id+verdict pairs are still recovered rather than lost
+    broken = '[{"id": 12, "verdict": "TP", "evidence": "os.system("rm " + u)"},' \
+             ' {"id": 13, "verdict": "fp", "evidence": "re.compile("\\d+")"}]'
+    assert verify_mod._verdicts(broken) == {12: "TP", 13: "FP"}
+    # verdict-before-id order and surrounding prose are tolerated too
+    assert verify_mod._verdicts('Done:\n[{"verdict":"TP","id":9}]') == {9: "TP"}
+
+
 def test_judge_findings_agreement_skips_tiebreaker(monkeypatch, tmp_path):
     runs = []
     _patch_subprocess(monkeypatch, _fake_run_factory(

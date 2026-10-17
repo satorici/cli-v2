@@ -49,6 +49,14 @@ _USAGE_LIMIT_RE = re.compile(
 )
 _FENCE_RE = re.compile(r"```(?:json)?\s*(.+?)```", re.DOTALL)
 _ARRAY_RE = re.compile(r"\[.*\]", re.DOTALL)
+# Last-resort recovery: pull id+verdict pairs even when the JSON is invalid (e.g. a model
+# echoed a source line with unescaped quotes in a field we don't use) or wrapped in prose.
+# [^{}] keeps each match inside one object; both field orders are allowed.
+_PAIR_RE = re.compile(
+    r'"id"\s*:\s*(\d+)[^{}]*?"verdict"\s*:\s*"(TP|FP)"'
+    r'|"verdict"\s*:\s*"(TP|FP)"[^{}]*?"id"\s*:\s*(\d+)',
+    re.IGNORECASE,
+)
 
 ANALYST = (
     "You are a senior application-security engineer verifying whether reported findings "
@@ -86,8 +94,7 @@ _TASK = (
     "For each finding below, open its file at the given line, trace input -> sink, check "
     "sanitizers and reachability, then decide TP (real and exploitable) or FP. "
     "Output ONLY a JSON array -- no prose, no markdown fences. Each element: "
-    '{"id": <finding id int>, "verdict": "TP" or "FP", "line": <1-based line int>, '
-    '"evidence": "<the exact source line you judged>"}.'
+    '{"id": <finding id int>, "verdict": "TP" or "FP", "line": <1-based line int>}.'
 )
 
 
@@ -176,27 +183,36 @@ def build_verify_prompt(findings: list[dict[str, Any]]) -> str:
     return "\n".join(blocks)
 
 
+def _pairwise_verdicts(text: str) -> dict[int, str]:
+    """Recover {id: verdict} by scanning for id+verdict pairs directly -- tolerant of invalid
+    JSON (a stray unescaped quote in an unused field) and of prose around the array."""
+    verdicts: dict[int, str] = {}
+    for first_id, first_v, second_v, second_id in _PAIR_RE.findall(text):
+        verdicts[int(first_id or second_id)] = (first_v or second_v).upper()
+    return verdicts
+
+
 def _verdicts(text: str) -> Optional[dict[int, str]]:
     """The {id: 'TP'|'FP'} map parsed from an agent's JSON-array answer, or None."""
     text = text.strip()
     fence = _FENCE_RE.search(text)
-    if fence:
-        text = fence.group(1).strip()
+    body = fence.group(1).strip() if fence else text
     try:
-        data: Any = json.loads(text)
+        data: Any = json.loads(body)
     except ValueError:
-        match = _ARRAY_RE.search(text)
+        match = _ARRAY_RE.search(body)
         try:
             data = json.loads(match.group(0)) if match else None
         except ValueError:
             data = None
-    if not isinstance(data, list):
-        return None
-    return {
-        int(item["id"]): item["verdict"]
-        for item in data
-        if isinstance(item, dict) and "id" in item and item.get("verdict") in ("TP", "FP")
-    }
+    if isinstance(data, list):
+        return {
+            int(item["id"]): item["verdict"].upper()
+            for item in data
+            if isinstance(item, dict) and "id" in item
+            and str(item.get("verdict")).upper() in ("TP", "FP")
+        }
+    return _pairwise_verdicts(text) or None
 
 
 def _require_binaries() -> tuple[str, str]:
@@ -274,6 +290,7 @@ def _run_claude(claude: str, findings: list[dict[str, Any]], role: str, cwd: Pat
     (a retry only burns more quota) and raises UsageLimitError. Returns {} if no verdicts
     could be parsed after every attempt."""
     prompt = build_verify_prompt(findings)
+    output = ""
     for attempt in range(1, CLAUDE_ATTEMPTS + 1):
         verdicts, output = _claude_once(claude, prompt, role, cwd)
         if verdicts is not None:
@@ -283,7 +300,8 @@ def _run_claude(claude: str, findings: list[dict[str, Any]], role: str, cwd: Pat
         if attempt < CLAUDE_ATTEMPTS:
             time.sleep(_RETRY_BACKOFF_S)
     stderr.print(
-        f"WARNING: verify {_ROLE_NAMES.get(role, 'agent')} returned no parseable verdicts."
+        f"WARNING: verify {_ROLE_NAMES.get(role, 'agent')} returned no parseable verdicts "
+        f"(last output: {output[-200:].strip()!r})."
     )
     return {}
 
