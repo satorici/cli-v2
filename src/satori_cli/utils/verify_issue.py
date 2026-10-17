@@ -335,17 +335,19 @@ def verify_findings_for_repo(
     repository: str,
     min_severity: Any = None,
     persist: bool = True,
+    quiet: bool = False,
 ) -> dict[int, str]:
     """Clone `repository` once and judge `findings` (only those at or above `min_severity`,
     e.g. 'High', when given). Persists each verdict via the API unless persist=False, and
-    returns {finding_id: 'TP'|'FP'}. Raises UsageLimitError on a Claude usage limit."""
+    returns {finding_id: 'TP'|'FP'}. Raises UsageLimitError on a Claude usage limit. `quiet`
+    drops the "Cloning …" status line (for batch callers whose own progress is the output)."""
     floor = _severity_floor(min_severity)
     todo = [finding for finding in findings if _meets_severity(finding, floor)]
     if not todo:
         return {}
     git, claude = _require_binaries()
     with tempfile.TemporaryDirectory(prefix="satori-verify-") as tmp:
-        clone_dir = clone_repo(git, repository, Path(tmp))
+        clone_dir = clone_repo(git, repository, Path(tmp), quiet=quiet)
         verdicts = judge_findings(todo, clone_dir, claude)
     if persist:
         for finding_id, verdict in verdicts.items():
