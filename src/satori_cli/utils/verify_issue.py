@@ -228,7 +228,10 @@ def _require_binaries() -> tuple[str, str]:
 
 def _claude_env() -> dict[str, str]:
     """The environment for Claude, stripped of the API key/base-url/model so verification
-    always uses the local subscription rather than a billed API or another model."""
+    always uses the local subscription rather than a billed API or another model. (Secrets are
+    not scrubbed here: the untrusted repo can't reach this environment anyway -- its hooks are
+    renamed away before Claude starts and the agent's tools are read-only -- and a name-based
+    denylist would be a fragile, bypassable guard, not a boundary.)"""
     return {
         key: value
         for key, value in os.environ.items()
@@ -348,6 +351,30 @@ def _meets_severity(finding: dict[str, Any], floor: Optional[int]) -> bool:
     return isinstance(severity, int) and severity >= floor
 
 
+# A cloned repo's agent config we move aside before running Claude in it: `.claude/` (hooks,
+# settings, skills, commands, agents -> code execution), `.mcp.json` (servers Claude would
+# spawn), and the instruction files Claude auto-loads (prompt injection).
+_UNTRUSTED_CONFIG = (".claude", ".mcp.json", "CLAUDE.md", "AGENTS.md", ".cursorrules")
+
+
+def _defang_clone(clone_dir: Path) -> None:
+    """Rename a cloned repo's agent config to ``*.bak`` before running Claude in it, so an
+    untrusted repo's hooks, MCP servers and instruction files cannot take effect. Claude loads
+    project config from its working directory with no trust prompt in ``-p`` mode, so moving
+    these files aside -- deterministically, before Claude starts -- is what stops a cloned
+    repo from running code or injecting instructions during verification."""
+    for name in _UNTRUSTED_CONFIG:
+        entry = clone_dir / name
+        if not entry.exists():
+            continue
+        backup = clone_dir / f"{name}.bak"
+        if backup.is_dir():
+            shutil.rmtree(backup, ignore_errors=True)
+        elif backup.exists():
+            backup.unlink()
+        entry.rename(backup)
+
+
 def verify_findings_for_repo(
     findings: list[dict[str, Any]],
     repository: str,
@@ -366,6 +393,7 @@ def verify_findings_for_repo(
     git, claude = _require_binaries()
     with tempfile.TemporaryDirectory(prefix="satori-verify-") as tmp:
         clone_dir = clone_repo(git, repository, Path(tmp), quiet=quiet)
+        _defang_clone(clone_dir)
         verdicts = judge_findings(todo, clone_dir, claude)
     if persist:
         for finding_id, verdict in verdicts.items():
