@@ -210,7 +210,7 @@ class Playbook:
 
 
 class Source:
-    type: Literal["URL", "FILE", "DIR", "SCRIPT"]
+    type: Literal["URL", "FILE", "DIR", "SCRIPT", "REPO"]
     playbook: Optional[Playbook] = None
 
     def __init__(self, arg: str):
@@ -233,6 +233,14 @@ class Source:
                 self.playbook = Playbook(str(playbook_path))
         else:
             raise SatoriError("Source not supported")
+
+    @classmethod
+    def as_repo(cls, arg: str) -> "Source":
+        source = cls.__new__(cls)
+        source._arg = arg
+        source.type = "REPO"
+        source.playbook = None
+        return source
 
     def upload_files(self, data: dict):
         if self.type == "SCRIPT":

@@ -36,7 +36,7 @@ def test_require_first_execution_id_raises_on_empty(monkeypatch):
 @pytest.mark.parametrize(
     ("alias", "playbook_uri"),
     [
-        ("pyspector", "satori://code/python/pyspector.yml"),
+        ("pyspector", "satori://code/python/pyspector_v2.yml"),
         ("semgrep", "satori://code/semgrep.yml"),
     ],
 )
@@ -148,6 +148,9 @@ def test_explicit_playbook_overrides_run_alias(monkeypatch, tmp_path):
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("satori_cli.commands.run.client.post", post)
+    monkeypatch.setattr(
+        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [1]
+    )
     monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
 
     result = CliRunner().invoke(
@@ -180,6 +183,9 @@ def test_explicit_alias_path_is_not_converted(monkeypatch, tmp_path):
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("satori_cli.commands.run.client.post", post)
+    monkeypatch.setattr(
+        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [1]
+    )
     monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
 
     result = CliRunner().invoke(
@@ -245,6 +251,9 @@ def test_run_with_repo_creates_scan(monkeypatch, repo_flag):
         )
 
     monkeypatch.setattr("satori_cli.commands.run.client.post", post)
+    monkeypatch.setattr(
+        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [1]
+    )
     monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
 
     result = CliRunner().invoke(
@@ -288,6 +297,9 @@ def test_run_with_repo_output_waits_and_shows(monkeypatch):
         shown["execution_id"] = execution_id
 
     monkeypatch.setattr("satori_cli.commands.run.client.post", post)
+    monkeypatch.setattr(
+        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [42]
+    )
     monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
     monkeypatch.setattr("satori_cli.commands.run.stderr.print", lambda *args: None)
     monkeypatch.setattr("satori_cli.commands.run.wait_job_until_finished", wait)
@@ -433,3 +445,141 @@ def test_run_help_lists_repo_alias():
     assert result.exit_code == 0
     assert "--repo" in result.output
     assert "--repository" in result.output
+
+
+def test_run_source_param_detects_owner_repo():
+    source = _RunSourceParam().convert("satorici/satori-cli", None, None)
+    assert source.type == "REPO"
+    assert source._arg == "satorici/satori-cli"
+    assert source.playbook is None
+
+
+def test_run_owner_repo_with_playbook_creates_scan(monkeypatch):
+    request = {}
+
+    def post(path, json):
+        request["path"] = path
+        request["body"] = json
+        return _FakeResponse(
+            {
+                "id": 99,
+                "type": "SCAN",
+                "playbook_source": "satori://code/python/pyspector_v2.yml",
+                "visibility": "PRIVATE",
+                "created_at": "2026-01-01T00:00:00Z",
+                "repository_data": {"repository": "satorici/satori-cli"},
+                "criteria": {"quantity": 1},
+                "status": "FETCHING_DATA",
+            }
+        )
+
+    monkeypatch.setattr("satori_cli.commands.run.client.post", post)
+    monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
+    monkeypatch.setattr(
+        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [1]
+    )
+
+    result = CliRunner().invoke(
+        run,
+        [
+            "satorici/satori-cli",
+            "-p",
+            "satori://code/python/pyspector_v2.yml",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert request["path"] == "/jobs/scans"
+    assert request["body"]["playbook_source"] == "satori://code/python/pyspector_v2.yml"
+    assert request["body"]["repository_data"] == {"repository": "satorici/satori-cli"}
+
+
+def test_run_owner_repo_requires_playbook():
+    result = CliRunner().invoke(run, ["satorici/satori-cli"])
+
+    assert result.exit_code != 0
+    assert "playbook" in result.output.lower()
+
+
+def test_run_existing_local_owner_repo_dir_is_run_not_scan(monkeypatch, tmp_path):
+    request = {}
+    repo_dir = tmp_path / "owner" / "repo"
+    repo_dir.mkdir(parents=True)
+
+    def post(path, json):
+        request["path"] = path
+        request["body"] = json
+        return _FakeResponse({"id": 42, "files_upload": None})
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("satori_cli.commands.run.client.post", post)
+    monkeypatch.setattr(
+        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [1]
+    )
+    monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
+
+    result = CliRunner().invoke(
+        run, ["owner/repo", "-p", "satori://code/python/pyspector_v2.yml"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert request["path"] == "/jobs/runs"
+    assert request["body"]["with_files"] is True
+    assert request["body"]["playbook_source"] == "satori://code/python/pyspector_v2.yml"
+
+
+def test_run_owner_repo_conflicts_with_different_repo_flag():
+    result = CliRunner().invoke(
+        run,
+        [
+            "satorici/satori-cli",
+            "-p",
+            "satori://code/python/pyspector_v2.yml",
+            "--repo",
+            "other/repo",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "Conflicting repositories" in result.output
+
+
+def test_run_owner_repo_same_repo_flag_ok(monkeypatch):
+    request = {}
+
+    def post(path, json):
+        request["path"] = path
+        request["body"] = json
+        return _FakeResponse(
+            {
+                "id": 99,
+                "type": "SCAN",
+                "playbook_source": "satori://code/python/pyspector_v2.yml",
+                "visibility": "PRIVATE",
+                "created_at": "2026-01-01T00:00:00Z",
+                "repository_data": {"repository": "satorici/satori-cli"},
+                "criteria": {"quantity": 1},
+                "status": "FETCHING_DATA",
+            }
+        )
+
+    monkeypatch.setattr("satori_cli.commands.run.client.post", post)
+    monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
+    monkeypatch.setattr(
+        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [1]
+    )
+
+    result = CliRunner().invoke(
+        run,
+        [
+            "satorici/satori-cli",
+            "-p",
+            "satori://code/python/pyspector_v2.yml",
+            "--repo",
+            "satorici/satori-cli",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert request["path"] == "/jobs/scans"
+    assert request["body"]["repository_data"] == {"repository": "satorici/satori-cli"}

@@ -6,7 +6,6 @@ stdout is the protocol channel. Nothing in here may print to it.
 import asyncio
 import inspect
 import os
-import re
 import tempfile
 import time
 from functools import wraps
@@ -29,6 +28,7 @@ from ..utils.console import load_execution_outputs
 from ..utils.git_clone import clone_repo, require_git
 from ..utils.local_run import run_local_job
 from ..utils.output_filter import run_test_filter
+from ..utils.repo import is_github_repo
 from . import recommend, shaping
 
 DOCS_URL = os.getenv("SATORI_DOCS_URL", "https://docs-v2.satori.ci").rstrip("/")
@@ -52,7 +52,6 @@ FINDING_SOURCES = ("ASSERT", "TOOL")
 ORDERS = ("ASC", "DESC")
 ADVISORY_KINDS = ("SECURITY_ADVISORY", "ISSUE")
 ADVISORY_PROVIDERS = ("GITHUB",)
-REPO_RE = re.compile(r"^[\w.-]+/[\w.-]+$")
 MAX_SCAN_QUANTITY = 10
 
 mcp = FastMCP(
@@ -368,7 +367,7 @@ async def run_local(
     """
     if repository and directory:
         return {"error": "Provide only one of repository or directory."}
-    if repository and not REPO_RE.match(repository):
+    if repository and not is_github_repo(repository):
         return {"error": "repository must be 'owner/repo'."}
     if directory and not Path(directory).expanduser().is_dir():
         return {"error": f"directory must be an existing directory: {directory}"}
@@ -830,7 +829,7 @@ def scan_repository(
     see list_playbooks). `quantity` is how many executions to create (max 10).
     Poll with get_job(job_id) / list_executions(job_id=...); results via get_execution.
     """
-    if not REPO_RE.match(repository or ""):
+    if not is_github_repo(repository or ""):
         return {"error": "repository must be 'owner/repo'."}
     source = _bundle_source(playbook_path, playbook_yaml, playbook_uri)
     quantity = max(1, min(quantity, MAX_SCAN_QUANTITY))

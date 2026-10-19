@@ -190,8 +190,10 @@ def run(
 ):
     """Run a playbook remotely.
 
-    SOURCE may be a regular source or one of the playbook aliases:
-    pyspector or semgrep. Aliases run against the current directory.
+    SOURCE may be a regular source, a playbook alias (pyspector or semgrep;
+    aliases run against the current directory), or owner/repo when that path
+    does not exist locally. For owner/repo, --playbook / -p is required.
+    --repo remains available as an alternative way to target a repository.
     """
     try:
         notify = parse_notify_specs(notify_specs)
@@ -209,6 +211,18 @@ def run(
 
     if (show_output or live_output) and count > 1:
         stderr.print("WARNING: Only first execution output will be shown")
+
+    if source.type == "REPO":
+        if repository and repository != source._arg:
+            raise click.UsageError(
+                f"Conflicting repositories: SOURCE is {source._arg!r} "
+                f"but --repo is {repository!r}"
+            )
+        repository = source._arg
+        if not playbook:
+            raise click.UsageError(
+                "SOURCE is a repository; --playbook / -p is required"
+            )
 
     container_settings = {}
 

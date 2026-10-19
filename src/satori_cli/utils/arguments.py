@@ -1,6 +1,9 @@
+from pathlib import Path
+
 import click
 
 from ..models import Playbook, Source
+from .repo import is_github_repo
 
 
 RUN_PLAYBOOK_ALIASES = {
@@ -20,6 +23,9 @@ class _RunSourceParam(_SourceParam):
             source = Source("./")
             source.playbook = Playbook(playbook_uri)
             return source
+
+        if not Path(value).exists() and is_github_repo(value):
+            return Source.as_repo(value)
 
         return super().convert(value, param, ctx)
 
