@@ -151,6 +151,7 @@ cython_debug/
 
 zz*
 
-# AI documentation
+# Custom files
 api.md
 .planner-ai/
+.pyspector_cache/

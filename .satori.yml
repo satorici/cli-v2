@@ -1,4 +1,3 @@
-# satori:mcp no-auto-run
 settings:
   name: "Satori CLI V2 Tests"
   log: slack

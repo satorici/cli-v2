@@ -1,0 +1,33 @@
+# satori:recommended v2 python/uv
+settings:
+  name: Quality checks (python/uv)
+  image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+install:
+- uv sync --all-groups
+lint:
+  ruff_check:
+    setSeverity: 2
+    run:
+    - uvx --from ruff==0.17.0 ruff check --output-format=json .
+format:
+  ruff_format:
+    setSeverity: 1
+    run:
+    - uvx --from ruff==0.17.0 ruff format --check .
+types:
+  pyrefly:
+    assertReturnCode: 0
+    setSeverity: 2
+    run:
+    - uvx --from pyrefly==1.3.2 pyrefly check
+unit:
+  pytest:
+    assertReturnCode: 0
+    setSeverity: 3
+    run:
+    - uv run pytest -q
+security:
+  pyspector:
+    setSeverity: 4
+    run:
+    - uvx --from pyspector==0.2.2 pyspector scan . -f json

@@ -48,10 +48,29 @@ REPOS = {
     "py_updated": {
         "pyproject.toml": '[project]\nname = "d"\n\n[tool.black]\nline-length = 100\n',
         "uv.lock": "",
+        ".satori-llm.yml": (
+            "# satori:recommended v1 python/uv prefs: formatter=black dead_code=false\n"
+            "settings:\n  name: mine\nlint:\n  ruff_check:\n    run:\n"
+            "    - uvx --from ruff==0.17.0 ruff check --output-format=json .\n"
+        ),
+        ".satori.yml": "import:\n  - file://.satori-llm.yml\n",
+    },
+    "py_legacy_ci": {
+        "pyproject.toml": '[project]\nname = "d"\n\n[tool.black]\nline-length = 100\n',
+        "uv.lock": "",
         ".satori.yml": (
             "# satori:recommended v1 python/uv prefs: formatter=black dead_code=false\n"
             "settings:\n  name: mine\nlint:\n  ruff_check:\n    run:\n"
             "    - uvx --from ruff==0.17.0 ruff check --output-format=json .\n"
+        ),
+    },
+    "py_ci_only": {
+        "pyproject.toml": '[project]\nname = "d"\n\n[tool.ruff]\nline-length = 100\n',
+        "uv.lock": "",
+        "tests/test_ok.py": "def test_ok(): ...\n",
+        ".satori.yml": (
+            "settings:\n  name: ci\n"
+            "test:\n  assertReturnCode: 0\n  unit:\n    - pytest\n"
         ),
     },
 }
@@ -219,17 +238,31 @@ def test_update_asks_only_about_tools_newer_than_the_header(monkeypatch):
 
 def test_diff_existing_reports_missing_and_keeps_present():
     root = FIXTURES / "py_updated"
+    llm = (root / recommend.LLM_PLAYBOOK).read_text()
     rec = recommend.build(
         recommend.detect(root),
         None,
-        recommend.parse_header((root / ".satori.yml").read_text()),
+        recommend.parse_header(llm),
     )
-    changes = recommend.diff_existing((root / ".satori.yml").read_text(), rec)
+    changes = recommend.diff_existing(llm, rec)
     missing = {c["id"] for c in changes["missing"]}
     assert "ruff_check" not in missing
     assert {"black_check", "pyspector"} <= missing
     assert not changes["up_to_date"]
     assert "run:" in changes["missing"][0]["suggested_yaml"]
+
+
+def test_ci_importer_helpers():
+    importer = recommend.ci_importer_yaml()
+    assert recommend.LLM_IMPORT in importer
+    assert recommend.ci_imports_llm(importer)
+    assert recommend.ci_imports_llm("import:\n  - file://.satori-llm.yml\n")
+    assert not recommend.ci_imports_llm("settings:\n  name: x\n")
+    assert not recommend.ci_imports_llm("import:\n  - satori://secrets/semgrep.yml\n")
+    assert recommend.has_recommended_header(
+        "# satori:recommended v1 python/uv\nx: 1\n"
+    )
+    assert not recommend.has_recommended_header("settings: {}\n")
 
 
 def test_no_supported_project_is_an_error(tmp_path):
@@ -269,13 +302,41 @@ def test_recommend_tool_new_playbook_and_existing(tmp_path):
     result = server.recommend_playbook(str(FIXTURES / "py_uv"))
     assert result["language"] == "python" and "playbook_yaml" in result
     assert "changes" not in result
+    assert "ci_playbook_yaml" in result
+    assert recommend.LLM_IMPORT in result["ci_playbook_yaml"]
+    assert recommend.LLM_PLAYBOOK in result["hint"]
+    assert recommend.CI_PLAYBOOK in result["hint"]
+    assert result["llm_playbook"] == recommend.LLM_PLAYBOOK
 
     existing = server.recommend_playbook(str(FIXTURES / "py_updated"))
     assert existing["existing"] and "playbook_yaml" not in existing
     assert existing["header"].startswith("# satori:recommended v2")
+    assert "needs_ci_import" not in existing
+    assert "migrate_from_ci" not in existing
+    assert recommend.LLM_PLAYBOOK in existing["hint"]
 
     assert (
         "existing directory"
         in server.recommend_playbook(str(tmp_path / "nope"))["error"]
     )
     assert "No supported project" in server.recommend_playbook(str(empty))["error"]
+
+
+def test_recommend_tool_migrates_legacy_recommended_ci():
+    result = server.recommend_playbook(str(FIXTURES / "py_legacy_ci"))
+    assert result["existing"]
+    assert result["migrate_from_ci"] is True
+    assert result["needs_ci_import"] is True
+    assert recommend.LLM_IMPORT in result["ci_import_yaml"]
+    assert "Move the recommended content" in result["hint"]
+    assert "playbook_yaml" not in result
+
+
+def test_recommend_tool_ci_only_suggests_import_without_diffing_ci():
+    result = server.recommend_playbook(str(FIXTURES / "py_ci_only"))
+    assert "playbook_yaml" in result
+    assert "changes" not in result
+    assert result["needs_ci_import"] is True
+    assert recommend.LLM_IMPORT in result["ci_import_yaml"]
+    assert "do not overwrite" in result["hint"]
+    assert recommend.LLM_PLAYBOOK in result["hint"]

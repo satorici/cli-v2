@@ -23,7 +23,11 @@ CATEGORIES = ("lint", "format", "types", "unit", "security")
 HEADER_RE = re.compile(
     r"^#\s*satori:recommended\s+v(\d+)\s+(\S+)(?:\s+prefs:\s*(.*?))?\s*$", re.MULTILINE
 )
-EXISTING_PLAYBOOK = ".satori.yml"
+LLM_PLAYBOOK = ".satori-llm.yml"
+CI_PLAYBOOK = ".satori.yml"
+LLM_IMPORT = "file://.satori-llm.yml"
+# Back-compat alias for anything that still imported the old name.
+EXISTING_PLAYBOOK = LLM_PLAYBOOK
 PREDICATES = ("has_file", "has_dir", "has_dep", "pkg_script", "manager", "has_any")
 LANGUAGES = (
     "python",
@@ -319,6 +323,31 @@ def parse_header(text: str) -> tuple[int, dict[str, str]] | None:
     return int(match.group(1)), prefs
 
 
+def has_recommended_header(text: str) -> bool:
+    return parse_header(text) is not None
+
+
+def ci_importer_yaml() -> str:
+    """Minimal `.satori.yml` that pulls in the LLM playbook."""
+    return yaml.safe_dump({"import": [LLM_IMPORT]}, sort_keys=False)
+
+
+def ci_imports_llm(text: str) -> bool:
+    """True if the CI playbook already imports `.satori-llm.yml`."""
+    try:
+        data = yaml.safe_load(text) or {}
+    except yaml.YAMLError:
+        return False
+    if not isinstance(data, dict):
+        return False
+    imports = data.get("import")
+    if isinstance(imports, str):
+        return imports == LLM_IMPORT
+    if isinstance(imports, list):
+        return LLM_IMPORT in imports
+    return False
+
+
 def render_header(version: int, profile: Profile, prefs: dict[str, Any]) -> str:
     stack = f"{profile.language}/{profile.manager}"
     stored = " ".join(
@@ -583,15 +612,15 @@ def _find_test(playbook: dict, test_id: str) -> Any:
 
 
 def diff_existing(existing_text: str, rec: Recommendation) -> dict:
-    """Compare an existing playbook with the recommendation; the caller does the merge."""
+    """Compare an existing LLM playbook with the recommendation; the caller does the merge."""
     try:
         existing = yaml.safe_load(existing_text) or {}
     except yaml.YAMLError as e:
         raise SatoriError(
-            f"Existing {EXISTING_PLAYBOOK} is not valid YAML: {e}"
+            f"Existing {LLM_PLAYBOOK} is not valid YAML: {e}"
         ) from None
     if not isinstance(existing, dict):
-        raise SatoriError(f"Existing {EXISTING_PLAYBOOK} must be a YAML mapping.")
+        raise SatoriError(f"Existing {LLM_PLAYBOOK} must be a YAML mapping.")
 
     present_commands = _strings(existing)
     missing, different = [], []

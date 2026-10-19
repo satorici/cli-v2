@@ -29,7 +29,7 @@ from ..utils.git_clone import clone_repo, require_git
 from ..utils.local_run import run_local_job
 from ..utils.output_filter import run_test_filter
 from ..utils.repo import is_github_repo
-from . import directives, recommend, shaping
+from . import recommend, shaping
 
 DOCS_URL = os.getenv("SATORI_DOCS_URL", "https://docs-v2.satori.ci").rstrip("/")
 DOC_MAX_CHARS = 30_000
@@ -73,12 +73,11 @@ mcp = FastMCP(
         "run_local runs a playbook's commands on THIS machine (results are uploaded; "
         "analyze them with get_execution_output/list_findings). "
         "recommend_playbook inspects a repo and proposes a lint/format/types/unit/security "
-        "playbook (or the changes to an existing .satori.yml); relay its `questions` to the "
-        "user, call it again with `prefs`, and write the file only with their approval. "
-        "Before editing code, run_local the playbook once as a baseline; afterwards fix only "
-        "failures that were not in the baseline. "
-        "Do not use a playbook with `# satori:mcp no-auto-run` as an automatic baseline; "
-        "those runs are blocked unless the user asked and you pass force=true. "
+        "playbook for .satori-llm.yml (or changes to an existing one); .satori.yml is for "
+        "CI/manual and should import file://.satori-llm.yml. Relay `questions` to the user, "
+        "call again with `prefs`, and write files only with their approval. "
+        "Before editing code, run_local .satori-llm.yml once as a baseline; afterwards fix "
+        "only failures that were not in the baseline. "
         "Output is always capped."
     ),
 )
@@ -142,35 +141,6 @@ def whoami() -> dict:
         "notify_email": (settings.get("notify") or {}).get("email"),
         "github_pat_configured": (
             (settings.get("github") or {}).get("token", {}).get("configured")
-        ),
-    }
-
-
-def _guard_no_auto_run(
-    playbook_path: str | None,
-    playbook_yaml: str | None,
-    playbook_uri: str | None,
-    force: bool,
-) -> dict | None:
-    """Refuse path/yaml playbooks marked `# satori:mcp no-auto-run` unless force=true."""
-    if force or playbook_uri:
-        return None
-    text: str | None = None
-    if playbook_yaml:
-        text = playbook_yaml
-    elif playbook_path:
-        path = Path(playbook_path).expanduser()
-        if path.is_file() and path.suffix in (".yml", ".yaml"):
-            text = path.read_text("utf-8", errors="replace")
-    if text is None or not directives.has_no_auto_run(text):
-        return None
-    return {
-        "error": (
-            "Playbook has `# satori:mcp no-auto-run` and will not run automatically."
-        ),
-        "hint": (
-            "Ask the user for approval, then retry with force=true. "
-            "Do not use this playbook as a baseline."
         ),
     }
 
@@ -239,29 +209,41 @@ def recommend_playbook(
 
     Detects the stack in `directory` (default: the server's current directory) for Python,
     JS/TS, Go, Java, C#, Rust, Ruby, PHP, Swift, C/C++ (CMake) or Solidity (Foundry), and
-    returns `playbook_yaml` plus a `checks` list explaining why
-    each check is there. If `.satori.yml` already exists it returns `changes` (missing or
-    different checks with `suggested_yaml`) instead of the full file; merge them yourself.
-    Only questions the repo cannot answer come back in `questions`: ask the user in chat,
-    then call again with `prefs` (e.g. {"formatter": "black", "dead_code": false}).
-    Prefs are saved in the playbook's `# satori:recommended` header, so updates only ask
-    about checks added since. Never write the file without the user's approval.
-    Workflow: run_local the playbook BEFORE changing code to capture a baseline, and after
-    each change fix only the failures that are not in the baseline. Skip that baseline if
-    the playbook has `# satori:mcp no-auto-run` (use a smaller playbook or ask the user).
+    returns content for `.satori-llm.yml` plus a `checks` list explaining why each check
+    is there. `.satori.yml` is reserved for CI/manual runs and should
+    `import: [file://.satori-llm.yml]`.
+
+    If `.satori-llm.yml` already exists (or a legacy `.satori.yml` with
+    `# satori:recommended`), returns `changes` instead of the full file; merge into
+    `.satori-llm.yml` yourself. Only questions the repo cannot answer come back in
+    `questions`: ask the user in chat, then call again with `prefs` (e.g.
+    {"formatter": "black", "dead_code": false}). Prefs are saved in the LLM playbook's
+    `# satori:recommended` header. Never write files without the user's approval.
+    Workflow: run_local `.satori-llm.yml` BEFORE changing code to capture a baseline,
+    and after each change fix only the failures that are not in the baseline.
     """
     root = Path(directory or ".").expanduser()
     if not root.is_dir():
         return {"error": f"directory must be an existing directory: {directory}"}
     root = root.resolve()
 
-    existing_path = root / recommend.EXISTING_PLAYBOOK
-    existing = (
-        existing_path.read_text("utf-8", errors="replace")
-        if existing_path.is_file()
-        else None
+    llm_path = root / recommend.LLM_PLAYBOOK
+    ci_path = root / recommend.CI_PLAYBOOK
+    llm_text = (
+        llm_path.read_text("utf-8", errors="replace") if llm_path.is_file() else None
     )
-    previous = recommend.parse_header(existing) if existing else None
+    ci_text = (
+        ci_path.read_text("utf-8", errors="replace") if ci_path.is_file() else None
+    )
+
+    # Prefer .satori-llm.yml; fall back to a legacy recommended .satori.yml for migrate.
+    legacy_ci = (
+        llm_text is None
+        and ci_text is not None
+        and recommend.has_recommended_header(ci_text)
+    )
+    existing_llm = llm_text if llm_text is not None else (ci_text if legacy_ci else None)
+    previous = recommend.parse_header(existing_llm) if existing_llm else None
 
     profile = recommend.detect(root)
     rec = recommend.build(profile, prefs, previous)
@@ -277,32 +259,54 @@ def recommend_playbook(
         "questions": rec.questions,
         "prefs": rec.prefs_used,
         "notes": rec.notes,
+        "llm_playbook": recommend.LLM_PLAYBOOK,
+        "ci_playbook": recommend.CI_PLAYBOOK,
     }
-    if existing is None:
+
+    hint_parts: list[str] = []
+    if existing_llm is None:
         result["playbook_yaml"] = shaping.clip(rec.yaml, shaping.MAX_PLAYBOOK_CHARS)
-        result["hint"] = (
-            f"Write playbook_yaml to {recommend.EXISTING_PLAYBOOK} with the user's approval, "
-            "then run_local it."
+        hint_parts.append(
+            f"Write playbook_yaml to {recommend.LLM_PLAYBOOK} with the user's approval, "
+            f"then run_local(playbook_path={recommend.LLM_PLAYBOOK!r})."
         )
     else:
         result["existing"] = True
-        result["changes"] = recommend.diff_existing(existing, rec)
+        result["changes"] = recommend.diff_existing(existing_llm, rec)
         result["header"] = rec.header
-        result["hint"] = (
-            "Merge `changes` into the existing file and replace its "
-            "`# satori:recommended` header line with `header` (add it if missing), "
-            "with the user's approval."
-        )
-        if directives.has_no_auto_run(existing):
-            result["hint"] += (
-                " Existing playbook has `# satori:mcp no-auto-run`: do not run_local it "
-                "as a baseline; use a smaller playbook or ask the user (force=true)."
+        if legacy_ci:
+            result["migrate_from_ci"] = True
+            hint_parts.append(
+                f"Move the recommended content out of {recommend.CI_PLAYBOOK} into "
+                f"{recommend.LLM_PLAYBOOK}: merge `changes`, set the `# satori:recommended` "
+                "header line to `header`, with the user's approval."
             )
+        else:
+            hint_parts.append(
+                f"Merge `changes` into {recommend.LLM_PLAYBOOK} and replace its "
+                "`# satori:recommended` header line with `header` (add it if missing), "
+                "with the user's approval."
+            )
+
+    if ci_text is None:
+        result["ci_playbook_yaml"] = recommend.ci_importer_yaml()
+        hint_parts.append(
+            f"Also write ci_playbook_yaml to {recommend.CI_PLAYBOOK} (imports the LLM file)."
+        )
+    elif not recommend.ci_imports_llm(ci_text):
+        result["needs_ci_import"] = True
+        result["ci_import_yaml"] = recommend.ci_importer_yaml()
+        hint_parts.append(
+            f"Add `import: - {recommend.LLM_IMPORT}` to {recommend.CI_PLAYBOOK} "
+            "(see ci_import_yaml); do not overwrite existing CI checks."
+        )
+
     if rec.questions:
-        result["hint"] += (
-            " Ask the user the `questions` first and call again with `prefs`; "
+        hint_parts.append(
+            "Ask the user the `questions` first and call again with `prefs`; "
             "defaults were applied meanwhile."
         )
+    result["hint"] = " ".join(hint_parts)
     return result
 
 
@@ -317,7 +321,6 @@ def run_playbook(
     regions: list[str] | None = None,
     wait: bool = True,
     wait_seconds: int = 120,
-    force: bool = False,
 ) -> dict:
     """Run a playbook on Satori and (optionally) wait for the result.
 
@@ -328,10 +331,7 @@ def run_playbook(
     Playbook syntax: read the satori-docs://playbooks/language resource first.
     For security/analysis tools, prefer JSON/JSONL stdout flags
     (satori-docs://playbooks/tool-output).
-    Playbooks with `# satori:mcp no-auto-run` are refused unless force=true (ask the user first).
     """
-    if blocked := _guard_no_auto_run(playbook_path, playbook_yaml, playbook_uri, force):
-        return blocked
     source = _bundle_source(playbook_path, playbook_yaml, playbook_uri)
     body = {
         "playbook_source": source,
@@ -395,7 +395,6 @@ async def run_local(
     parameters: dict[str, list[str]] | None = None,
     run: list[str] | None = None,
     timeout_seconds: int = LOCAL_DEFAULT_TIMEOUT,
-    force: bool = False,
 ) -> dict:
     """Run a playbook's commands on THIS machine, upload the results and return the execution.
 
@@ -406,7 +405,6 @@ async def run_local(
     default is the server's current directory. `run` limits execution to test paths with
     those prefixes. timeout_seconds max 3600.
     Returns the same shape as run_playbook; analyze with get_execution_output and list_findings.
-    Playbooks with `# satori:mcp no-auto-run` are refused unless force=true (ask the user first).
     """
     if repository and directory:
         return {"error": "Provide only one of repository or directory."}
@@ -414,8 +412,6 @@ async def run_local(
         return {"error": "repository must be 'owner/repo'."}
     if directory and not Path(directory).expanduser().is_dir():
         return {"error": f"directory must be an existing directory: {directory}"}
-    if blocked := _guard_no_auto_run(playbook_path, playbook_yaml, playbook_uri, force):
-        return blocked
 
     source = await asyncio.to_thread(
         _bundle_source, playbook_path, playbook_yaml, playbook_uri
@@ -866,7 +862,6 @@ def scan_repository(
     parameters: dict[str, list[str]] | None = None,
     regions: list[str] | None = None,
     quantity: int = 1,
-    force: bool = False,
 ) -> dict:
     """Start a scan of ONE GitHub repository with a playbook. Returns immediately.
 
@@ -875,8 +870,7 @@ def scan_repository(
     satori://code/python/pyspector_v2.yml, see list_playbooks). When none are given,
     the API uses the repository root .satori.yml. `quantity` is how many executions
     to create (max 10). Poll with get_job(job_id) / list_executions(job_id=...);
-    results via get_execution. Playbooks with `# satori:mcp no-auto-run` are refused
-    unless force=true (ask the user first).
+    results via get_execution.
     """
     if not is_github_repo(repository or ""):
         return {"error": "repository must be 'owner/repo'."}
@@ -887,8 +881,6 @@ def scan_repository(
                 "Provide at most one of playbook_path, playbook_yaml or playbook_uri."
             )
         }
-    if blocked := _guard_no_auto_run(playbook_path, playbook_yaml, playbook_uri, force):
-        return blocked
     source = (
         _bundle_source(playbook_path, playbook_yaml, playbook_uri)
         if provided == 1

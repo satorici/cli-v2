@@ -568,70 +568,7 @@ def test_run_local_returns_run_playbook_shape(monkeypatch, capsys, tmp_path):
     assert capsys.readouterr().out == ""
 
 
-def test_has_no_auto_run_directive():
-    from satori_cli.mcp_server.directives import has_no_auto_run
-
-    assert has_no_auto_run("# satori:mcp no-auto-run\nsettings:\n  name: x\n")
-    assert has_no_auto_run("settings:\n  name: x\n# satori:mcp no-auto-run\n")
-    assert has_no_auto_run("  # satori:mcp no-auto-run\n")
-    assert not has_no_auto_run("# satori:recommended v1 python/uv\n")
-    assert not has_no_auto_run("settings:\n  name: x\n")
-    assert not has_no_auto_run("# satori:mcp no-auto-run-please\n")
-
-
-def test_run_playbook_blocks_no_auto_run_yaml():
-    yaml = "# satori:mcp no-auto-run\ntest:\n  assertStdoutContains: x\n"
-    result = server.run_playbook(playbook_yaml=yaml)
-    assert "no-auto-run" in result["error"]
-    assert "force=true" in result["hint"]
-
-
-def test_run_playbook_blocks_no_auto_run_path(tmp_path):
-    path = tmp_path / "suite.yml"
-    path.write_text("# satori:mcp no-auto-run\ntest:\n  assertStdoutContains: x\n")
-    result = server.run_playbook(playbook_path=str(path))
-    assert "no-auto-run" in result["error"]
-    assert "force=true" in result["hint"]
-
-
-def test_run_playbook_force_bypasses_no_auto_run(monkeypatch, tmp_path):
-    path = tmp_path / "suite.yml"
-    path.write_text("# satori:mcp no-auto-run\ntest:\n  assertStdoutContains: x\n")
-
-    posts = []
-
-    def post(url, **kw):
-        posts.append(url)
-        if url == "/bundles":
-            return _Resp(text="b1")
-        return _Resp({"id": 7, "status": "QUEUED"})
-
-    def get(url, **kw):
-        if url == "/executions":
-            return _Resp({"items": [{"id": 99}]})
-        if url == "/jobs/7":
-            return _Resp({"status": "FINISHED"})
-        return _Resp(
-            {"id": 99, "status": "FINISHED", "report": {"total_fails": 0, "detail": []}}
-        )
-
-    monkeypatch.setattr(
-        server.BundleCache, "get_bundle_id", classmethod(lambda c, s: None)
-    )
-    monkeypatch.setattr(
-        server.BundleCache, "set_bundle_id", classmethod(lambda c, s, b: None)
-    )
-    monkeypatch.setattr(server.client, "post", post)
-    monkeypatch.setattr(server.client, "get", get)
-    monkeypatch.setattr(server.time, "sleep", lambda s: None)
-
-    result = server.run_playbook(playbook_path=str(path), force=True, wait=False)
-    assert "error" not in result
-    assert result["execution_id"] == 99
-    assert "/jobs/runs" in posts
-
-
-def test_run_playbook_without_directive_unchanged(monkeypatch):
+def test_run_playbook_basic(monkeypatch):
     posts = []
 
     def post(url, **kw):
@@ -664,31 +601,20 @@ def test_run_playbook_without_directive_unchanged(monkeypatch):
     assert "error" not in result
 
 
-def test_run_local_blocks_no_auto_run_yaml():
-    import asyncio
-
-    yaml = "# satori:mcp no-auto-run\ntest:\n  assertStdoutContains: x\n"
-    result = asyncio.run(server.run_local(playbook_yaml=yaml))
-    assert "no-auto-run" in result["error"]
-    assert "force=true" in result["hint"]
-
-
-def test_scan_repository_blocks_no_auto_run_yaml():
-    yaml = "# satori:mcp no-auto-run\ntest:\n  assertStdoutContains: x\n"
-    result = server.scan_repository("owner/repo", playbook_yaml=yaml)
-    assert "no-auto-run" in result["error"]
-
-
-def test_recommend_playbook_hints_no_auto_run(tmp_path):
+def test_recommend_playbook_hints_ci_import(tmp_path):
     (tmp_path / "pyproject.toml").write_text(
         '[project]\nname = "x"\nrequires-python = ">=3.10"\n'
     )
-    (tmp_path / ".satori.yml").write_text(
-        "# satori:mcp no-auto-run\n"
+    (tmp_path / ".satori-llm.yml").write_text(
         "# satori:recommended v2 python/uv\n"
         "settings:\n  name: x\n"
         "test:\n  assertReturnCode: 0\n"
     )
+    (tmp_path / ".satori.yml").write_text(
+        "settings:\n  name: ci\n"
+        "test:\n  assertReturnCode: 0\n"
+    )
     result = server.recommend_playbook(str(tmp_path))
     assert result.get("existing")
-    assert "no-auto-run" in result["hint"]
+    assert ".satori-llm.yml" in result["hint"]
+    assert result.get("needs_ci_import") is True
