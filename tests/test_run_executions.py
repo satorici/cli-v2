@@ -527,6 +527,46 @@ def test_run_owner_repo_without_playbook_omits_playbook_source(monkeypatch):
     assert request["body"]["repository_data"] == {"repository": "satorici/satori-cli"}
 
 
+def test_run_repo_flag_without_source_omits_playbook_source(monkeypatch):
+    request = {}
+
+    def post(path, json):
+        request["path"] = path
+        request["body"] = json
+        return _FakeResponse(
+            {
+                "id": 99,
+                "type": "SCAN",
+                "playbook_source": "bundle://resolved",
+                "visibility": "PRIVATE",
+                "created_at": "2026-01-01T00:00:00Z",
+                "repository_data": {"repository": "satorici/satori-cli"},
+                "criteria": {"quantity": 1},
+                "status": "FETCHING_DATA",
+            }
+        )
+
+    monkeypatch.setattr("satori_cli.commands.run.client.post", post)
+    monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
+    monkeypatch.setattr(
+        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [1]
+    )
+
+    result = CliRunner().invoke(run, ["--repo", "satorici/satori-cli"])
+
+    assert result.exit_code == 0, result.output
+    assert request["path"] == "/jobs/scans"
+    assert "playbook_source" not in request["body"]
+    assert request["body"]["repository_data"] == {"repository": "satorici/satori-cli"}
+
+
+def test_run_without_source_or_repo_errors():
+    result = CliRunner().invoke(run, [])
+
+    assert result.exit_code != 0
+    assert "SOURCE" in result.output
+
+
 def test_run_existing_local_owner_repo_dir_is_run_not_scan(monkeypatch, tmp_path):
     request = {}
     repo_dir = tmp_path / "owner" / "repo"

@@ -154,7 +154,7 @@ def _compact_job(job: dict, report_ids: list[int] | None = None) -> JobWrapper:
 @opts.json_opt
 @opts.visibility_opt
 def run(
-    source: Source,
+    source: Optional[Source],
     playbook: Optional[Playbook],
     region_filter: tuple[str],
     count: int,
@@ -193,9 +193,12 @@ def run(
     SOURCE may be a regular source, a playbook alias (pyspector or semgrep;
     aliases run against the current directory), or owner/repo when that path
     does not exist locally. For owner/repo without --playbook / -p, the API
-    uses the repository root .satori.yml. --repo remains available as an
-    alternative way to target a repository.
+    uses the repository root .satori.yml. SOURCE may be omitted when --repo
+    is given (same scan behavior).
     """
+    if source is None and not repository:
+        raise click.UsageError("Missing argument 'SOURCE'. Provide SOURCE or --repo.")
+
     try:
         notify = parse_notify_specs(notify_specs)
     except NotifySpecError as exc:
@@ -213,7 +216,7 @@ def run(
     if (show_output or live_output) and count > 1:
         stderr.print("WARNING: Only first execution output will be shown")
 
-    if source.type == "REPO":
+    if source is not None and source.type == "REPO":
         if repository and repository != source._arg:
             raise click.UsageError(
                 f"Conflicting repositories: SOURCE is {source._arg!r} "
@@ -223,7 +226,7 @@ def run(
 
     container_settings = {}
 
-    if local_playbook := playbook or source.playbook:
+    if local_playbook := playbook or (source.playbook if source else None):
         input = local_playbook.get_inputs_from_env(input)
         container_settings = remove_none_values(local_playbook.container_settings)
 
@@ -238,7 +241,7 @@ def run(
 
     if playbook:
         playbook_data = playbook.playbook_data()
-    elif source.type == "REPO":
+    elif source is None or source.type == "REPO":
         playbook_data = None
     else:
         playbook_data = source.playbook_data()
@@ -248,7 +251,7 @@ def run(
     else:
         tags_obj = {}
 
-    if (local_playbook := playbook or source.playbook) and (
+    if (local_playbook := playbook or (source.playbook if source else None)) and (
         expression := local_playbook.monitor_expression
     ):
         monitor_body = {
@@ -257,7 +260,7 @@ def run(
             "regions": list(region_filter),
             "expression": expression,
             "container_settings": remove_none_values(container_settings),
-            "with_files": source.type in ("DIR", "SCRIPT"),
+            "with_files": bool(source and source.type in ("DIR", "SCRIPT")),
             "visibility": visibility or "PRIVATE",
             "tags": tags_obj,
             "execution_timeout": timeout,
@@ -266,6 +269,8 @@ def run(
         monitor = client.post("/jobs/monitors", json=monitor_body).json()
 
         if files_upload := monitor.get("files_upload"):
+            if source is None:
+                raise SatoriError("Files upload requires a SOURCE")
             source.upload_files(files_upload)
 
         stdout.print(JobWrapper(monitor))

@@ -31,4 +31,4 @@ class _RunSourceParam(_SourceParam):
 
 
 source_arg = click.argument("source", type=_SourceParam())
-run_source_arg = click.argument("source", type=_RunSourceParam())
+run_source_arg = click.argument("source", type=_RunSourceParam(), required=False)
