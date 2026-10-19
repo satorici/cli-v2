@@ -9,6 +9,7 @@ settings:
 
 import:
   - satori://secrets/semgrep.yml
+  - file://.satori-llm.yml
 
 test:
   assertReturnCode: 0
