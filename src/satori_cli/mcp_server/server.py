@@ -29,7 +29,7 @@ from ..utils.git_clone import clone_repo, require_git
 from ..utils.local_run import run_local_job
 from ..utils.output_filter import run_test_filter
 from ..utils.repo import is_github_repo
-from . import recommend, shaping
+from . import directives, recommend, shaping
 
 DOCS_URL = os.getenv("SATORI_DOCS_URL", "https://docs-v2.satori.ci").rstrip("/")
 DOC_MAX_CHARS = 30_000
@@ -77,6 +77,8 @@ mcp = FastMCP(
         "user, call it again with `prefs`, and write the file only with their approval. "
         "Before editing code, run_local the playbook once as a baseline; afterwards fix only "
         "failures that were not in the baseline. "
+        "Do not use a playbook with `# satori:mcp no-auto-run` as an automatic baseline; "
+        "those runs are blocked unless the user asked and you pass force=true. "
         "Output is always capped."
     ),
 )
@@ -140,6 +142,35 @@ def whoami() -> dict:
         "notify_email": (settings.get("notify") or {}).get("email"),
         "github_pat_configured": (
             (settings.get("github") or {}).get("token", {}).get("configured")
+        ),
+    }
+
+
+def _guard_no_auto_run(
+    playbook_path: str | None,
+    playbook_yaml: str | None,
+    playbook_uri: str | None,
+    force: bool,
+) -> dict | None:
+    """Refuse path/yaml playbooks marked `# satori:mcp no-auto-run` unless force=true."""
+    if force or playbook_uri:
+        return None
+    text: str | None = None
+    if playbook_yaml:
+        text = playbook_yaml
+    elif playbook_path:
+        path = Path(playbook_path).expanduser()
+        if path.is_file() and path.suffix in (".yml", ".yaml"):
+            text = path.read_text("utf-8", errors="replace")
+    if text is None or not directives.has_no_auto_run(text):
+        return None
+    return {
+        "error": (
+            "Playbook has `# satori:mcp no-auto-run` and will not run automatically."
+        ),
+        "hint": (
+            "Ask the user for approval, then retry with force=true. "
+            "Do not use this playbook as a baseline."
         ),
     }
 
@@ -216,7 +247,8 @@ def recommend_playbook(
     Prefs are saved in the playbook's `# satori:recommended` header, so updates only ask
     about checks added since. Never write the file without the user's approval.
     Workflow: run_local the playbook BEFORE changing code to capture a baseline, and after
-    each change fix only the failures that are not in the baseline.
+    each change fix only the failures that are not in the baseline. Skip that baseline if
+    the playbook has `# satori:mcp no-auto-run` (use a smaller playbook or ask the user).
     """
     root = Path(directory or ".").expanduser()
     if not root.is_dir():
@@ -261,6 +293,11 @@ def recommend_playbook(
             "`# satori:recommended` header line with `header` (add it if missing), "
             "with the user's approval."
         )
+        if directives.has_no_auto_run(existing):
+            result["hint"] += (
+                " Existing playbook has `# satori:mcp no-auto-run`: do not run_local it "
+                "as a baseline; use a smaller playbook or ask the user (force=true)."
+            )
     if rec.questions:
         result["hint"] += (
             " Ask the user the `questions` first and call again with `prefs`; "
@@ -280,6 +317,7 @@ def run_playbook(
     regions: list[str] | None = None,
     wait: bool = True,
     wait_seconds: int = 120,
+    force: bool = False,
 ) -> dict:
     """Run a playbook on Satori and (optionally) wait for the result.
 
@@ -290,7 +328,10 @@ def run_playbook(
     Playbook syntax: read the satori-docs://playbooks/language resource first.
     For security/analysis tools, prefer JSON/JSONL stdout flags
     (satori-docs://playbooks/tool-output).
+    Playbooks with `# satori:mcp no-auto-run` are refused unless force=true (ask the user first).
     """
+    if blocked := _guard_no_auto_run(playbook_path, playbook_yaml, playbook_uri, force):
+        return blocked
     source = _bundle_source(playbook_path, playbook_yaml, playbook_uri)
     body = {
         "playbook_source": source,
@@ -354,6 +395,7 @@ async def run_local(
     parameters: dict[str, list[str]] | None = None,
     run: list[str] | None = None,
     timeout_seconds: int = LOCAL_DEFAULT_TIMEOUT,
+    force: bool = False,
 ) -> dict:
     """Run a playbook's commands on THIS machine, upload the results and return the execution.
 
@@ -364,6 +406,7 @@ async def run_local(
     default is the server's current directory. `run` limits execution to test paths with
     those prefixes. timeout_seconds max 3600.
     Returns the same shape as run_playbook; analyze with get_execution_output and list_findings.
+    Playbooks with `# satori:mcp no-auto-run` are refused unless force=true (ask the user first).
     """
     if repository and directory:
         return {"error": "Provide only one of repository or directory."}
@@ -371,6 +414,8 @@ async def run_local(
         return {"error": "repository must be 'owner/repo'."}
     if directory and not Path(directory).expanduser().is_dir():
         return {"error": f"directory must be an existing directory: {directory}"}
+    if blocked := _guard_no_auto_run(playbook_path, playbook_yaml, playbook_uri, force):
+        return blocked
 
     source = await asyncio.to_thread(
         _bundle_source, playbook_path, playbook_yaml, playbook_uri
@@ -821,6 +866,7 @@ def scan_repository(
     parameters: dict[str, list[str]] | None = None,
     regions: list[str] | None = None,
     quantity: int = 1,
+    force: bool = False,
 ) -> dict:
     """Start a scan of ONE GitHub repository with a playbook. Returns immediately.
 
@@ -828,9 +874,12 @@ def scan_repository(
     playbook_path, playbook_yaml or playbook_uri (e.g. satori://code/python/pyspector_v2.yml,
     see list_playbooks). `quantity` is how many executions to create (max 10).
     Poll with get_job(job_id) / list_executions(job_id=...); results via get_execution.
+    Playbooks with `# satori:mcp no-auto-run` are refused unless force=true (ask the user first).
     """
     if not is_github_repo(repository or ""):
         return {"error": "repository must be 'owner/repo'."}
+    if blocked := _guard_no_auto_run(playbook_path, playbook_yaml, playbook_uri, force):
+        return blocked
     source = _bundle_source(playbook_path, playbook_yaml, playbook_uri)
     quantity = max(1, min(quantity, MAX_SCAN_QUANTITY))
     body = {
