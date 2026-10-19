@@ -345,6 +345,9 @@ def run(
 
     run_id = run["id"]
     report_ids = _wait_execution_ids_for_job(run_id, quantity=count)
+    # announce the report id(s) as soon as the executions exist -- before a --sync run blocks on
+    # completion -- so the run can be opened while it is still going
+    _print_report_urls(report_ids)
 
     if (
         sync
