@@ -6,7 +6,7 @@ from importlib.metadata import distribution, version
 from typing import Optional
 
 import rich_click as click
-from httpx2 import HTTPStatusError
+from httpx2 import HTTPStatusError, TimeoutException, TransportError
 
 from .commands.advisory import advisories, advisory
 from .commands.config import config_
@@ -111,6 +111,11 @@ def main():
         return
     except HTTPStatusError as e:
         stderr.print_json(e.response.text)
+    except TransportError as e:
+        # a network timeout / connection failure: a clean message, not a traceback (the name
+        # is kept so callers that retry transient errors can still recognise it)
+        kind = "timed out" if isinstance(e, TimeoutException) else "failed to connect"
+        stderr.print(f"ERROR: request to Satori {kind} ({type(e).__name__})")
     except SatoriError as e:
         stderr.print("ERROR:", e)
 
