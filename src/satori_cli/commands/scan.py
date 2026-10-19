@@ -9,13 +9,16 @@ from ..utils import options as opts
 from ..utils.arguments import Source, _SourceParam
 from ..utils.console import stdout, wait_job_until_finished
 from ..utils.misc import list_jobs, remove_none_values
+from ..utils.repo import is_wildcard_repo, normalize_repo_target
 from ..utils.wrappers import JobWrapper
 
 
 class ScanGroup(click.Group):
     def parse_args(self, ctx, args):
+        # `scan ID`, `scan ID status` and `scan ID --json` manage a scan; anything else
+        # creates one (a bare number would otherwise become the `ID/*` wildcard)
         if args and args[0].isdigit() and (
-            len(args) == 1 or args[1] in self.commands
+            len(args) == 1 or args[1] in self.commands or args[1].startswith("-")
         ):
             ctx.obj = int(args.pop(0))
         return super().parse_args(ctx, args)
@@ -48,6 +51,10 @@ def scan(ctx, **kwargs):
 
     When SOURCE / --playbook is omitted, the API uses the repository root
     .satori.yml.
+
+    REPOSITORY may be owner/* (or owner) to scan the HEAD of every repository
+    of owner in one job, each with its own root .satori.yml unless a playbook
+    is given.
 
     Manage: scan SCAN_ID [status|stop|clean|delete]
     """
@@ -91,6 +98,12 @@ def scan_create(
 ):
     if source and source.type == "DIR":
         raise SatoriError("Directory sources are not compatible with scan")
+
+    repository = normalize_repo_target(repository)
+    if is_wildcard_repo(repository) and quantity is not None and quantity > 1:
+        raise click.UsageError(
+            "Wildcard scans run each repository's HEAD only; --quantity must be 1"
+        )
 
     input = opts.apply_splits(input, split)
     input = opts.apply_data_files(input, data_file)

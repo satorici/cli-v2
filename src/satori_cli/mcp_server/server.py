@@ -28,7 +28,7 @@ from ..utils.console import load_execution_outputs
 from ..utils.git_clone import clone_repo, require_git
 from ..utils.local_run import run_local_job
 from ..utils.output_filter import run_test_filter
-from ..utils.repo import is_github_repo
+from ..utils.repo import is_github_repo, wildcard_owner
 from . import recommend, shaping
 
 DOCS_URL = os.getenv("SATORI_DOCS_URL", "https://docs-v2.satori.ci").rstrip("/")
@@ -408,6 +408,8 @@ async def run_local(
     """
     if repository and directory:
         return {"error": "Provide only one of repository or directory."}
+    if repository and repository.endswith("/*"):
+        return {"error": "wildcard is not supported on local"}
     if repository and not is_github_repo(repository):
         return {"error": "repository must be 'owner/repo'."}
     if directory and not Path(directory).expanduser().is_dir():
@@ -863,17 +865,21 @@ def scan_repository(
     regions: list[str] | None = None,
     quantity: int = 1,
 ) -> dict:
-    """Start a scan of ONE GitHub repository with a playbook. Returns immediately.
+    """Start a scan of a GitHub repository with a playbook. Returns immediately.
 
-    `repository` is required, as "owner/repo" (see list_repos). Optionally provide
+    `repository` is required, as "owner/repo" (see list_repos), or "owner/*" to scan
+    the HEAD of every repository of owner (up to 100) in one job; only use "owner/*"
+    when the user asked for all of an owner's repositories. Optionally provide
     EXACTLY ONE of playbook_path, playbook_yaml or playbook_uri (e.g.
     satori://code/python/pyspector_v2.yml, see list_playbooks). When none are given,
-    the API uses the repository root .satori.yml. `quantity` is how many executions
-    to create (max 10). Poll with get_job(job_id) / list_executions(job_id=...);
-    results via get_execution.
+    the API uses the repository root .satori.yml (each repository's own for "owner/*",
+    skipping repositories without one). `quantity` is how many executions to create
+    (max 10; always 1 per repository for "owner/*"). Poll with get_job(job_id) /
+    list_executions(job_id=...); results via get_execution.
     """
-    if not is_github_repo(repository or ""):
-        return {"error": "repository must be 'owner/repo'."}
+    wildcard = (repository or "").endswith("/*") and bool(wildcard_owner(repository))
+    if not wildcard and not is_github_repo(repository or ""):
+        return {"error": "repository must be 'owner/repo' or 'owner/*'."}
     provided = sum(map(bool, (playbook_path, playbook_yaml, playbook_uri)))
     if provided > 1:
         return {
@@ -886,7 +892,7 @@ def scan_repository(
         if provided == 1
         else None
     )
-    quantity = max(1, min(quantity, MAX_SCAN_QUANTITY))
+    quantity = 1 if wildcard else max(1, min(quantity, MAX_SCAN_QUANTITY))
     body: dict[str, Any] = {
         "parameters": parameters or {},
         "regions": regions or [],

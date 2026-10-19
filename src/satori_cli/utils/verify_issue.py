@@ -126,8 +126,17 @@ def resolve_repository(finding_id: int) -> tuple[dict[str, Any], str]:
             f"Execution {execution_id} has no job_id; cannot resolve repository."
         )
 
+    # Executions of a wildcard scan (owner/*) record the repository they ran on
+    repository = (execution.get("data") or {}).get("repository")
+    if repository:
+        return finding, repository
+
     job = client.get(f"/jobs/{job_id}").json()
     repository = repository_from_job(job)
+    if repository and repository.endswith("/*"):
+        raise click.UsageError(
+            f"Execution {execution_id} does not record which repository it scanned."
+        )
     if not repository:
         raise click.UsageError(
             f"Job {job_id} (type={job.get('type')!r}) has no associated repository."

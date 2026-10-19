@@ -25,6 +25,11 @@ from ..utils.console import (
 from ..utils.format import is_json_output
 from ..utils.misc import remove_none_values
 from ..utils.notify import NotifySpecError, parse_notify_specs
+from ..utils.repo import (
+    MAX_WILDCARD_REPOSITORIES,
+    is_wildcard_repo,
+    normalize_repo_target,
+)
 from ..utils.verify_issue import list_finding_ids_for_execution
 from ..utils.verify_issue import verify_findings as run_verify_findings
 from ..utils.wrappers import (
@@ -87,6 +92,57 @@ def _print_report_urls(execution_ids: list[int]) -> None:
 
 def _compact_job(job: dict, report_ids: list[int] | None = None) -> JobWrapper:
     return JobWrapper(job, compact=True, report_ids=report_ids or None)
+
+
+def _print_skipped_repositories(job: dict) -> None:
+    data = job.get("repository_data") or {}
+    for skipped in data.get("skipped") or []:
+        stderr.print(
+            f"WARNING: skipped {skipped.get('repository')}: {skipped.get('reason')}"
+        )
+    if truncated := data.get("truncated"):
+        stderr.print(
+            f"WARNING: {truncated} more repositories were left out "
+            f"(limit {MAX_WILDCARD_REPOSITORIES})"
+        )
+    if error := data.get("error"):
+        stderr.print(f"WARNING: {error}")
+
+
+def _show_execution(
+    execution_id: int,
+    *,
+    show_stdout: bool,
+    show_stderr: bool,
+    show_output: bool,
+    show_report: bool,
+    show_issues: bool,
+) -> None:
+    if show_stdout:
+        stderr.print(f"Execution {execution_id} stdout:")
+        show_raw_output(execution_id, "stdout")
+
+    if show_stderr:
+        stderr.print(f"Execution {execution_id} stderr:")
+        show_raw_output(execution_id, "stderr")
+
+    if show_output:
+        stderr.print(f"Execution {execution_id} output:")
+        show_execution_output(execution_id)
+
+    if show_report:
+        res = client.get(f"/executions/{execution_id}")
+        execution = res.json()
+        if report := execution.get("report"):
+            if detail := report.get("detail"):
+                stdout.print(ReportWrapper(detail))
+            else:
+                stderr.print("No report detail available for this execution.")
+        else:
+            stderr.print("No report available for this execution.")
+
+    if show_issues:
+        list_issues(page=1, quantity=10, execution_id=execution_id)
 
 
 @click.command()
@@ -195,9 +251,15 @@ def run(
     does not exist locally. For owner/repo without --playbook / -p, the API
     uses the repository root .satori.yml. SOURCE may be omitted when --repo
     is given (same scan behavior).
+
+    --repo owner/* (or --repo owner) scans the HEAD of every repository of
+    owner in one job, each with its own root .satori.yml unless a playbook is
+    given. Wildcards are only accepted through --repo.
     """
     if source is None and not repository:
         raise click.UsageError("Missing argument 'SOURCE'. Provide SOURCE or --repo.")
+    if repository:
+        repository = normalize_repo_target(repository)
 
     try:
         notify = parse_notify_specs(notify_specs)
@@ -290,7 +352,12 @@ def run(
         if playbook_data is not None:
             scan_body["playbook_source"] = playbook_data
         scan_job = client.post("/jobs/scans", json=scan_body).json()
-        report_ids = _wait_execution_ids_for_job(scan_job["id"], quantity=1)
+        wildcard = is_wildcard_repo(repository)
+        # A wildcard scan resolves its repositories in the background, so its
+        # executions only show up once it is RUNNING
+        report_ids = (
+            [] if wildcard else _wait_execution_ids_for_job(scan_job["id"], quantity=1)
+        )
         stdout.print(_compact_job(scan_job, report_ids))
 
         needs_execution = (
@@ -304,42 +371,36 @@ def run(
         if sync or needs_execution:
             wait_job_until_finished(scan_job["id"])
 
-        if needs_execution:
-            execution_id = report_ids[0] if report_ids else _require_first_execution_id(
-                scan_job["id"]
+        if wildcard and (sync or needs_execution):
+            _print_skipped_repositories(client.get(f"/jobs/{scan_job['id']}").json())
+            report_ids = _execution_ids_for_job(
+                scan_job["id"], quantity=MAX_WILDCARD_REPOSITORIES
             )
 
-            if show_stdout:
-                stderr.print(f"Execution {execution_id} stdout:")
-                show_raw_output(execution_id, "stdout")
+        if needs_execution:
+            if wildcard:
+                if not report_ids:
+                    raise SatoriError(f"No executions found for scan {scan_job['id']}")
+                execution_ids = report_ids
+            else:
+                execution_ids = [
+                    report_ids[0]
+                    if report_ids
+                    else _require_first_execution_id(scan_job["id"])
+                ]
 
-            if show_stderr:
-                stderr.print(f"Execution {execution_id} stderr:")
-                show_raw_output(execution_id, "stderr")
-
-            if show_output:
-                stderr.print(f"Execution {execution_id} output:")
-                show_execution_output(execution_id)
-
-            if show_report:
-                res = client.get(f"/executions/{execution_id}")
-                execution = res.json()
-                if report := execution.get("report"):
-                    if detail := report.get("detail"):
-                        stdout.print(ReportWrapper(detail))
-                    else:
-                        stderr.print("No report detail available for this execution.")
-                else:
-                    stderr.print("No report available for this execution.")
-
-            if show_issues:
-                list_issues(page=1, quantity=10, execution_id=execution_id)
+            for execution_id in execution_ids:
+                _show_execution(
+                    execution_id,
+                    show_stdout=show_stdout,
+                    show_stderr=show_stderr,
+                    show_output=show_output,
+                    show_report=show_report,
+                    show_issues=show_issues,
+                )
 
             if verify_findings:
-                _verify_executions(
-                    report_ids if report_ids else [execution_id],
-                    min_severity,
-                )
+                _verify_executions(report_ids or execution_ids, min_severity)
         return
 
     body = {

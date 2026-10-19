@@ -21,6 +21,7 @@ from ..utils.format import is_json_output
 from ..utils.git_clone import clone_repo, require_git
 from ..utils.highlight import highlight_result
 from ..utils.local_run import run_local_job
+from ..utils.repo import wildcard_owner
 from ..utils.verify_issue import list_finding_ids_for_execution
 from ..utils.verify_issue import verify_findings as run_verify_findings
 from ..utils.wrappers import JobWrapper, OutputWrapper, ReportWrapper
@@ -86,6 +87,8 @@ def local(
 ):
     if do_verify and not repository:
         raise click.UsageError("--verify requires --repo so findings can be resolved.")
+    if repository and wildcard_owner(repository):
+        raise click.UsageError("wildcard is not supported on local")
 
     input = opts.apply_splits(input, split)
     input = opts.apply_data_files(input, data_file)

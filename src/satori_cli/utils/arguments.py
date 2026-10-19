@@ -3,7 +3,7 @@ from pathlib import Path
 import click
 
 from ..models import Playbook, Source
-from .repo import is_github_repo
+from .repo import is_github_repo, is_wildcard_repo, wildcard_owner
 
 
 RUN_PLAYBOOK_ALIASES = {
@@ -24,8 +24,18 @@ class _RunSourceParam(_SourceParam):
             source.playbook = Playbook(playbook_uri)
             return source
 
-        if not Path(value).exists() and is_github_repo(value):
-            return Source.as_repo(value)
+        if not Path(value).exists():
+            if is_github_repo(value):
+                return Source.as_repo(value)
+            # A mistyped folder must not scan some GitHub owner's repositories, so
+            # wildcards are only taken from --repo
+            if is_wildcard_repo(value) and (owner := wildcard_owner(value)):
+                self.fail(
+                    f"{value!r} is not a local path. To scan every repository of "
+                    f"{owner}, use --repo {owner}/*",
+                    param,
+                    ctx,
+                )
 
         return super().convert(value, param, ctx)
 

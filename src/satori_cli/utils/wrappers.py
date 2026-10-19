@@ -56,17 +56,38 @@ def command_generator(job: dict):
         return f"satori-v2 run {job['playbook_source']}"
 
     if job_type == "SCAN":
-        command = [
-            "satori-v2",
-            "scan",
-            job["repository_data"]["repository"],
-            job["playbook_source"],
-        ]
+        repository = job["repository_data"]["repository"]
+        command = ["satori-v2", "scan"]
+        if repository.endswith("/*"):
+            command.append(f"'{repository}'")
+        else:
+            command.append(repository)
+        # Wildcard scans without a playbook run each repository's own .satori.yml
+        if job["playbook_source"] != "repo://.satori.yml":
+            command.append(job["playbook_source"])
         if quantity := (job.get("criteria") or {}).get("quantity"):
             command.extend(["-q", str(quantity)])
         return " ".join(command)
 
     return f"satori-v2 {job_type.lower()} {job['playbook_source']}"
+
+
+def _wildcard_scan_rows(job: dict) -> list[tuple[str, str]]:
+    """Repositories scanned and left out by a wildcard (owner/*) scan."""
+    data = job.get("repository_data") or {}
+    if not data.get("wildcard"):
+        return []
+
+    rows = []
+    if (repositories := data.get("repositories")) is not None:
+        rows.append(("Repositories", str(len(repositories))))
+    for skipped in data.get("skipped") or []:
+        rows.append(("Skipped", f"{skipped.get('repository')}: {skipped.get('reason')}"))
+    if truncated := data.get("truncated"):
+        rows.append(("Not scanned", f"{truncated} more over the limit"))
+    if error := data.get("error"):
+        rows.append(("Error", str(error)))
+    return rows
 
 
 @has_json_output
@@ -116,6 +137,10 @@ class JobWrapper(Wrapper[dict]):
             if job["type"] == "RUN":
                 job_grid.add_row("Execution count", highlight_text(str(job["count"])))
                 job_grid.add_row("Result", result)
+
+            if job["type"] == "SCAN" and not self.compact:
+                for label, value in _wildcard_scan_rows(job):
+                    job_grid.add_row(label, highlight_text(value))
 
             if job["type"] == "MONITOR":
                 job_grid.add_row(
