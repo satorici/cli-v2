@@ -870,32 +870,46 @@ def scan_repository(
 ) -> dict:
     """Start a scan of ONE GitHub repository with a playbook. Returns immediately.
 
-    `repository` is required, as "owner/repo" (see list_repos). Provide EXACTLY ONE of
-    playbook_path, playbook_yaml or playbook_uri (e.g. satori://code/python/pyspector_v2.yml,
-    see list_playbooks). `quantity` is how many executions to create (max 10).
-    Poll with get_job(job_id) / list_executions(job_id=...); results via get_execution.
-    Playbooks with `# satori:mcp no-auto-run` are refused unless force=true (ask the user first).
+    `repository` is required, as "owner/repo" (see list_repos). Optionally provide
+    EXACTLY ONE of playbook_path, playbook_yaml or playbook_uri (e.g.
+    satori://code/python/pyspector_v2.yml, see list_playbooks). When none are given,
+    the API uses the repository root .satori.yml. `quantity` is how many executions
+    to create (max 10). Poll with get_job(job_id) / list_executions(job_id=...);
+    results via get_execution. Playbooks with `# satori:mcp no-auto-run` are refused
+    unless force=true (ask the user first).
     """
     if not is_github_repo(repository or ""):
         return {"error": "repository must be 'owner/repo'."}
+    provided = sum(map(bool, (playbook_path, playbook_yaml, playbook_uri)))
+    if provided > 1:
+        return {
+            "error": (
+                "Provide at most one of playbook_path, playbook_yaml or playbook_uri."
+            )
+        }
     if blocked := _guard_no_auto_run(playbook_path, playbook_yaml, playbook_uri, force):
         return blocked
-    source = _bundle_source(playbook_path, playbook_yaml, playbook_uri)
+    source = (
+        _bundle_source(playbook_path, playbook_yaml, playbook_uri)
+        if provided == 1
+        else None
+    )
     quantity = max(1, min(quantity, MAX_SCAN_QUANTITY))
-    body = {
-        "playbook_source": source,
+    body: dict[str, Any] = {
         "parameters": parameters or {},
         "regions": regions or [],
         "repository_data": {"repository": repository},
         "criteria": {"quantity": quantity},
         "visibility": "PRIVATE",
     }
+    if source is not None:
+        body["playbook_source"] = source
     scan = client.post("/jobs/scans", json=body).json()
     return {
         "job_id": scan["id"],
         "status": scan.get("status"),
         "repository": repository,
-        "playbook_source": source,
+        "playbook_source": scan.get("playbook_source") or source,
         "hint": "Call get_job(job_id) to follow progress and see its executions.",
     }
 

@@ -192,8 +192,9 @@ def run(
 
     SOURCE may be a regular source, a playbook alias (pyspector or semgrep;
     aliases run against the current directory), or owner/repo when that path
-    does not exist locally. For owner/repo, --playbook / -p is required.
-    --repo remains available as an alternative way to target a repository.
+    does not exist locally. For owner/repo without --playbook / -p, the API
+    uses the repository root .satori.yml. --repo remains available as an
+    alternative way to target a repository.
     """
     try:
         notify = parse_notify_specs(notify_specs)
@@ -219,10 +220,6 @@ def run(
                 f"but --repo is {repository!r}"
             )
         repository = source._arg
-        if not playbook:
-            raise click.UsageError(
-                "SOURCE is a repository; --playbook / -p is required"
-            )
 
     container_settings = {}
 
@@ -239,7 +236,12 @@ def run(
         )
     )
 
-    playbook_data = playbook.playbook_data() if playbook else source.playbook_data()
+    if playbook:
+        playbook_data = playbook.playbook_data()
+    elif source.type == "REPO":
+        playbook_data = None
+    else:
+        playbook_data = source.playbook_data()
 
     if tags:
         tags_obj = {k: v for k, v in tags}
@@ -271,7 +273,6 @@ def run(
 
     if repository:
         scan_body = {
-            "playbook_source": playbook_data,
             "parameters": input,
             "regions": list(region_filter),
             "repository_data": {"repository": repository},
@@ -281,6 +282,8 @@ def run(
             "tags": tags_obj,
             "execution_timeout": timeout,
         }
+        if playbook_data is not None:
+            scan_body["playbook_source"] = playbook_data
         scan_job = client.post("/jobs/scans", json=scan_body).json()
         report_ids = _wait_execution_ids_for_job(scan_job["id"], quantity=1)
         stdout.print(_compact_job(scan_job, report_ids))

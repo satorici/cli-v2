@@ -353,20 +353,40 @@ def test_scan_repository_validates_and_caps(monkeypatch):
         "owner/repo"
         in server.scan_repository("nope", playbook_uri="satori://a.yml")["error"]
     )
-    assert "exactly one" in server.scan_repository("o/r")["error"]
+    assert "at most one" in server.scan_repository(
+        "o/r", playbook_uri="satori://a.yml", playbook_yaml="cmd: []"
+    )["error"]
 
     seen = {}
 
     def post(url, **kw):
         seen["url"], seen["body"] = url, kw["json"]
-        return _Resp({"id": 3, "status": "QUEUED"})
+        return _Resp({"id": 3, "status": "QUEUED", "playbook_source": "satori://a.yml"})
 
     monkeypatch.setattr(server.client, "post", post)
     result = server.scan_repository("o/r", playbook_uri="satori://a.yml", quantity=99)
     assert seen["url"] == "/jobs/scans"
     assert seen["body"]["repository_data"] == {"repository": "o/r"}
     assert seen["body"]["criteria"] == {"quantity": 10}
+    assert seen["body"]["playbook_source"] == "satori://a.yml"
     assert result["job_id"] == 3
+
+
+def test_scan_repository_without_playbook_omits_source(monkeypatch):
+    seen = {}
+
+    def post(url, **kw):
+        seen["url"], seen["body"] = url, kw["json"]
+        return _Resp(
+            {"id": 4, "status": "QUEUED", "playbook_source": "bundle://from-repo"}
+        )
+
+    monkeypatch.setattr(server.client, "post", post)
+    result = server.scan_repository("o/r")
+    assert seen["url"] == "/jobs/scans"
+    assert "playbook_source" not in seen["body"]
+    assert result["job_id"] == 4
+    assert result["playbook_source"] == "bundle://from-repo"
 
 
 def test_list_playbooks_filters_and_pages(monkeypatch):

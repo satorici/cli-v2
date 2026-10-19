@@ -111,11 +111,23 @@ def test_scan_playbook_overrides_positional_source(monkeypatch):
     assert request["body"]["playbook_source"] == "satori://preferred.yml"
 
 
-def test_scan_requires_source_or_playbook():
+def test_scan_without_playbook_omits_playbook_source(monkeypatch):
+    request = {}
+
+    def post(path, json):
+        request["path"] = path
+        request["body"] = json
+        return _FakeResponse(_scan_response("bundle://resolved"))
+
+    monkeypatch.setattr("satori_cli.commands.scan.client.post", post)
+    monkeypatch.setattr("satori_cli.commands.scan.stdout.print", lambda *args: None)
+
     result = CliRunner().invoke(scan, ["satorici/satori-cli"])
 
-    assert result.exit_code != 0
-    assert "SOURCE or --playbook is required" in result.output
+    assert result.exit_code == 0, result.output
+    assert request["path"] == "/jobs/scans"
+    assert "playbook_source" not in request["body"]
+    assert request["body"]["repository_data"] == {"repository": "satorici/satori-cli"}
 
 
 def test_command_generator_scan_order():

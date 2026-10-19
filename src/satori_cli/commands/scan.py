@@ -43,8 +43,11 @@ def list_scans(page: int, quantity: int, visibility: Optional[str], **kwargs):
 def scan(ctx, **kwargs):
     """Start a repository scan or manage an existing scan.
 
-    Create: scan REPOSITORY SOURCE [OPTIONS]
+    Create: scan REPOSITORY [SOURCE] [OPTIONS]
             scan REPOSITORY --playbook SOURCE [OPTIONS]
+
+    When SOURCE / --playbook is omitted, the API uses the repository root
+    .satori.yml.
 
     Manage: scan SCAN_ID [status|stop|clean|delete]
     """
@@ -86,9 +89,6 @@ def scan_create(
     visibility: Optional[str],
     **kwargs,
 ):
-    if not source and not playbook:
-        raise click.UsageError("SOURCE or --playbook is required")
-
     if source and source.type == "DIR":
         raise SatoriError("Directory sources are not compatible with scan")
 
@@ -108,12 +108,14 @@ def scan_create(
         )
     )
 
-    playbook_data = (
-        playbook.playbook_data() if playbook else source.playbook_data()
-    )
+    if playbook:
+        playbook_data = playbook.playbook_data()
+    elif source:
+        playbook_data = source.playbook_data()
+    else:
+        playbook_data = None
 
     body = {
-        "playbook_source": playbook_data,
         "parameters": input,
         "regions": list(region_filter),
         "repository_data": {"repository": repository},
@@ -121,6 +123,8 @@ def scan_create(
         "container_settings": remove_none_values(container_settings),
         "visibility": visibility or "PRIVATE",
     }
+    if playbook_data is not None:
+        body["playbook_source"] = playbook_data
 
     res = client.post("/jobs/scans", json=body)
     scan_job = res.json()
