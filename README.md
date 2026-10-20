@@ -108,13 +108,36 @@ Running `satori-v2` with no subcommand lists your jobs (dashboard). Use `--publi
 
 ## MCP server (Cursor, Claude Code, Codex)
 
-`satori-v2 mcp` starts a local stdio [MCP](https://modelcontextprotocol.io) server that uses the
-token from `satori-v2 config token`. Add it to your agent config:
+`satori-v2 mcp` starts a local stdio [MCP](https://modelcontextprotocol.io) server. Auth comes from
+`satori-v2 config token` or `SATORI_TOKEN` (env overrides the credentials file). Add it to your
+agent config:
 
 ```json
 {
   "mcpServers": {
     "satori": { "command": "satori-v2", "args": ["mcp"] }
+  }
+}
+```
+
+Alternatively, with [uv](https://docs.astral.sh/uv/) you can run from the GitHub repo without a
+global install — ideal for CI environments (ephemeral install + `SATORI_TOKEN`):
+
+```json
+{
+  "mcpServers": {
+    "satori": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/satorici/cli-v2",
+        "satori-v2",
+        "mcp"
+      ],
+      "env": {
+        "SATORI_TOKEN": "YOUR_TOKEN"
+      }
+    }
   }
 }
 ```
