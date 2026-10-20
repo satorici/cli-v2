@@ -448,7 +448,7 @@ def test_list_findings_accepts_severity_names(monkeypatch):
 
     monkeypatch.setattr(server.client, "get", get)
     server.list_findings(severity=["HIGH", "low", 5])
-    assert seen["severity"] == [3, 1, 5]
+    assert seen["severity"] == [2, 4, 5]
     assert "Invalid severity" in server.list_findings(severity=["NOPE"])["error"]
     assert "0-5" in server.list_findings(severity=[9])["error"]
 

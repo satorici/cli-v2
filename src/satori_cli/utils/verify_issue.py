@@ -26,12 +26,12 @@ from .git_clone import clone_repo, require_git
 
 _SNAPSHOT_MAX_CHARS = 12_000
 _RISK_LABELS = {
-    0: "Info",
-    1: "Low",
-    2: "Medium",
-    3: "High",
-    4: "Critical",
-    5: "Blocker",
+    0: "Blocker",
+    1: "Critical",
+    2: "High",
+    3: "Medium",
+    4: "Low",
+    5: "Info",
 }
 _SEVERITY_RANK = {label.lower(): value for value, label in _RISK_LABELS.items()}
 
@@ -357,7 +357,8 @@ def _meets_severity(finding: dict[str, Any], floor: Optional[int]) -> bool:
     if floor is None:
         return True
     severity = finding.get("severity")
-    return isinstance(severity, int) and severity >= floor
+    # 0 = Blocker … 5 = Info: "at or above" means a number at or below the floor.
+    return isinstance(severity, int) and severity <= floor
 
 
 # A cloned repo's agent config we move aside before running Claude in it: `.claude/` (hooks,

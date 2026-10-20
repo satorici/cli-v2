@@ -503,7 +503,7 @@ def list_executions(
     In Satori, reports = executions. Use list_executions (or list_reports) to list reports.
     status: any of QUEUED, RUNNING, FINISHED, CANCELED. report_status: PASS or FAIL.
     job_type: RUN, SCAN, MONITOR, GITHUB or LOCAL. from_/to: ISO datetimes (from_ < to).
-    visibility: PUBLIC, PRIVATE or UNLISTED. severity: report severity 0-5.
+    visibility: PUBLIC, PRIVATE or UNLISTED. severity: report severity 0-5 (0=Blocker, 1=Critical, 2=High, 3=Medium, 4=Low, 5=Info).
     playbook: playbook filter. tags: key:value strings. id_gt/id_lt: id range.
     global_: include public executions from others. order: ASC or DESC (default DESC).
     q: free-text search. Max 25 per page; use next_page to continue.
@@ -693,7 +693,7 @@ def list_findings(
     quantity: int = 25,
     page: int = 1,
 ) -> dict:
-    """List findings (severity 0-5 or INFO/LOW/MEDIUM/HIGH/CRITICAL/BLOCKER).
+    """List findings (severity 0-5, where 0=BLOCKER … 5=INFO, or the names).
 
     status: OPEN, INVESTIGATING, TP, FIXED, FP, ACCEPTED.
     source: ASSERT (playbook assertion failures) or TOOL (findings parsed from tool output).

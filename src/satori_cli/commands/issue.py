@@ -27,7 +27,8 @@ ISSUE_STATUSES = [
     "ACCEPTED",
 ]
 
-SEVERITY_ALIASES = ("INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL", "BLOCKER")
+# The position is the numeric severity: 0 = BLOCKER (worst) … 5 = INFO.
+SEVERITY_ALIASES = ("BLOCKER", "CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO")
 
 
 def severity_name_to_int(name: str) -> int | None:
@@ -105,8 +106,7 @@ def list_issues(
     if order is None:
         data["items"] = sorted(
             data["items"],
-            key=lambda f: f.get("severity") if f.get("severity") is not None else -1,
-            reverse=True,
+            key=lambda f: f["severity"] if f.get("severity") is not None else 6,
         )
     stdout.print(PagedWrapper(data, page, quantity, IssueListWrapper))
 

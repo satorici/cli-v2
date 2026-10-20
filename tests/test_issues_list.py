@@ -10,7 +10,7 @@ FINDINGS = {
             "title": "example",
             "status": "OPEN",
             "source": "TOOL",
-            "severity": 3,
+            "severity": 2,
             "execution_id": 222717,
             "created_at": "2024-01-01T00:00:00Z",
         }
@@ -52,7 +52,7 @@ def test_issues_severity_alias_maps_to_list(monkeypatch):
 
     assert result.exit_code == 0, result.output
     assert request["path"] == "/findings"
-    assert request["params"]["severity"] == [3]
+    assert request["params"]["severity"] == [2]
 
 
 def test_issues_severity_csv_maps_to_ints(monkeypatch):
@@ -61,7 +61,7 @@ def test_issues_severity_csv_maps_to_ints(monkeypatch):
     result = CliRunner().invoke(issues, ["--severity", "high,low,medium"])
 
     assert result.exit_code == 0, result.output
-    assert request["params"]["severity"] == [3, 1, 2]
+    assert request["params"]["severity"] == [2, 4, 3]
 
 
 def test_issues_severity_csv_dedupes(monkeypatch):
@@ -70,7 +70,7 @@ def test_issues_severity_csv_dedupes(monkeypatch):
     result = CliRunner().invoke(issues, ["--severity", "high,HIGH,low"])
 
     assert result.exit_code == 0, result.output
-    assert request["params"]["severity"] == [3, 1]
+    assert request["params"]["severity"] == [2, 4]
 
 
 def test_report_issues_severity_csv_and_execution_id(monkeypatch):
@@ -82,7 +82,7 @@ def test_report_issues_severity_csv_and_execution_id(monkeypatch):
 
     assert result.exit_code == 0, result.output
     assert request["path"] == "/findings"
-    assert request["params"]["severity"] == [2, 0]
+    assert request["params"]["severity"] == [3, 5]
     assert request["params"]["execution_id"] == 222717
 
 

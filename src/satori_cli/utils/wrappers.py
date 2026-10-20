@@ -285,12 +285,12 @@ class RepoListWrapper(Wrapper[list]):
 
 
 _RISK_LABELS = {
-    0: "Info",
-    1: "Low",
-    2: "Medium",
-    3: "High",
-    4: "Critical",
-    5: "Blocker",
+    0: "Blocker",
+    1: "Critical",
+    2: "High",
+    3: "Medium",
+    4: "Low",
+    5: "Info",
 }
 
 class IssueListWrapper(Wrapper[list]):

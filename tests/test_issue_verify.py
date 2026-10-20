@@ -14,7 +14,7 @@ FINDING = {
     "title": "SQL injection in login",
     "status": "OPEN",
     "source": "TOOL",
-    "severity": 3,
+    "severity": 2,
     "identity": {"path": "app/login.py", "start_line": 42},
     "snapshot": {"cwe": "CWE-89", "filePath": "app/login.py", "lineNumber": 42},
 }
@@ -229,7 +229,7 @@ def test_adversary_runs_on_opus_analyst_on_sonnet(monkeypatch, tmp_path):
 
 
 def test_verify_findings_for_repo_filters_min_severity(monkeypatch, tmp_path):
-    low = {**FINDING, "id": 11, "severity": 2}
+    low = {**FINDING, "id": 11, "severity": 3}
     runs = []
     _patch_binaries(monkeypatch)
     _patch_subprocess(monkeypatch, _fake_run_factory(
@@ -249,7 +249,7 @@ def test_verify_findings_for_repo_no_eligible_findings_does_nothing(monkeypatch,
     _patch_binaries(monkeypatch)
     _patch_subprocess(monkeypatch, _fake_run_factory({"analyst": "TP", "adversary": "TP"}, ran))
     verdicts = verify_mod.verify_findings_for_repo(
-        [{**FINDING, "severity": 1}], "acme/app", min_severity="High")
+        [{**FINDING, "severity": 4}], "acme/app", min_severity="High")
     assert verdicts == {} and ran == []  # nothing eligible -> no clone, no claude
 
 
