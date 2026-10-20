@@ -152,3 +152,5 @@ lint/format/types/unit/security playbook in `.satori-llm.yml`; CI `.satori.yml` 
 read logs with a `test` filter.
 Playbook syntax is served as resources (`satori-docs://playbooks/language`, fetched from
 `https://docs-v2.satori.ci`, override with `SATORI_DOCS_URL`).
+Optional project rules so agents verify via `run_local` instead of shell-only unit tests:
+https://docs-v2.satori.ci/#/modes/mcp?id=optional-keep-agents-on-the-full-playbook
