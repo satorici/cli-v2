@@ -55,7 +55,6 @@ Running `satori-v2` with no subcommand lists your jobs (dashboard). Use `--publi
 | `config [key] [value]` | View or set config values for a profile |
 | `local` | Run a playbook locally against the Satori API |
 | `run` | Submit and run a playbook job remotely |
-| `mcp` | Run a local MCP server over stdio for AI agents (see below) |
 | `scan` | Start a repository scan job |
 | `scans` | List scan jobs (paginated) |
 | `monitor` | Create a monitor job with a cron expression |
@@ -108,49 +107,6 @@ Running `satori-v2` with no subcommand lists your jobs (dashboard). Use `--publi
 
 ## MCP server (Cursor, Claude Code, Codex)
 
-`satori-v2 mcp` starts a local stdio [MCP](https://modelcontextprotocol.io) server. Auth comes from
-`satori-v2 config token` or `SATORI_TOKEN` (env overrides the credentials file). Add it to your
-agent config:
-
-```json
-{
-  "mcpServers": {
-    "satori": { "command": "satori-v2", "args": ["mcp"] }
-  }
-}
-```
-
-Alternatively, with [uv](https://docs.astral.sh/uv/) you can run from the GitHub repo without a
-global install — ideal for CI environments (ephemeral install + `SATORI_TOKEN`):
-
-```json
-{
-  "mcpServers": {
-    "satori": {
-      "command": "uvx",
-      "args": [
-        "--from",
-        "git+https://github.com/satorici/cli-v2",
-        "satori-v2",
-        "mcp"
-      ],
-      "env": {
-        "SATORI_TOKEN": "YOUR_TOKEN"
-      }
-    }
-  }
-}
-```
-
-Tools: `whoami`, `run_playbook`, `get_execution`, `get_execution_output`, `list_findings`,
-`get_finding`, `list_repos`, `list_executions` / `list_reports` (same tool; reports =
-executions), `stop_execution`, `get_execution_playbook`, `list_jobs`, `get_job`,
-`update_finding_status`, `scan_repository`, `list_scans`, `list_playbooks`,
-`get_playbook`, `list_advisories`, `list_monitors`, `recommend_playbook` (proposes a
-lint/format/types/unit/security playbook in `.satori-llm.yml`; CI `.satori.yml` should
-`import: file://.satori-llm.yml`). All responses are size-capped;
-read logs with a `test` filter.
-Playbook syntax is served as resources (`satori-docs://playbooks/language`, fetched from
-`https://docs-v2.satori.ci`, override with `SATORI_DOCS_URL`).
-Optional project rules so agents verify via `run_local` instead of shell-only unit tests:
-https://docs-v2.satori.ci/#/modes/mcp?id=optional-keep-agents-on-the-full-playbook
+The MCP server moved to [satorici/satori-mcp](https://github.com/satorici/satori-mcp). It uses the
+same credentials as this CLI (`satori-v2 config token` or `SATORI_TOKEN`) and runs with
+`npx -y github:satorici/satori-mcp`. See https://docs-v2.satori.ci/modes/mcp for agent setup.

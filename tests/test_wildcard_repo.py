@@ -1,4 +1,3 @@
-import asyncio
 import io
 
 import pytest
@@ -8,7 +7,6 @@ from rich.console import Console
 from satori_cli.commands.local import local
 from satori_cli.commands.run import run
 from satori_cli.commands.scan import scan
-from satori_cli.mcp_server import server
 from satori_cli.utils.repo import (
     is_wildcard_repo,
     normalize_repo_target,
@@ -210,28 +208,6 @@ def test_local_rejects_wildcard(tmp_path):
 
     assert result.exit_code != 0
     assert "wildcard is not supported on local" in result.output
-
-
-def test_mcp_scan_repository_accepts_wildcard(monkeypatch):
-    seen = {}
-
-    def post(url, **kw):
-        seen["body"] = kw["json"]
-        return _FakeResponse({"id": 5, "status": "FETCHING_DATA"})
-
-    monkeypatch.setattr(server.client, "post", post)
-
-    result = server.scan_repository("satorici/*", quantity=5)
-
-    assert result["job_id"] == 5
-    assert seen["body"]["repository_data"] == {"repository": "satorici/*"}
-    assert seen["body"]["criteria"] == {"quantity": 1}
-    assert "owner/repo" in server.scan_repository("satorici")["error"]
-
-
-def test_mcp_run_local_rejects_wildcard():
-    result = asyncio.run(server.run_local(playbook_yaml="x", repository="satorici/*"))
-    assert result["error"] == "wildcard is not supported on local"
 
 
 def test_command_generator_wildcard_scan():

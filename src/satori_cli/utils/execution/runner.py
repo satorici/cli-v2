@@ -144,7 +144,7 @@ async def process_commands(
     if not stop_event:
         stop_event = asyncio.Event()
 
-    # Per call: the module is reused by the long-lived MCP process.
+    # Per call, so a timeout never leaks into the next run in the same process.
     timeout_event = asyncio.Event()
     timeout_task = (
         asyncio.create_task(set_after(timeout_event, timeout))

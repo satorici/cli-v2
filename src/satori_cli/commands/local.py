@@ -127,7 +127,7 @@ def local(
         on_command_start=None,
         on_command_done=None,
     ):
-        # Thin sync wrapper: callbacks are optional so MCP/local_run stay silent
+        # Thin sync wrapper: callbacks are optional so local_run stays silent
         # when they are omitted.
         return asyncio.run(
             run_local_job(

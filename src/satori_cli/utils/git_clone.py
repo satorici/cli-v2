@@ -43,7 +43,7 @@ def clone_repo(git: str, repository: str, dest: Path, quiet: bool = False) -> Pa
     failure (connection reset, early EOF, timeout, DNS) is retried a few times with
     backoff; a non-transient one (missing repo, auth) fails immediately. ``quiet``
     also drops the one-line "Cloning …" status and raises ``SatoriError`` instead of
-    a click error (needed by the MCP server, where stdout is the protocol channel).
+    a click error (for callers that must keep stdout clean).
     """
     url = f"https://github.com/{repository}.git"
     dest.mkdir(parents=True, exist_ok=True)

@@ -1,4 +1,4 @@
-"""Silent core of a local run: nothing in here may print (MCP stdout is the protocol)."""
+"""Silent core of a local run: nothing in here may print; callers report progress via callbacks."""
 
 import asyncio
 from collections.abc import Callable

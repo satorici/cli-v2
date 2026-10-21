@@ -14,7 +14,6 @@ from .commands.execution import execution
 from .commands.issue import issue, issues
 from .commands.job import job, jobs
 from .commands.local import local
-from .commands.mcp import mcp
 from .commands.monitor import list_monitors, monitor
 from .commands.output import output
 from .commands.playbook import playbook, playbooks
@@ -94,7 +93,6 @@ cli.add_command(output)
 cli.add_command(shell)
 cli.add_command(whoami)
 cli.add_command(settings)
-cli.add_command(mcp)
 
 
 def main():
