@@ -108,6 +108,9 @@ def list_issues(
             data["items"],
             key=lambda f: f["severity"] if f.get("severity") is not None else 6,
         )
+    if data["total"] == 0:
+        stdout.print("[bold blue]No issues found[/bold blue]")
+        return
     stdout.print(PagedWrapper(data, page, quantity, IssueListWrapper))
 
 
