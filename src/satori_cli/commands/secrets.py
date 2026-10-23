@@ -14,9 +14,9 @@ def _params(repository: str | None) -> dict:
 
 @click.group()
 def secrets():
-    """Saved secrets, set as environment variables of every job you create (not
+    """Saved secrets, playbook inputs (${{NAME}}) of every job you create (not
     LOCAL), or with --repo of that repository's runs and scans. Values are
-    write-only and visible to any playbook you run."""
+    write-only and scrubbed from the output; `-d` values win over them."""
 
 
 @secrets.command(name="list")
