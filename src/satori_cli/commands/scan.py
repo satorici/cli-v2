@@ -13,6 +13,12 @@ from ..utils.repo import is_wildcard_repo, normalize_repo_target
 from ..utils.wrappers import JobWrapper
 
 
+def _require_scan_id(scan_id: Optional[int]) -> int:
+    if scan_id is None:
+        raise click.UsageError("Missing argument 'SCAN-ID'.")
+    return scan_id
+
+
 class ScanGroup(click.Group):
     def parse_args(self, ctx, args):
         # `scan ID`, `scan ID status` and `scan ID --json` manage a scan; anything else
@@ -25,6 +31,9 @@ class ScanGroup(click.Group):
 
     def resolve_command(self, ctx, args):
         if ctx.obj is None and args:
+            # Do not treat manage subcommands as repository create targets
+            if args[0] in self.commands and args[0] != "create":
+                return super().resolve_command(ctx, args)
             return "create", self.commands["create"], args
         return super().resolve_command(ctx, args)
 
@@ -151,21 +160,24 @@ def scan_create(
 @scan.command(name="status")
 @opts.json_opt
 @click.pass_obj
-def scan_status(scan_id: int, **kwargs):
+def scan_status(scan_id: Optional[int], **kwargs):
+    scan_id = _require_scan_id(scan_id)
     res = client.get(f"/jobs/{scan_id}")
     stdout.print(JobWrapper(res.json()))
 
 
 @scan.command(name="stop")
 @click.pass_obj
-def scan_stop(scan_id: int):
+def scan_stop(scan_id: Optional[int]):
+    scan_id = _require_scan_id(scan_id)
     client.patch(f"/jobs/scans/{scan_id}", json={"status": "CANCELED"})
     stdout.print("Scan stopped")
 
 
 @scan.command(name="clean")
 @click.pass_obj
-def scan_clean(scan_id: int):
+def scan_clean(scan_id: Optional[int]):
+    scan_id = _require_scan_id(scan_id)
     execution_ids: list[int] = []
     page = 1
 
@@ -195,6 +207,7 @@ def scan_clean(scan_id: int):
 
 @scan.command(name="delete")
 @click.pass_obj
-def scan_delete(scan_id: int):
+def scan_delete(scan_id: Optional[int]):
+    scan_id = _require_scan_id(scan_id)
     client.delete(f"/jobs/{scan_id}")
     stdout.print("Scan deleted")
