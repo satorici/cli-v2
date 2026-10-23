@@ -8,6 +8,7 @@ from rich.logging import RichHandler
 from ..config import config
 from ..models import Playbook
 from .console import stderr
+from .repo import is_github_repo
 
 
 def configure_logging(debug: bool) -> None:
@@ -200,4 +201,20 @@ playbook_opt = click.option("--playbook", "-p", callback=_playbook_callback)
 visibility_opt = click.option(
     "--visibility",
     type=click.Choice(["PUBLIC", "PRIVATE", "UNLISTED"], case_sensitive=False),
+)
+
+
+def _saved_repo_callback(ctx, param, value: str | None):
+    if value is not None and not is_github_repo(value.strip().strip("/")):
+        raise click.BadParameter(
+            "must be owner/repo, wildcards can't have saved values"
+        )
+    return value and value.strip().strip("/")
+
+
+saved_repo_opt = click.option(
+    "--repo",
+    "repository",
+    callback=_saved_repo_callback,
+    help="Values for this owner/repo only, over yours",
 )

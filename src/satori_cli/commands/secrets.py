@@ -5,21 +5,28 @@ from rich.table import Table
 
 from ..api import client
 from ..utils.console import stdout
+from ..utils.options import saved_repo_opt
+
+
+def _params(repository: str | None) -> dict:
+    return {"repository": repository} if repository else {}
 
 
 @click.group()
 def secrets():
     """Saved secrets, set as environment variables of every job you create (not
-    LOCAL). Values are write-only and visible to any playbook you run."""
+    LOCAL), or with --repo of that repository's runs and scans. Values are
+    write-only and visible to any playbook you run."""
 
 
 @secrets.command(name="list")
-def list_secrets():
+@saved_repo_opt
+def list_secrets(repository: str | None):
     """List saved secret names"""
     table = Table(show_header=True, header_style="bold")
     table.add_column("Name")
     table.add_column("Saved at")
-    for secret in client.get("/settings/secrets").json():
+    for secret in client.get("/settings/secrets", params=_params(repository)).json():
         table.add_row(secret["name"], secret["created_at"])
     stdout.print(table)
 
@@ -37,18 +44,24 @@ def _read_value() -> str:
 
 @secrets.command(name="set")
 @click.argument("name")
-def set_secret(name: str):
+@saved_repo_opt
+def set_secret(name: str, repository: str | None):
     """Save the secret NAME, prompting for its value or reading it from stdin"""
     value = _read_value()
     if not value:
         raise click.UsageError("The secret value must not be empty")
-    client.put(f"/settings/secrets/{name}", json={"value": value})
+    client.put(
+        f"/settings/secrets/{name}",
+        json={"value": value},
+        params=_params(repository),
+    )
     stdout.print(f"{name} saved")
 
 
 @secrets.command(name="unset")
 @click.argument("name")
-def unset_secret(name: str):
+@saved_repo_opt
+def unset_secret(name: str, repository: str | None):
     """Delete the saved secret NAME"""
-    client.delete(f"/settings/secrets/{name}")
+    client.delete(f"/settings/secrets/{name}", params=_params(repository))
     stdout.print(f"{name} deleted")

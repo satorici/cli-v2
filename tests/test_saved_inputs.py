@@ -1,3 +1,4 @@
+import pytest
 from click.testing import CliRunner
 
 from satori_cli.commands.parameters import parameters
@@ -12,11 +13,16 @@ class _FakeResponse:
         return self._payload
 
 
+params: list = []
+
+
 def _record(monkeypatch, module: str, method: str, payload=None) -> list:
     requests = []
+    params.clear()
 
     def call(path, **kwargs):
         requests.append((path, kwargs.get("json")))
+        params.append(kwargs.get("params"))
         return _FakeResponse(payload)
 
     monkeypatch.setattr(f"satori_cli.commands.{module}.client.{method}", call)
@@ -134,3 +140,47 @@ def test_secrets_unset(monkeypatch):
 
     assert result.exit_code == 0, result.output
     assert requests == [("/settings/secrets/TOKEN", None)]
+
+
+def test_parameters_set_for_a_repository(monkeypatch):
+    requests = _record(monkeypatch, "parameters", "put")
+    _printed(monkeypatch, "parameters")
+
+    result = CliRunner().invoke(parameters, ["set", "HOST", "a", "--repo", "acme/app"])
+
+    assert result.exit_code == 0, result.output
+    assert requests == [("/settings/parameters/HOST", {"values": ("a",)})]
+    assert params == [{"repository": "acme/app"}]
+
+
+def test_user_wide_sends_no_repository(monkeypatch):
+    _record(monkeypatch, "secrets", "delete")
+    _printed(monkeypatch, "secrets")
+
+    result = CliRunner().invoke(secrets, ["unset", "TOKEN"])
+
+    assert result.exit_code == 0, result.output
+    assert params == [{}]
+
+
+def test_secrets_set_for_a_repository(monkeypatch):
+    requests = _record(monkeypatch, "secrets", "put")
+    _printed(monkeypatch, "secrets")
+
+    result = CliRunner().invoke(
+        secrets, ["set", "TOKEN", "--repo", "acme/app"], input="s3cret"
+    )
+
+    assert result.exit_code == 0, result.output
+    assert requests == [("/settings/secrets/TOKEN", {"value": "s3cret"})]
+    assert params == [{"repository": "acme/app"}]
+
+
+@pytest.mark.parametrize("repo", ["acme/*", "acme", "a/b/c"])
+def test_wildcard_repo_is_rejected(monkeypatch, repo):
+    requests = _record(monkeypatch, "secrets", "get", [])
+
+    result = CliRunner().invoke(secrets, ["list", "--repo", repo])
+
+    assert result.exit_code != 0
+    assert requests == []
