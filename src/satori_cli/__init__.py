@@ -16,12 +16,14 @@ from .commands.job import job, jobs
 from .commands.local import local
 from .commands.monitor import list_monitors, monitor
 from .commands.output import output
+from .commands.parameters import parameters
 from .commands.playbook import playbook, playbooks
 from .commands.repo import repos
 from .commands.report import report, reports
 from .commands.run import run
 from .commands.scan import list_scans, scan
 from .commands.search import search
+from .commands.secrets import secrets
 from .commands.settings import settings
 from .commands.shards import shards
 from .commands.shell import shell
@@ -93,6 +95,8 @@ cli.add_command(output)
 cli.add_command(shell)
 cli.add_command(whoami)
 cli.add_command(settings)
+cli.add_command(parameters)
+cli.add_command(secrets)
 
 
 def main():
