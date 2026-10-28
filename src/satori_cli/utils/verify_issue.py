@@ -275,8 +275,18 @@ def _claude_once(
             _ROLE_MODELS.get(role, "sonnet"),
             "--effort",
             "low",
+            # "default" leaves the workspace-trust gate on; a scanned repo that ships its own
+            # .claude/settings.json (not uncommon -- its authors use Claude Code too) then gets
+            # a "workspace not trusted" warning prepended to stdout, which breaks
+            # json.loads(result.stdout) below outright, so every verdict for that repo comes
+            # back unparseable no matter how many times it's retried. The already-explicit
+            # --tools/--allowedTools allowlist (Read/Grep/Glob only) is what actually bounds
+            # what the agent can do, not this; bypassPermissions only stops Code from refusing
+            # to honor that allowlist for a repo it doesn't know. (--bare also skips the trust
+            # gate, but forces ANTHROPIC_API_KEY auth instead of the local subscription --
+            # the whole reason this runs on this machine.)
             "--permission-mode",
-            "default",
+            "bypassPermissions",
             "--system-prompt",
             f"{role}\n\n{SYSTEM_COMMON}",
             "--tools",
