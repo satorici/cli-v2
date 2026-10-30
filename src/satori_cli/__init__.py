@@ -15,6 +15,7 @@ from .commands.issue import issue, issues
 from .commands.job import job, jobs
 from .commands.local import local
 from .commands.monitor import list_monitors, monitor
+from .commands.organization import organization, organizations
 from .commands.output import output
 from .commands.parameters import parameters
 from .commands.playbook import playbook, playbooks
@@ -30,6 +31,7 @@ from .commands.shell import shell
 from .commands.stop import stop
 from .commands.update import update
 from .commands.whoami import whoami
+from .config import config
 from .exceptions import SatoriError
 from .utils import options as opts
 from .utils.console import stderr
@@ -51,6 +53,7 @@ def _get_installed_commit() -> str | None:
 
 @click.group(invoke_without_command=True)
 @click.option("--public", "visibility", flag_value="PUBLIC")
+@click.option("--org", type=int, help="Organization ID to act on")
 @opts.debug_opt
 @opts.output_format_opts
 @opts.pagination_opts
@@ -60,10 +63,13 @@ def cli(
     page: int,
     quantity: int,
     visibility: Optional[str],
+    org: int | None,
     debug: bool = False,
     **kwargs,
 ):
     opts.configure_logging(debug)
+    if org is not None:
+        config["organization"] = org
     if ctx.invoked_subcommand is None:
         list_jobs(page, quantity, None, visibility)
 
@@ -97,6 +103,8 @@ cli.add_command(whoami)
 cli.add_command(settings)
 cli.add_command(parameters)
 cli.add_command(secrets)
+cli.add_command(organizations)
+cli.add_command(organization)
 
 
 def main():

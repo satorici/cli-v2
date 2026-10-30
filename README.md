@@ -68,6 +68,8 @@ Running `satori-v2` with no subcommand lists your jobs (dashboard). Use `--publi
 | `search` | Search executions; supports bulk download/stop/delete |
 | `update` | Reinstall the CLI from GitHub via pip |
 | `output` | Show or stream raw output for an execution |
+| `organizations` | List your organizations; `organizations create NAME`, `organizations personal` (act on your own account again) |
+| `organization` | Show or manage an organization (see subcommands below) |
 | `shell` | Group for interactive SSH shells (see subcommands below); with no subcommand, opens a shell for an execution or new session |
 
 ### `execution` subcommands
@@ -91,6 +93,24 @@ Running `satori-v2` with no subcommand lists your jobs (dashboard). Use `--publi
 | `report <execution-id> issues` | List the issues of the report |
 | `report <execution-id> visibility <PUBLIC\|PRIVATE\|UNLISTED>` | Set the report visibility |
 | `report <execution-id> delete` | Delete the report |
+
+### `organization` subcommands
+
+Organizations are accounts shared by their members (creating one needs an ENTERPRISE
+plan). Commands act on your own account unless an organization is selected with
+`organization <id> use` (saved in the profile), `--org <id>` (e.g.
+`satori-v2 --org 7 run ...`) or `SATORI_ORGANIZATION`.
+
+| Subcommand | Description |
+| --- | --- |
+| `organization <id>` | Show the organization and your role |
+| `organization <id> use` | Act on it in the following commands (per `--profile`) |
+| `organization <id> rename <name>` | Rename it (OWNER/ADMIN) |
+| `organization <id> delete` | Delete it with all of its jobs, reports and findings (OWNER) |
+| `organization <id> members` | List members and roles |
+| `organization <id> add <email> [--role OWNER\|ADMIN\|MEMBER]` | Add a user who has logged in to Satori (default MEMBER) |
+| `organization <id> role <user-id> <role>` | Change a member's role |
+| `organization <id> remove <user-id>` | Remove a member, or leave with your own user id |
 
 ### `stop` subcommands
 

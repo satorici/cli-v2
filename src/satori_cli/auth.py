@@ -16,4 +16,6 @@ def get_token() -> str:
 class SatoriAuth(Auth):
     def auth_flow(self, request: Request) -> Generator[Request, Response, None]:
         request.headers["Authorization"] = f"Bearer {get_token()}"
+        if organization := config.get("organization"):
+            request.headers["X-Satori-Organization"] = str(organization)
         yield request

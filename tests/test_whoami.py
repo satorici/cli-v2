@@ -3,6 +3,15 @@ from click.testing import CliRunner
 from satori_cli.commands.whoami import whoami
 
 
+class _Cfg:
+    def __init__(self, profile: str, organization: int | None = None):
+        self.profile = profile
+        self._organization = organization
+
+    def get(self, key, default=None):
+        return self._organization if key == "organization" else default
+
+
 class _FakeResponse:
     def __init__(self, configured: bool):
         self._configured = configured
@@ -26,7 +35,7 @@ def test_whoami_shows_profile_and_configured_pat(monkeypatch):
     )
     monkeypatch.setattr(
         "satori_cli.commands.whoami.config",
-        type("Cfg", (), {"profile": "default"})(),
+        _Cfg("default"),
     )
 
     result = CliRunner().invoke(whoami)
@@ -49,10 +58,27 @@ def test_whoami_shows_not_configured_pat(monkeypatch):
     )
     monkeypatch.setattr(
         "satori_cli.commands.whoami.config",
-        type("Cfg", (), {"profile": "alice"})(),
+        _Cfg("alice"),
     )
 
     result = CliRunner().invoke(whoami)
 
     assert result.exit_code == 0, result.output
     assert printed == ["Profile: alice", "GitHub PAT: not configured"]
+
+
+def test_whoami_shows_the_organization(monkeypatch):
+    printed = []
+    monkeypatch.setattr(
+        "satori_cli.commands.whoami.client.get", lambda path: _FakeResponse(True)
+    )
+    monkeypatch.setattr(
+        "satori_cli.commands.whoami.stdout.print",
+        lambda *args: printed.append(" ".join(str(a) for a in args)),
+    )
+    monkeypatch.setattr("satori_cli.commands.whoami.config", _Cfg("default", 7))
+
+    result = CliRunner().invoke(whoami)
+
+    assert result.exit_code == 0, result.output
+    assert printed == ["Profile: default", "Organization: 7", "GitHub PAT: configured"]
