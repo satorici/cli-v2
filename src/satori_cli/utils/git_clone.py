@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import shutil
@@ -12,7 +13,8 @@ from pathlib import Path
 import rich_click as click
 
 from ..exceptions import SatoriError
-from .console import stderr
+
+log = logging.getLogger(__name__)
 
 _CLONE_ATTEMPTS = 3
 _CLONE_BACKOFF_S = 10.0
@@ -41,16 +43,16 @@ def clone_repo(git: str, repository: str, dest: Path, quiet: bool = False) -> Pa
     ``Receiving objects`` progress never reaches this process's streams; the
     captured stderr is surfaced only when the clone fails. A transient network
     failure (connection reset, early EOF, timeout, DNS) is retried a few times with
-    backoff; a non-transient one (missing repo, auth) fails immediately. ``quiet``
-    also drops the one-line "Cloning …" status and raises ``SatoriError`` instead of
-    a click error (for callers that must keep stdout clean).
+    backoff; a non-transient one (missing repo, auth) fails immediately. The
+    "Cloning <repo> into <dir>" line is debug logging (shown with ``--debug``).
+    ``quiet`` raises ``SatoriError`` instead of a click error (for callers that must
+    keep stdout clean).
     """
     url = f"https://github.com/{repository}.git"
     dest.mkdir(parents=True, exist_ok=True)
     clone_dir = dest / Path(repository).name
     cmd = [git, "clone", "--quiet", "--depth", "1", url, str(clone_dir)]
-    if not quiet:
-        stderr.print(f"Cloning {repository} into {clone_dir}…")
+    log.debug(f"Cloning {repository} into {clone_dir}")
     for attempt in range(1, _CLONE_ATTEMPTS + 1):
         result = subprocess.run(  # noqa: S603
             cmd,

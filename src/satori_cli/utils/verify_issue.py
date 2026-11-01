@@ -395,7 +395,8 @@ def verify_findings_for_repo(
     """Clone `repository` once and judge `findings` (only those at or above `min_severity`,
     e.g. 'High', when given). Persists each verdict via the API unless persist=False, and
     returns {finding_id: 'TP'|'FP'}. Raises UsageLimitError on a Claude usage limit. `quiet`
-    drops the "Cloning …" status line (for batch callers whose own progress is the output)."""
+    makes a failed clone raise SatoriError (for batch callers whose own progress is the
+    output)."""
     floor = _severity_floor(min_severity)
     todo = [finding for finding in findings if _meets_severity(finding, floor)]
     if not todo:
