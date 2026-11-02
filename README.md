@@ -44,6 +44,13 @@ satori-v2 config
 
 It will display your current configuration, token included.
 
+To act on an organization by default (ID or name; `none` goes back to your own account):
+
+```
+satori-v2 config organization Acme
+satori-v2 config organization none
+```
+
 ## Commands
 
 Running `satori-v2` with no subcommand lists your jobs (dashboard). Use `--public` to list public jobs.
@@ -98,7 +105,8 @@ Running `satori-v2` with no subcommand lists your jobs (dashboard). Use `--publi
 
 Organizations are accounts shared by their members (creating one needs an ENTERPRISE
 plan). Commands act on your own account unless an organization is selected with
-`organization <id> use` (saved in the profile), `--org <id|name>` at the end of any command
+`config organization <id|name>` or `organization <id> use` (saved in the profile),
+`--org <id|name>` at the end of any command
 (e.g. `satori-v2 run ./ --org 7`, `satori-v2 report 5 --org Acme`) or `SATORI_ORGANIZATION`.
 
 | Subcommand | Description |

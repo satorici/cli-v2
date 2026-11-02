@@ -143,12 +143,10 @@ def _format_callback(ctx, name, value):
     return value
 
 
-def _org_callback(ctx, name, value: str | None):
-    if value is None:
-        return
+def resolve_organization(value: str) -> int:
+    """The ID of the organization VALUE, an ID or the name of one of yours"""
     if value.isdigit():
-        config["organization"] = int(value)
-        return
+        return int(value)
 
     # names are not unique, so a name must match exactly one of your organizations;
     # listed on your own account, not scoped to a saved organization
@@ -165,7 +163,12 @@ def _org_callback(ctx, name, value: str | None):
         raise click.BadParameter(
             f"'{value}' matches several organizations ({ids}), use the ID"
         )
-    config["organization"] = matches[0]["id"]
+    return matches[0]["id"]
+
+
+def _org_callback(ctx, name, value: str | None):
+    if value is not None:
+        config["organization"] = resolve_organization(value)
 
 
 def _playbook_callback(ctx, name, value):
