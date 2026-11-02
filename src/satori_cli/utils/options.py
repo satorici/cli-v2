@@ -5,6 +5,7 @@ from pathlib import Path
 import click
 from rich.logging import RichHandler
 
+from ..api import client
 from ..config import config
 from ..models import Playbook
 from .console import stderr
@@ -142,6 +143,31 @@ def _format_callback(ctx, name, value):
     return value
 
 
+def _org_callback(ctx, name, value: str | None):
+    if value is None:
+        return
+    if value.isdigit():
+        config["organization"] = int(value)
+        return
+
+    # names are not unique, so a name must match exactly one of your organizations;
+    # listed on your own account, not scoped to a saved organization
+    config["organization"] = None
+    matches = [
+        org
+        for org in client.get("/organizations").json()
+        if (org.get("name") or "").casefold() == value.casefold()
+    ]
+    if not matches:
+        raise click.BadParameter(f"no organization named '{value}'")
+    if len(matches) > 1:
+        ids = ", ".join(str(org["id"]) for org in matches)
+        raise click.BadParameter(
+            f"'{value}' matches several organizations ({ids}), use the ID"
+        )
+    config["organization"] = matches[0]["id"]
+
+
 def _playbook_callback(ctx, name, value):
     if value:
         return Playbook(value)
@@ -218,3 +244,20 @@ saved_repo_opt = click.option(
     callback=_saved_repo_callback,
     help="Values for this owner/repo only, over yours",
 )
+
+
+def add_org_option(group: click.Group) -> None:
+    """Add `--org ID` to every subcommand of GROUP, so it goes at the end of a command"""
+    for command in group.commands.values():
+        if not any(param.name == "org" for param in command.params):
+            command.params.append(
+                click.Option(
+                    ["--org"],
+                    expose_value=False,
+                    is_eager=True,
+                    callback=_org_callback,
+                    help="Organization ID or name to act on",
+                )
+            )
+        if isinstance(command, click.Group):
+            add_org_option(command)

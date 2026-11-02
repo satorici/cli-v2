@@ -98,8 +98,8 @@ Running `satori-v2` with no subcommand lists your jobs (dashboard). Use `--publi
 
 Organizations are accounts shared by their members (creating one needs an ENTERPRISE
 plan). Commands act on your own account unless an organization is selected with
-`organization <id> use` (saved in the profile), `--org <id>` (e.g.
-`satori-v2 --org 7 run ...`) or `SATORI_ORGANIZATION`.
+`organization <id> use` (saved in the profile), `--org <id|name>` at the end of any command
+(e.g. `satori-v2 run ./ --org 7`, `satori-v2 report 5 --org Acme`) or `SATORI_ORGANIZATION`.
 
 | Subcommand | Description |
 | --- | --- |

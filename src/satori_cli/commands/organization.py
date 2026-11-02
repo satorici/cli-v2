@@ -26,7 +26,8 @@ def _organizations_table(organizations: list[dict]) -> Table:
 @click.pass_context
 def organizations(ctx):
     """Organizations you are a member of. Commands act on one with
-    `organization ID use`, `--org ID` or SATORI_ORGANIZATION, on your own
+    `organization ID use`, `--org ID|NAME` at the end of a command or
+    SATORI_ORGANIZATION, on your own
     account otherwise."""
     if ctx.invoked_subcommand is None:
         stdout.print(_organizations_table(client.get("/organizations").json()))
