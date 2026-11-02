@@ -63,6 +63,41 @@ def advisory(ctx, **kwargs):
         stdout.print(ExternalIssueWrapper(data, history=timeline))
 
 
+@advisory.command(name="edit")
+@click.option("--title", help="Replace the advisory title.")
+@click.option(
+    "--body",
+    "--description",
+    "description",
+    help="Replace the advisory description (Markdown).",
+)
+@click.option(
+    "--body-file",
+    type=click.File("r"),
+    help="Read the new description from a file (wins over --body).",
+)
+@click.pass_obj
+def advisory_edit(advisory_id: int, title: str | None, description: str | None, body_file):
+    """Edit a draft advisory's title or description to humanize it before publishing.
+
+    Only a draft can be edited; once the advisory is published to GitHub its text is fixed
+    there. Pass --title and/or the body (--body or --body-file).
+    """
+    if advisory_id is None:
+        raise click.UsageError("Missing argument 'ADVISORY-ID'.")
+    if body_file is not None:
+        description = body_file.read()
+    if title is None and description is None:
+        raise click.UsageError("Pass --title, --body or --body-file.")
+    payload: dict[str, str] = {}
+    if title is not None:
+        payload["title"] = title
+    if description is not None:
+        payload["description"] = description
+    client.patch(f"/external_issues/{advisory_id}", json=payload)
+    stdout.print("Advisory updated")
+
+
 @advisory.command(name="visibility")
 @click.argument(
     "value", type=click.Choice(["PUBLIC", "PRIVATE", "UNLISTED"], case_sensitive=False)
