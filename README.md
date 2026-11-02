@@ -70,7 +70,10 @@ Running `satori-v2` with no subcommand lists your jobs (dashboard). Use `--publi
 | `execution` | Group for execution management (see subcommands below) |
 | `reports` | List executions/reports with filters |
 | `report` | Show a single execution report (see subcommands below) |
+| `issues` | List findings; supports `--execution-id`, `--status`, `--source`, `--severity`, `--order`, pagination, `--json` |
+| `issue` | Show or manage a finding (see subcommands below) |
 | `advisories` | List external issues (e.g. GitHub security advisories) you created; supports `--execution-id`, `--kind`, `--provider`, `--order`, pagination, `--json` |
+| `advisory` | Show or update an external issue by advisory id (see subcommands below) |
 | `stop` | Group for stopping runs (see subcommands below) |
 | `search` | Search executions; supports bulk download/stop/delete |
 | `update` | Reinstall the CLI from GitHub via pip |
@@ -100,6 +103,26 @@ Running `satori-v2` with no subcommand lists your jobs (dashboard). Use `--publi
 | `report <execution-id> issues` | List the issues of the report |
 | `report <execution-id> visibility <PUBLIC\|PRIVATE\|UNLISTED>` | Set the report visibility |
 | `report <execution-id> delete` | Delete the report |
+
+### `issue` subcommands
+
+| Subcommand | Description |
+| --- | --- |
+| `issue <finding-id>` | Show the finding and its timeline |
+| `issue <finding-id> status <OPEN\|INVESTIGATING\|TP\|FIXED\|FP\|ACCEPTED>` | Set the finding status |
+| `issue <finding-id> comment <body>` | Add a comment |
+| `issue <finding-id> verify` | Verify the finding with Claude Code (comment + TP/FP) |
+| `issue <finding-id> advisory` | Create a security advisory for the finding, or show the existing one |
+| `issue <finding-id> advisory --publish` | Publish the draft advisory to GitHub |
+| `issue <finding-id> advisory --delete` | Delete the local advisory; best-effort close on GitHub (prints a WARNING if close fails) |
+| `issue <finding-id> advisory --status` | Fetch remote GitHub advisory status |
+
+### `advisory` subcommands
+
+| Subcommand | Description |
+| --- | --- |
+| `advisory <advisory-id>` | Show the external issue and finding timeline |
+| `advisory <advisory-id> visibility <PUBLIC\|PRIVATE\|UNLISTED>` | Set the advisory visibility |
 
 ### `organization` subcommands
 
