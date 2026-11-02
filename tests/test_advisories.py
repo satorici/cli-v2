@@ -229,3 +229,26 @@ def test_external_issue_wrapper_renders():
     assert "desc" in text
     assert "2026-09-01 10:00:00" in text
     assert "History" not in text
+
+
+def test_advisory_edit_patches_title_and_body(monkeypatch):
+    request, _, printed = _patch(monkeypatch)
+
+    result = CliRunner().invoke(
+        advisory, ["1", "edit", "--title", "Human title", "--body", "Human body."]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert request["method"] == "PATCH"
+    assert request["path"] == "/external_issues/1"
+    assert request["json"] == {"title": "Human title", "description": "Human body."}
+    assert printed == ["Advisory updated"]
+
+
+def test_advisory_edit_requires_a_field(monkeypatch):
+    _patch(monkeypatch)
+
+    result = CliRunner().invoke(advisory, ["1", "edit"])
+
+    assert result.exit_code != 0
+    assert "Pass --title" in result.output
