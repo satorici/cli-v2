@@ -27,11 +27,12 @@ from .issue import (
     parse_severity_csv,
 )
 from .search import reports_delete, reports_download, reports_search, reports_stop
+from ..utils.public_id import EXECUTION_ID, JOB_ID
 
 
 class JobIdGroup(IdGroup):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, id_attr="job_id", **kwargs)
+        super().__init__(*args, id_attr="job_id", id_type=JOB_ID, **kwargs)
 
 
 @click.group(cls=JobIdGroup, invoke_without_command=True)
@@ -54,7 +55,7 @@ def reports(
     **kwargs,
 ):
     if ctx.invoked_subcommand is None:
-        job_id: Optional[int] = getattr(ctx, "job_id", None)
+        job_id: Optional[str] = getattr(ctx, "job_id", None)
         params = {
             k: v
             for k, v in locals().items()
@@ -71,7 +72,7 @@ reports.add_command(reports_stop, name="stop")
 reports.add_command(reports_delete, name="delete")
 
 
-def _parsed_findings_groups(execution_id: int) -> list[tuple[str, list]]:
+def _parsed_findings_groups(execution_id: str) -> list[tuple[str, list]]:
     groups: list[tuple[str, list]] = []
     try:
         outputs = load_execution_outputs(execution_id)
@@ -89,7 +90,7 @@ def _parsed_findings_groups(execution_id: int) -> list[tuple[str, list]]:
     return groups
 
 
-@click.group(cls=IdGroup, invoke_without_command=True)
+@click.group(cls=IdGroup, id_type=EXECUTION_ID, invoke_without_command=True)
 @opts.json_opt
 @click.pass_context
 def report(ctx, **kwargs):
@@ -111,26 +112,26 @@ def report(ctx, **kwargs):
 @opts.format_opt
 @opts.json_opt
 @click.pass_obj
-def report_output(execution_id: int, filter_tests: tuple[str, ...], **kwargs):
+def report_output(execution_id: str, filter_tests: tuple[str, ...], **kwargs):
     show_execution_output(execution_id, filter_tests=list(filter_tests) or None)
 
 
 @report.command(name="files")
 @click.pass_obj
-def report_files(execution_id: int):
+def report_files(execution_id: str):
     download_execution_files(execution_id)
 
 
 @report.command(name="delete")
 @click.pass_obj
-def report_delete(execution_id: int):
+def report_delete(execution_id: str):
     client.delete(f"/executions/{execution_id}")
     stdout.print(f"Report {execution_id} deleted")
 
 
 @report.command(name="stop")
 @click.pass_obj
-def report_stop(execution_id: int):
+def report_stop(execution_id: str):
     client.patch(f"/executions/{execution_id}", json={"status": "CANCELED"})
     stdout.print(f"Report {execution_id} stopped")
 
@@ -140,7 +141,7 @@ def report_stop(execution_id: int):
     "value", type=click.Choice(["PUBLIC", "PRIVATE", "UNLISTED"], case_sensitive=False)
 )
 @click.pass_obj
-def report_visibility(execution_id: int, value: str):
+def report_visibility(execution_id: str, value: str):
     client.patch(f"/executions/{execution_id}", json={"visibility": value.upper()})
     stdout.print(f"Report visibility set to {value.upper()}")
 
@@ -168,7 +169,7 @@ def report_visibility(execution_id: int, value: str):
 @opts.pagination_opts
 @click.pass_obj
 def report_issues(
-    execution_id: int,
+    execution_id: str,
     page: int,
     quantity: int,
     status: Optional[str],

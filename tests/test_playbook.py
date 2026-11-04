@@ -4,6 +4,7 @@ from click.testing import CliRunner
 from satori_cli.commands.playbook import playbook
 from satori_cli.exceptions import SatoriError
 from satori_cli.models import Playbook
+from tests.ids import pid
 
 
 class _FakeResponse:
@@ -89,10 +90,10 @@ def test_playbook_from_execution_id_fetches_snapshot(monkeypatch):
         lambda *args, **kwargs: printed.append(args[0]),
     )
 
-    result = CliRunner().invoke(playbook, ["42"])
+    result = CliRunner().invoke(playbook, [pid("exec", 42)])
 
     assert result.exit_code == 0, result.output
-    assert api_calls == ["/executions/42/playbook"]
+    assert api_calls == [f"/executions/{pid('exec', 42)}/playbook"]
     assert printed == [yaml_body]
 
 
@@ -112,7 +113,7 @@ def test_playbook_from_execution_id_works_for_bundle_jobs(monkeypatch):
         lambda *args, **kwargs: printed.append(args[0]),
     )
 
-    result = CliRunner().invoke(playbook, ["99"])
+    result = CliRunner().invoke(playbook, [pid("exec", 99)])
 
     assert result.exit_code == 0, result.output
     assert printed == ["cmd: [echo hi]\n"]

@@ -5,8 +5,9 @@ import rich_click as click
 from ..api import client
 from ..utils import options as opts
 from ..utils.console import show_execution_output
+from ..utils.public_id import EXECUTION_ID
 
-execution_id_arg = click.argument("execution-id", type=int)
+execution_id_arg = click.argument("execution-id", type=EXECUTION_ID)
 
 
 @click.command()
@@ -14,7 +15,7 @@ execution_id_arg = click.argument("execution-id", type=int)
 @click.option("--raw", help="Pipe encoded results to stdout", is_flag=True)
 @click.option("--test", "filter_tests", multiple=True)
 @opts.format_opt
-def output(execution_id: int, raw: bool, filter_tests: tuple[str, ...], **kwargs):
+def output(execution_id: str, raw: bool, filter_tests: tuple[str, ...], **kwargs):
     if raw:
         with client.stream(
             "GET",

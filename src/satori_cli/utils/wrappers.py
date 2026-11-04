@@ -22,6 +22,15 @@ from ..utils.highlight import highlight_result, highlight_text
 T = TypeVar("T")
 
 
+# Public IDs of jobs, executions, findings and advisories are 21 characters
+ID_COLUMN = {"min_width": 21, "no_wrap": True}
+
+
+def _ref(public_id: str | None) -> str:
+    """A reference to another row; null when the caller can't see that row."""
+    return public_id or "N/A"
+
+
 class Wrapper(Generic[T]):
     def __init__(self, obj: T):
         self.obj = obj
@@ -97,7 +106,7 @@ class JobWrapper(Wrapper[dict]):
         obj: dict,
         *,
         compact: bool = False,
-        report_ids: list[int] | None = None,
+        report_ids: list[str] | None = None,
     ):
         super().__init__(obj)
         self.compact = compact
@@ -163,7 +172,7 @@ class JobWrapper(Wrapper[dict]):
 class JobExecutionsWrapper(Wrapper[list]):
     def __rich_console__(self, console, options):
         table = Table(expand=True)
-        table.add_column("Report id")
+        table.add_column("Report id", **ID_COLUMN)
         table.add_column("Created at")
         table.add_column("Region")
         table.add_column("Status")
@@ -191,7 +200,7 @@ class JobExecutionsWrapper(Wrapper[list]):
 class JobListWrapper(Wrapper[list]):
     def __rich_console__(self, console, options):
         table = Table(expand=True)
-        table.add_column("Id")
+        table.add_column("Id", **ID_COLUMN)
         table.add_column("Playbook source")
         table.add_column("Schedule")
         table.add_column("Repository")
@@ -296,12 +305,12 @@ _RISK_LABELS = {
 class IssueListWrapper(Wrapper[list]):
     def __rich_console__(self, console, options):
         table = Table(expand=True)
-        table.add_column("ID", min_width=4, max_width=6)
+        table.add_column("ID", **ID_COLUMN)
         table.add_column("Title", ratio=6, no_wrap=True, overflow="ellipsis")
         table.add_column("Status", min_width=6, max_width=7)
         table.add_column("Source", min_width=6, max_width=7)
         table.add_column("Risk", min_width=6, max_width=7)
-        table.add_column("Execution", min_width=8, max_width=9)
+        table.add_column("Execution", **ID_COLUMN)
         table.add_column("Created at", ratio=2, no_wrap=True)
 
         for finding in self.obj:
@@ -319,7 +328,7 @@ class IssueListWrapper(Wrapper[list]):
                 finding["status"],
                 finding["source"].capitalize(),
                 risk,
-                str(finding["execution_id"]),
+                _ref(finding["execution_id"]),
                 ISODateTime(finding["created_at"]),
             )
 
@@ -329,9 +338,9 @@ class IssueListWrapper(Wrapper[list]):
 class ExternalIssueListWrapper(Wrapper[list]):
     def __rich_console__(self, console, options):
         table = Table(expand=True)
-        table.add_column("ID")
+        table.add_column("ID", **ID_COLUMN)
         table.add_column("Created")
-        table.add_column("Execution")
+        table.add_column("Execution", **ID_COLUMN)
         table.add_column("Repo")
         table.add_column("Title")
         table.add_column("Severity")
@@ -351,7 +360,7 @@ class ExternalIssueListWrapper(Wrapper[list]):
             table.add_row(
                 str(item["id"]),
                 ISODateTime(item["created_at"]),
-                str(item["execution_id"]),
+                _ref(item["execution_id"]),
                 item.get("repository") or "N/A",
                 item["title"],
                 severity_text,
@@ -385,8 +394,8 @@ class ExternalIssueWrapper(Wrapper[dict]):
         grid.add_row("Provider", item["provider"].capitalize())
         grid.add_row("Severity", severity_text)
         grid.add_row("Visibility", item["visibility"].capitalize())
-        grid.add_row("Execution", str(item["execution_id"]))
-        grid.add_row("Finding", str(item["finding_id"]))
+        grid.add_row("Execution", _ref(item["execution_id"]))
+        grid.add_row("Finding", _ref(item["finding_id"]))
         grid.add_row("External ID", item.get("external_id") or "N/A")
         grid.add_row("External URL", item.get("external_url") or "N/A")
         grid.add_row("Created at", ISODateTime(item["created_at"]))
@@ -426,7 +435,7 @@ class IssueWrapper(Wrapper[dict]):
         grid.add_row("Status", finding["status"])
         grid.add_row("Risk", risk)
         grid.add_row("Source", finding["source"].capitalize())
-        grid.add_row("Execution", str(finding["execution_id"]))
+        grid.add_row("Execution", _ref(finding["execution_id"]))
         grid.add_row("Created at", ISODateTime(finding["created_at"]))
 
         if assignee_id := finding.get("assignee_id"):
@@ -600,7 +609,7 @@ class PagedWrapper(Wrapper[PagedResponse[W]]):
 class ExecutionListWrapper(Wrapper[dict]):
     def __rich_console__(self, console, options):
         table = Table(expand=True)
-        table.add_column("Id")
+        table.add_column("Id", **ID_COLUMN)
         table.add_column("Playbook source")
         table.add_column("Parameters")
         table.add_column("Status")

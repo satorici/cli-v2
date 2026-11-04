@@ -10,8 +10,9 @@ from ..utils.console import (
     show_execution_output,
     stdout,
 )
+from ..utils.public_id import EXECUTION_ID, JOB_ID
 
-execution_id_arg = click.argument("execution-id", type=int)
+execution_id_arg = click.argument("execution-id", type=EXECUTION_ID)
 
 
 @click.group()
@@ -21,15 +22,15 @@ def execution():
 
 @execution.command()
 @execution_id_arg
-def get(execution_id: int):
+def get(execution_id: str):
     show_execution(execution_id)
 
 
 @execution.command()
 @click.option("--job-type")
-@click.option("--job-id", type=int)
+@click.option("--job-id", type=JOB_ID)
 @opts.pagination_opts
-def list(page: int, quantity: int, job_type: Optional[str], job_id: Optional[int]):
+def list(page: int, quantity: int, job_type: Optional[str], job_id: Optional[str]):
     params = {k: v for k, v in locals().items() if v is not None}
 
     res = client.get("/executions", params=params)
@@ -38,13 +39,13 @@ def list(page: int, quantity: int, job_type: Optional[str], job_id: Optional[int
 
 @execution.command()
 @execution_id_arg
-def delete(execution_id: int):
+def delete(execution_id: str):
     client.delete(f"/executions/{execution_id}")
 
 
 @execution.command()
 @execution_id_arg
-def stop(execution_id: int):
+def stop(execution_id: str):
     client.patch(f"/executions/{execution_id}", json={"status": "CANCELED"})
 
 
@@ -52,7 +53,7 @@ def stop(execution_id: int):
 @execution_id_arg
 @click.option("--test", "filter_tests", multiple=True)
 @opts.format_opt
-def output(execution_id: int, filter_tests: tuple[str, ...], **kwargs):
+def output(execution_id: str, filter_tests: tuple[str, ...], **kwargs):
     show_execution_output(
         execution_id, filter_tests=list(filter_tests) or None
     )
@@ -60,5 +61,5 @@ def output(execution_id: int, filter_tests: tuple[str, ...], **kwargs):
 
 @execution.command()
 @execution_id_arg
-def files(execution_id: int):
+def files(execution_id: str):
     download_execution_files(execution_id)

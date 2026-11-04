@@ -6,12 +6,16 @@ from satori_cli.commands.issue import issue
 from satori_cli.config import config
 from satori_cli.constants import advisory_url
 from satori_cli.utils.wrappers import ExternalIssueWrapper
+from tests.ids import pid
+
+ADVISORY_ID = pid("adv", 1)
+FINDING_ID = pid("fnd", 10)
 
 DRAFT_ADVISORY = {
-    "id": 1,
+    "id": ADVISORY_ID,
     "created_at": "2026-09-01T10:00:00.123456Z",
-    "execution_id": 42,
-    "finding_id": 10,
+    "execution_id": pid("exec", 42),
+    "finding_id": FINDING_ID,
     "provider": "GITHUB",
     "kind": "SECURITY_ADVISORY",
     "title": "SQL injection in login",
@@ -46,7 +50,7 @@ HISTORY = [
         "kind": "event",
         "id": 2,
         "created_at": "2026-09-21T00:01:00Z",
-        "finding_id": 10,
+        "finding_id": FINDING_ID,
         "type": "STATUS_CHANGED",
         "payload": {"from": "OPEN", "to": "TP"},
         "display_name": "alice",
@@ -153,15 +157,15 @@ def test_issue_advisory_create(monkeypatch):
         monkeypatch, post_response=DRAFT_ADVISORY
     )
 
-    result = CliRunner().invoke(issue, ["10", "advisory"])
+    result = CliRunner().invoke(issue, [FINDING_ID, "advisory"])
 
     assert result.exit_code == 0, result.output
     assert requests[0]["method"] == "POST"
     assert requests[0]["path"] == "/external_issues/security_advisory"
-    assert requests[0]["json"] == {"finding_id": 10}
+    assert requests[0]["json"] == {"finding_id": FINDING_ID}
     assert requests[0]["timeout"] == 10
     assert requests[1]["method"] == "GET"
-    assert requests[1]["path"] == "/findings/10/timeline"
+    assert requests[1]["path"] == f"/findings/{FINDING_ID}/timeline"
     assert len(printed) == 2
     assert isinstance(printed[0], ExternalIssueWrapper)
     assert printed[0].obj["id"] == DRAFT_ADVISORY["id"]
@@ -169,7 +173,7 @@ def test_issue_advisory_create(monkeypatch):
     assert printed[1] == f"View on web: {advisory_url(DRAFT_ADVISORY['id'])}"
     assert warnings == [
         "WARNING: Draft is not published yet. "
-        "Publish with: satori-v2 issue 10 advisory --publish"
+        f"Publish with: satori-v2 issue {FINDING_ID} advisory --publish"
     ]
 
 
@@ -178,7 +182,7 @@ def test_issue_advisory_already_exists_published(monkeypatch):
         monkeypatch, post_error=_conflict(), list_items=[ADVISORY]
     )
 
-    result = CliRunner().invoke(issue, ["10", "advisory"])
+    result = CliRunner().invoke(issue, [FINDING_ID, "advisory"])
 
     assert result.exit_code == 0, result.output
     assert requests[0]["method"] == "POST"
@@ -186,11 +190,11 @@ def test_issue_advisory_already_exists_published(monkeypatch):
     assert requests[1]["method"] == "GET"
     assert requests[1]["path"] == "/external_issues"
     assert requests[1]["params"] == {
-        "finding_id": 10,
+        "finding_id": FINDING_ID,
         "kind": "SECURITY_ADVISORY",
         "quantity": 1,
     }
-    assert requests[2]["path"] == "/findings/10/timeline"
+    assert requests[2]["path"] == f"/findings/{FINDING_ID}/timeline"
     assert len(printed) == 2
     assert isinstance(printed[0], ExternalIssueWrapper)
     assert printed[0].obj["id"] == ADVISORY["id"]
@@ -204,29 +208,29 @@ def test_issue_advisory_already_exists_draft(monkeypatch):
         monkeypatch, post_error=_conflict(), list_items=[DRAFT_ADVISORY]
     )
 
-    result = CliRunner().invoke(issue, ["10", "advisory"])
+    result = CliRunner().invoke(issue, [FINDING_ID, "advisory"])
 
     assert result.exit_code == 0, result.output
     assert requests[1]["path"] == "/external_issues"
-    assert requests[2]["path"] == "/findings/10/timeline"
+    assert requests[2]["path"] == f"/findings/{FINDING_ID}/timeline"
     assert isinstance(printed[0], ExternalIssueWrapper)
     assert printed[0].obj["id"] == DRAFT_ADVISORY["id"]
     assert printed[0].obj["history"] == HISTORY
     assert warnings == [
         "WARNING: Draft is not published yet. "
-        "Publish with: satori-v2 issue 10 advisory --publish"
+        f"Publish with: satori-v2 issue {FINDING_ID} advisory --publish"
     ]
 
 
 def test_issue_advisory_publish(monkeypatch):
     request, requests, printed, _ = _patch(monkeypatch)
 
-    result = CliRunner().invoke(issue, ["10", "advisory", "--publish"])
+    result = CliRunner().invoke(issue, [FINDING_ID, "advisory", "--publish"])
 
     assert result.exit_code == 0, result.output
     assert request["method"] == "POST"
     assert request["path"] == "/external_issues/security_advisory/publish"
-    assert request["json"] == {"finding_id": 10}
+    assert request["json"] == {"finding_id": FINDING_ID}
     assert request["timeout"] == 30
     assert printed == [ADVISORY["external_url"]]
     assert not any(r["path"].endswith("/timeline") for r in requests)
@@ -235,12 +239,12 @@ def test_issue_advisory_publish(monkeypatch):
 def test_issue_advisory_delete(monkeypatch):
     request, requests, printed, warnings = _patch(monkeypatch)
 
-    result = CliRunner().invoke(issue, ["10", "advisory", "--delete"])
+    result = CliRunner().invoke(issue, [FINDING_ID, "advisory", "--delete"])
 
     assert result.exit_code == 0, result.output
     assert request["method"] == "DELETE"
     assert request["path"] == "/external_issues/security_advisory"
-    assert request["json"] == {"finding_id": 10}
+    assert request["json"] == {"finding_id": FINDING_ID}
     assert printed == ["Advisory deleted"]
     assert warnings == []
     assert not any(r["path"].endswith("/timeline") for r in requests)
@@ -255,7 +259,7 @@ def test_issue_advisory_delete_warns_when_github_close_fails(monkeypatch):
         monkeypatch, delete_response={"warning": warning}
     )
 
-    result = CliRunner().invoke(issue, ["10", "advisory", "--delete"])
+    result = CliRunner().invoke(issue, [FINDING_ID, "advisory", "--delete"])
 
     assert result.exit_code == 0, result.output
     assert printed == ["Advisory deleted"]
@@ -266,7 +270,7 @@ def test_issue_advisory_delete_json(monkeypatch):
     data = {"warning": None}
     _, _, printed, warnings = _patch(monkeypatch, delete_response=data)
 
-    result = CliRunner().invoke(issue, ["10", "advisory", "--delete", "--json"])
+    result = CliRunner().invoke(issue, [FINDING_ID, "advisory", "--delete", "--json"])
 
     assert result.exit_code == 0, result.output
     assert printed == [data]
@@ -276,18 +280,18 @@ def test_issue_advisory_delete_json(monkeypatch):
 def test_issue_advisory_status(monkeypatch):
     _, requests, printed, _ = _patch(monkeypatch)
 
-    result = CliRunner().invoke(issue, ["10", "advisory", "--status"])
+    result = CliRunner().invoke(issue, [FINDING_ID, "advisory", "--status"])
 
     assert result.exit_code == 0, result.output
     assert requests[0]["method"] == "GET"
     assert requests[0]["path"] == "/external_issues"
     assert requests[0]["params"] == {
-        "finding_id": 10,
+        "finding_id": FINDING_ID,
         "kind": "SECURITY_ADVISORY",
         "quantity": 1,
     }
     assert requests[1]["method"] == "GET"
-    assert requests[1]["path"] == "/external_issues/1/status"
+    assert requests[1]["path"] == f"/external_issues/{ADVISORY_ID}/status"
     assert printed == ["triage"]
     assert not any(r["path"].endswith("/timeline") for r in requests)
 
@@ -295,17 +299,17 @@ def test_issue_advisory_status(monkeypatch):
 def test_issue_advisory_status_json(monkeypatch):
     _, requests, printed, _ = _patch(monkeypatch)
 
-    result = CliRunner().invoke(issue, ["10", "advisory", "--status", "--json"])
+    result = CliRunner().invoke(issue, [FINDING_ID, "advisory", "--status", "--json"])
 
     assert result.exit_code == 0, result.output
-    assert requests[1]["path"] == "/external_issues/1/status"
+    assert requests[1]["path"] == f"/external_issues/{ADVISORY_ID}/status"
     assert printed == [STATUS]
 
 
 def test_issue_advisory_status_missing(monkeypatch):
     _patch(monkeypatch, list_items=[])
 
-    result = CliRunner().invoke(issue, ["10", "advisory", "--status"])
+    result = CliRunner().invoke(issue, [FINDING_ID, "advisory", "--status"])
 
     assert result.exit_code != 0
     assert "No security advisory found for this issue." in result.output
@@ -314,7 +318,7 @@ def test_issue_advisory_status_missing(monkeypatch):
 def test_issue_advisory_publish_and_delete_mutex(monkeypatch):
     _patch(monkeypatch)
 
-    result = CliRunner().invoke(issue, ["10", "advisory", "--publish", "--delete"])
+    result = CliRunner().invoke(issue, [FINDING_ID, "advisory", "--publish", "--delete"])
 
     assert result.exit_code != 0
     assert "mutually exclusive" in result.output.lower()
@@ -323,7 +327,7 @@ def test_issue_advisory_publish_and_delete_mutex(monkeypatch):
 def test_issue_advisory_status_and_publish_mutex(monkeypatch):
     _patch(monkeypatch)
 
-    result = CliRunner().invoke(issue, ["10", "advisory", "--status", "--publish"])
+    result = CliRunner().invoke(issue, [FINDING_ID, "advisory", "--status", "--publish"])
 
     assert result.exit_code != 0
     assert "mutually exclusive" in result.output.lower()
@@ -332,7 +336,7 @@ def test_issue_advisory_status_and_publish_mutex(monkeypatch):
 def test_issue_advisory_status_and_delete_mutex(monkeypatch):
     _patch(monkeypatch)
 
-    result = CliRunner().invoke(issue, ["10", "advisory", "--status", "--delete"])
+    result = CliRunner().invoke(issue, [FINDING_ID, "advisory", "--status", "--delete"])
 
     assert result.exit_code != 0
     assert "mutually exclusive" in result.output.lower()

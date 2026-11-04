@@ -1,9 +1,12 @@
 from click.testing import CliRunner
 
 from satori_cli.commands.issue import issue
+from tests.ids import pid
+
+FINDING_ID = pid("fnd", 10)
 
 FINDING = {
-    "id": 10,
+    "id": FINDING_ID,
     "status": "TP",
     "title": "example",
 }
@@ -43,22 +46,22 @@ def _patch(monkeypatch):
 def test_issue_status_tp(monkeypatch):
     request, printed = _patch(monkeypatch)
 
-    result = CliRunner().invoke(issue, ["10", "status", "TP"])
+    result = CliRunner().invoke(issue, [FINDING_ID, "status", "TP"])
 
     assert result.exit_code == 0, result.output
     assert request["method"] == "PATCH"
-    assert request["path"] == "/findings/10"
+    assert request["path"] == f"/findings/{FINDING_ID}"
     assert request["json"] == {"status": "TP"}
-    assert printed == ["Issue 10 status set to TP"]
+    assert printed == [f"Issue {FINDING_ID} status set to TP"]
 
 
 def test_issue_status_json(monkeypatch):
     request, printed = _patch(monkeypatch)
 
-    result = CliRunner().invoke(issue, ["10", "status", "fp", "--json"])
+    result = CliRunner().invoke(issue, [FINDING_ID, "status", "fp", "--json"])
 
     assert result.exit_code == 0, result.output
-    assert request["path"] == "/findings/10"
+    assert request["path"] == f"/findings/{FINDING_ID}"
     assert request["json"] == {"status": "FP"}
     assert printed == [FINDING]
 
@@ -66,7 +69,7 @@ def test_issue_status_json(monkeypatch):
 def test_issue_status_rejects_old_names(monkeypatch):
     request, _ = _patch(monkeypatch)
 
-    result = CliRunner().invoke(issue, ["10", "status", "CONFIRMED"])
+    result = CliRunner().invoke(issue, [FINDING_ID, "status", "CONFIRMED"])
 
     assert result.exit_code != 0
     assert "Invalid value" in result.output

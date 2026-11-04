@@ -17,6 +17,7 @@ from ..utils.wrappers import (
     IssueWrapper,
     PagedWrapper,
 )
+from ..utils.public_id import EXECUTION_ID, FINDING_ID
 
 ISSUE_STATUSES = [
     "OPEN",
@@ -82,7 +83,7 @@ def parse_severity_csv(
 def list_issues(
     page: int,
     quantity: int,
-    execution_id: Optional[int] = None,
+    execution_id: Optional[str] = None,
     status: Optional[str] = None,
     source: Optional[str] = None,
     severity: Optional[list[int]] = None,
@@ -115,8 +116,8 @@ def list_issues(
 
 
 @click.command("issues")
-@click.argument("execution_id_arg", metavar="EXECUTION-ID", type=int, required=False)
-@click.option("--execution-id", "execution_id_opt", type=int)
+@click.argument("execution_id_arg", metavar="EXECUTION-ID", type=EXECUTION_ID, required=False)
+@click.option("--execution-id", "execution_id_opt", type=EXECUTION_ID)
 @click.option(
     "--status",
     type=click.Choice(ISSUE_STATUSES, case_sensitive=False),
@@ -140,8 +141,8 @@ def list_issues(
 def issues(
     page: int,
     quantity: int,
-    execution_id_arg: Optional[int],
-    execution_id_opt: Optional[int],
+    execution_id_arg: Optional[str],
+    execution_id_opt: Optional[str],
     status: Optional[str],
     source: Optional[str],
     severity: Optional[list[int]],
@@ -169,7 +170,7 @@ def issues(
     )
 
 
-@click.group(cls=IdGroup, invoke_without_command=True)
+@click.group(cls=IdGroup, id_type=FINDING_ID, invoke_without_command=True)
 @opts.json_opt
 @click.pass_context
 def issue(ctx, **kwargs):
@@ -185,7 +186,7 @@ def issue(ctx, **kwargs):
 @click.argument("value", type=click.Choice(ISSUE_STATUSES, case_sensitive=False))
 @opts.json_opt
 @click.pass_obj
-def issue_status(finding_id: int, value: str, **kwargs):
+def issue_status(finding_id: str, value: str, **kwargs):
     if finding_id is None:
         raise click.UsageError("Missing argument 'FINDING-ID'.")
     res = client.patch(f"/findings/{finding_id}", json={"status": value.upper()})
@@ -199,7 +200,7 @@ def issue_status(finding_id: int, value: str, **kwargs):
 @click.argument("body")
 @opts.json_opt
 @click.pass_obj
-def issue_comment(finding_id: int, body: str, **kwargs):
+def issue_comment(finding_id: str, body: str, **kwargs):
     if finding_id is None:
         raise click.UsageError("Missing argument 'FINDING-ID'.")
     res = client.post(f"/findings/{finding_id}/comments", json={"body": body})
@@ -212,7 +213,7 @@ def issue_comment(finding_id: int, body: str, **kwargs):
 
 @issue.command(name="verify")
 @click.pass_obj
-def issue_verify(finding_id: int):
+def issue_verify(finding_id: str):
     """Verify a finding with Claude Code (3-agent majority → comment + TP/FP)."""
     if finding_id is None:
         raise click.UsageError("Missing argument 'FINDING-ID'.")
@@ -229,7 +230,7 @@ def issue_verify(finding_id: int):
 @opts.json_opt
 @click.pass_obj
 def issue_advisory(
-    finding_id: int, publish: bool, delete: bool, status: bool, **kwargs
+    finding_id: str, publish: bool, delete: bool, status: bool, **kwargs
 ):
     if finding_id is None:
         raise click.UsageError("Missing argument 'FINDING-ID'.")

@@ -13,6 +13,9 @@ from satori_cli.utils.repo import (
     wildcard_owner,
 )
 from satori_cli.utils.wrappers import JobWrapper, _wildcard_scan_rows, command_generator
+from tests.ids import pid
+
+SCAN_ID = pid("job", 99)
 
 
 class _FakeResponse:
@@ -25,7 +28,7 @@ class _FakeResponse:
 
 def _wildcard_scan(**data) -> dict:
     return {
-        "id": 99,
+        "id": SCAN_ID,
         "type": "SCAN",
         "playbook_source": "repo://.satori.yml",
         "visibility": "PRIVATE",
@@ -125,12 +128,12 @@ def test_run_existing_owner_named_dir_still_runs_locally(monkeypatch, tmp_path):
 
     def post(path, json):
         request["path"] = path
-        return _FakeResponse({"id": 42, "files_upload": None})
+        return _FakeResponse({"id": pid("job", 42), "files_upload": None})
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("satori_cli.commands.run.client.post", post)
     monkeypatch.setattr(
-        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [1]
+        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [pid("exec", 1)]
     )
     monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
 
@@ -147,7 +150,7 @@ def test_run_repo_wildcard_output_shows_every_execution(monkeypatch, scan_post):
     warnings = []
 
     def get(path, params=None):
-        if path == "/jobs/99":
+        if path == f"/jobs/{SCAN_ID}":
             return _FakeResponse(
                 _wildcard_scan(
                     skipped=[
@@ -156,8 +159,8 @@ def test_run_repo_wildcard_output_shows_every_execution(monkeypatch, scan_post):
                 )
             )
         assert path == "/executions"
-        assert params == {"job_id": 99, "quantity": 100}
-        return _FakeResponse({"items": [{"id": 1}, {"id": 2}]})
+        assert params == {"job_id": SCAN_ID, "quantity": 100}
+        return _FakeResponse({"items": [{"id": pid("exec", 1)}, {"id": pid("exec", 2)}]})
 
     monkeypatch.setattr("satori_cli.commands.run.client.get", get)
     monkeypatch.setattr(
@@ -173,7 +176,7 @@ def test_run_repo_wildcard_output_shows_every_execution(monkeypatch, scan_post):
     result = CliRunner().invoke(run, ["--repo", "satorici", "--output"])
 
     assert result.exit_code == 0, result.output
-    assert shown == [1, 2]
+    assert shown == [pid("exec", 1), pid("exec", 2)]
     assert "WARNING: skipped satorici/x: no root .satori.yml" in warnings
 
 
@@ -245,6 +248,6 @@ def test_scan_id_with_option_shows_scan_instead_of_creating(monkeypatch):
     )
     monkeypatch.setattr("satori_cli.commands.scan.stdout.print", lambda *args: None)
 
-    result = CliRunner().invoke(scan, ["99", "--json"])
+    result = CliRunner().invoke(scan, [SCAN_ID, "--json"])
 
     assert result.exit_code == 0, result.output

@@ -2,6 +2,9 @@ from click.testing import CliRunner
 
 from satori_cli.commands.scan import scan
 from satori_cli.utils.wrappers import command_generator
+from tests.ids import pid
+
+SCAN_ID = pid("job", 99)
 
 
 class _FakeResponse:
@@ -14,7 +17,7 @@ class _FakeResponse:
 
 def _scan_response(playbook_source: str, quantity: int | None = 1):
     return {
-        "id": 99,
+        "id": SCAN_ID,
         "type": "SCAN",
         "playbook_source": playbook_source,
         "visibility": "PRIVATE",
@@ -200,10 +203,10 @@ def test_scan_stop_with_id(monkeypatch):
     monkeypatch.setattr("satori_cli.commands.scan.client.patch", patch)
     monkeypatch.setattr("satori_cli.commands.scan.stdout.print", lambda *args: None)
 
-    result = CliRunner().invoke(scan, ["99", "stop"])
+    result = CliRunner().invoke(scan, [SCAN_ID, "stop"])
 
     assert result.exit_code == 0, result.output
-    assert request["path"] == "/jobs/scans/99"
+    assert request["path"] == f"/jobs/scans/{SCAN_ID}"
     assert request["body"] == {"status": "CANCELED"}
 
 
@@ -217,10 +220,10 @@ def test_scan_delete_with_id(monkeypatch):
     monkeypatch.setattr("satori_cli.commands.scan.client.delete", delete)
     monkeypatch.setattr("satori_cli.commands.scan.stdout.print", lambda *args: None)
 
-    result = CliRunner().invoke(scan, ["99", "delete"])
+    result = CliRunner().invoke(scan, [SCAN_ID, "delete"])
 
     assert result.exit_code == 0, result.output
-    assert request["path"] == "/jobs/99"
+    assert request["path"] == f"/jobs/{SCAN_ID}"
 
 
 def test_scan_explicit_stop_wildcard_still_creates(monkeypatch):
@@ -231,7 +234,7 @@ def test_scan_explicit_stop_wildcard_still_creates(monkeypatch):
         request["body"] = json
         return _FakeResponse(
             {
-                "id": 99,
+                "id": SCAN_ID,
                 "type": "SCAN",
                 "playbook_source": "bundle://resolved",
                 "visibility": "PRIVATE",

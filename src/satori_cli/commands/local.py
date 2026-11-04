@@ -28,7 +28,7 @@ from ..utils.wrappers import JobWrapper, OutputWrapper, ReportWrapper
 from .issue import list_issues
 
 
-def _verify_execution(execution_id: int, min_severity: str | None = None) -> None:
+def _verify_execution(execution_id: str, min_severity: str | None = None) -> None:
     finding_ids = list_finding_ids_for_execution(execution_id)
     if not finding_ids:
         stderr.print(f"No findings to verify for execution {execution_id}.")

@@ -4,6 +4,9 @@ from click.testing import CliRunner
 
 from satori_cli import cli
 from satori_cli.config import config
+from tests.ids import pid
+
+EXECUTION_ID = pid("exec", 5)
 
 ORGANIZATIONS = [
     {"id": 7, "name": "Acme"},
@@ -47,9 +50,9 @@ def test_org_at_the_end_of_a_command(requests):
 @pytest.mark.parametrize(
     "args",
     [
-        ["report", "5", "output", "--org", "7"],
-        ["report", "--org", "7", "5", "output"],
-        ["report", "--org", "Acme", "5", "output"],
+        ["report", EXECUTION_ID, "output", "--org", "7"],
+        ["report", "--org", "7", EXECUTION_ID, "output"],
+        ["report", "--org", "Acme", EXECUTION_ID, "output"],
     ],
 )
 def test_org_is_not_read_as_the_id(monkeypatch, requests, args):
@@ -64,7 +67,7 @@ def test_org_is_not_read_as_the_id(monkeypatch, requests, args):
     result = CliRunner().invoke(cli, args)
 
     assert result.exit_code == 0, result.output
-    assert shown == [(5, 7)]
+    assert shown == [(EXECUTION_ID, 7)]
 
 
 def test_org_by_name(requests):

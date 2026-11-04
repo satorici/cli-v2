@@ -2,16 +2,19 @@ from click.testing import CliRunner
 
 from satori_cli.commands.issue import issues
 from satori_cli.commands.report import report
+from tests.ids import pid
+
+EXECUTION_ID = pid("exec", 222717)
 
 FINDINGS = {
     "items": [
         {
-            "id": 1,
+            "id": pid("fnd", 1),
             "title": "example",
             "status": "OPEN",
             "source": "TOOL",
             "severity": 2,
-            "execution_id": 222717,
+            "execution_id": EXECUTION_ID,
             "created_at": "2024-01-01T00:00:00Z",
         }
     ],
@@ -77,13 +80,13 @@ def test_report_issues_severity_csv_and_execution_id(monkeypatch):
     request, _ = _patch_get(monkeypatch)
 
     result = CliRunner().invoke(
-        report, ["222717", "issues", "--severity", "medium,info"]
+        report, [EXECUTION_ID, "issues", "--severity", "medium,info"]
     )
 
     assert result.exit_code == 0, result.output
     assert request["path"] == "/findings"
     assert request["params"]["severity"] == [3, 5]
-    assert request["params"]["execution_id"] == 222717
+    assert request["params"]["execution_id"] == EXECUTION_ID
 
 
 def test_issues_rejects_invalid_severity_token(monkeypatch):

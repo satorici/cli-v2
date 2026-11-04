@@ -53,6 +53,17 @@ satori-v2 config organization none
 
 ## Commands
 
+### IDs
+
+Jobs (runs, scans, monitors), executions (reports), findings (issues) and advisories are
+identified by a 21-character ID of letters and digits, e.g. `V1StGXR8Z5jdHi6BmyT7k`. The
+old numeric IDs are no longer accepted: the CLI rejects a malformed ID before calling the
+API. Pass the ID right after the command, before its subcommand
+(`satori-v2 report V1StGXR8Z5jdHi6BmyT7k output`). `scan ID` manages a scan; to scan every
+repository of an owner whose name is 21 letters and digits, use `scan owner/*`.
+`search --id-gt ID` / `--id-lt ID` keep executions created after / before execution ID.
+Organization, user, comment and SSH session IDs are still numbers.
+
 Running `satori-v2` with no subcommand lists your jobs (dashboard). Use `--public` to list public jobs.
 
 | Command | Description |
@@ -75,7 +86,7 @@ Running `satori-v2` with no subcommand lists your jobs (dashboard). Use `--publi
 | `advisories` | List external issues (e.g. GitHub security advisories) you created; supports `--execution-id`, `--kind`, `--provider`, `--order`, pagination, `--json` |
 | `advisory` | Show or update an external issue by advisory id (see subcommands below) |
 | `stop` | Group for stopping runs (see subcommands below) |
-| `search` | Search executions; supports bulk download/stop/delete |
+| `search` | Search executions; supports `--job-id`, `--id-gt`/`--id-lt` (created after/before an execution), bulk download/stop/delete |
 | `update` | Reinstall the CLI from GitHub via pip |
 | `output` | Show or stream raw output for an execution |
 | `organizations` | List your organizations; `organizations create NAME`, `organizations personal` (act on your own account again) |
@@ -130,7 +141,7 @@ Organizations are accounts shared by their members (creating one needs an ENTERP
 plan). Commands act on your own account unless an organization is selected with
 `config organization <id|name>` or `organization <id> use` (saved in the profile),
 `--org <id|name>` at the end of any command
-(e.g. `satori-v2 run ./ --org 7`, `satori-v2 report 5 --org Acme`) or `SATORI_ORGANIZATION`.
+(e.g. `satori-v2 run ./ --org 7`, `satori-v2 report V1StGXR8Z5jdHi6BmyT7k --org Acme`) or `SATORI_ORGANIZATION`.
 
 | Subcommand | Description |
 | --- | --- |

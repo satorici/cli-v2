@@ -53,8 +53,8 @@ _ARRAY_RE = re.compile(r"\[.*\]", re.DOTALL)
 # echoed a source line with unescaped quotes in a field we don't use) or wrapped in prose.
 # [^{}] keeps each match inside one object; both field orders are allowed.
 _PAIR_RE = re.compile(
-    r'"id"\s*:\s*(\d+)[^{}]*?"verdict"\s*:\s*"(TP|FP)"'
-    r'|"verdict"\s*:\s*"(TP|FP)"[^{}]*?"id"\s*:\s*(\d+)',
+    r'"id"\s*:\s*"?([0-9A-Za-z]{21})"?[^{}]*?"verdict"\s*:\s*"(TP|FP)"'
+    r'|"verdict"\s*:\s*"(TP|FP)"[^{}]*?"id"\s*:\s*"?([0-9A-Za-z]{21})"?',
     re.IGNORECASE,
 )
 
@@ -94,7 +94,7 @@ _TASK = (
     "For each finding below, open its file at the given line, trace input -> sink, check "
     "sanitizers and reachability, then decide TP (real and exploitable) or FP. "
     "Output ONLY a JSON array -- no prose, no markdown fences. Each element: "
-    '{"id": <finding id int>, "verdict": "TP" or "FP", "line": <1-based line int>}.'
+    '{"id": "<finding id string>", "verdict": "TP" or "FP", "line": <1-based line int>}.'
 )
 
 
@@ -113,7 +113,7 @@ def repository_from_job(job: dict[str, Any]) -> Optional[str]:
     return None
 
 
-def resolve_repository(finding_id: int) -> tuple[dict[str, Any], str]:
+def resolve_repository(finding_id: str) -> tuple[dict[str, Any], str]:
     finding = client.get(f"/findings/{finding_id}").json()
     execution_id = finding.get("execution_id")
     if execution_id is None:
@@ -192,16 +192,16 @@ def build_verify_prompt(findings: list[dict[str, Any]]) -> str:
     return "\n".join(blocks)
 
 
-def _pairwise_verdicts(text: str) -> dict[int, str]:
+def _pairwise_verdicts(text: str) -> dict[str, str]:
     """Recover {id: verdict} by scanning for id+verdict pairs directly -- tolerant of invalid
     JSON (a stray unescaped quote in an unused field) and of prose around the array."""
-    verdicts: dict[int, str] = {}
+    verdicts: dict[str, str] = {}
     for first_id, first_v, second_v, second_id in _PAIR_RE.findall(text):
-        verdicts[int(first_id or second_id)] = (first_v or second_v).upper()
+        verdicts[first_id or second_id] = (first_v or second_v).upper()
     return verdicts
 
 
-def _verdicts(text: str) -> Optional[dict[int, str]]:
+def _verdicts(text: str) -> Optional[dict[str, str]]:
     """The {id: 'TP'|'FP'} map parsed from an agent's JSON-array answer, or None."""
     text = text.strip()
     fence = _FENCE_RE.search(text)
@@ -216,7 +216,7 @@ def _verdicts(text: str) -> Optional[dict[int, str]]:
             data = None
     if isinstance(data, list):
         return {
-            int(item["id"]): item["verdict"].upper()
+            str(item["id"]): item["verdict"].upper()
             for item in data
             if isinstance(item, dict) and "id" in item
             and str(item.get("verdict")).upper() in ("TP", "FP")
@@ -250,7 +250,7 @@ def _claude_env() -> dict[str, str]:
 
 def _claude_once(
     claude: str, prompt: str, role: str, cwd: Path
-) -> tuple[Optional[dict[int, str]], str]:
+) -> tuple[Optional[dict[str, str]], str]:
     """Run one Claude agent (role via the system prompt) over the repo in cwd. Returns
     (verdicts|None, output); output is kept so the caller can spot a usage limit."""
     result = subprocess.run(  # noqa: S603
@@ -297,7 +297,7 @@ def _claude_once(
     return _verdicts(envelope.get("result", "")), output
 
 
-def _run_claude(claude: str, findings: list[dict[str, Any]], role: str, cwd: Path) -> dict[int, str]:
+def _run_claude(claude: str, findings: list[dict[str, Any]], role: str, cwd: Path) -> dict[str, str]:
     """Run an agent, retrying an unparseable answer a few times. A usage limit is terminal
     (a retry only burns more quota) and raises UsageLimitError. Returns {} if no verdicts
     could be parsed after every attempt."""
@@ -320,13 +320,13 @@ def _run_claude(claude: str, findings: list[dict[str, Any]], role: str, cwd: Pat
 
 def judge_findings(
     findings: list[dict[str, Any]], clone_dir: Path, claude: str
-) -> dict[int, str]:
+) -> dict[str, str]:
     """Judge all findings with two agents -- an analyst and an adversary -- over one clone,
     settling any disagreement with a tie-breaker. Returns {finding_id: 'TP'|'FP'} (a finding
     with no agreed/decisive verdict is omitted). Raises UsageLimitError on a usage limit."""
     analysis = _run_claude(claude, findings, ANALYST, clone_dir)
     adversary = _run_claude(claude, findings, ADVERSARY, clone_dir)
-    verdicts: dict[int, str] = {}
+    verdicts: dict[str, str] = {}
     for finding in findings:
         fid = finding["id"]
         first, second = analysis.get(fid), adversary.get(fid)
@@ -391,7 +391,7 @@ def verify_findings_for_repo(
     min_severity: Any = None,
     persist: bool = True,
     quiet: bool = False,
-) -> dict[int, str]:
+) -> dict[str, str]:
     """Clone `repository` once and judge `findings` (only those at or above `min_severity`,
     e.g. 'High', when given). Persists each verdict via the API unless persist=False, and
     returns {finding_id: 'TP'|'FP'}. Raises UsageLimitError on a Claude usage limit. `quiet`
@@ -415,9 +415,9 @@ def verify_findings_for_repo(
 _FINDINGS_PAGE_SIZE = 200
 
 
-def list_finding_ids_for_execution(execution_id: int) -> list[int]:
+def list_finding_ids_for_execution(execution_id: str) -> list[str]:
     """Paginate GET /findings for an execution and return every finding id."""
-    ids: list[int] = []
+    ids: list[str] = []
     page = 1
     while True:
         data = client.get(
@@ -439,7 +439,7 @@ def list_finding_ids_for_execution(execution_id: int) -> list[int]:
     return ids
 
 
-def verify_findings(finding_ids: list[int], min_severity: Any = None) -> dict[int, str]:
+def verify_findings(finding_ids: list[str], min_severity: Any = None) -> dict[str, str]:
     """Verify multiple findings (of one repo) with a single clone; persist and report each
     verdict. Returns {finding_id: 'TP'|'FP'}."""
     if not finding_ids:
@@ -469,5 +469,5 @@ def verify_findings(finding_ids: list[int], min_severity: Any = None) -> dict[in
     return verdicts
 
 
-def verify_issue(finding_id: int) -> dict[int, str]:
+def verify_issue(finding_id: str) -> dict[str, str]:
     return verify_findings([finding_id])

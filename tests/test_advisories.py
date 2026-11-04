@@ -8,13 +8,18 @@ from satori_cli.utils.wrappers import (
     ExternalIssueWrapper,
     PagedWrapper,
 )
+from tests.ids import pid
+
+ADVISORY_ID = pid("adv", 1)
+EXECUTION_ID = pid("exec", 42)
+FINDING_ID = pid("fnd", 10)
 
 ITEMS = [
     {
-        "id": 1,
+        "id": ADVISORY_ID,
         "created_at": "2026-09-01T10:00:00.123456Z",
-        "execution_id": 42,
-        "finding_id": 10,
+        "execution_id": EXECUTION_ID,
+        "finding_id": FINDING_ID,
         "provider": "GITHUB",
         "kind": "SECURITY_ADVISORY",
         "title": "SQL injection in login",
@@ -28,10 +33,10 @@ ITEMS = [
         "repository": "org/repo",
     },
     {
-        "id": 2,
+        "id": pid("adv", 2),
         "created_at": "2026-09-02T11:00:00Z",
-        "execution_id": 43,
-        "finding_id": 11,
+        "execution_id": pid("exec", 43),
+        "finding_id": pid("fnd", 11),
         "provider": "GITHUB",
         "kind": "SECURITY_ADVISORY",
         "title": "Failed advisory",
@@ -51,7 +56,7 @@ HISTORY = [
         "kind": "event",
         "id": 2,
         "created_at": "2026-09-21T00:01:00Z",
-        "finding_id": 10,
+        "finding_id": FINDING_ID,
         "type": "STATUS_CHANGED",
         "payload": {"from": "OPEN", "to": "TP"},
         "display_name": "alice",
@@ -135,7 +140,7 @@ def test_advisories_filters_are_uppercased(monkeypatch):
             "--order",
             "asc",
             "--execution-id",
-            "42",
+            EXECUTION_ID,
             "--page",
             "2",
             "-q",
@@ -147,7 +152,7 @@ def test_advisories_filters_are_uppercased(monkeypatch):
     assert request["params"] == {
         "page": 2,
         "quantity": 5,
-        "execution_id": 42,
+        "execution_id": EXECUTION_ID,
         "kind": "SECURITY_ADVISORY",
         "provider": "GITHUB",
         "order": "ASC",
@@ -157,16 +162,16 @@ def test_advisories_filters_are_uppercased(monkeypatch):
 def test_advisory_get(monkeypatch):
     _, requests, printed = _patch(monkeypatch)
 
-    result = CliRunner().invoke(advisory, ["1"])
+    result = CliRunner().invoke(advisory, [ADVISORY_ID])
 
     assert result.exit_code == 0, result.output
     assert [r["path"] for r in requests] == [
-        "/external_issues/1",
-        "/findings/10/timeline",
+        f"/external_issues/{ADVISORY_ID}",
+        f"/findings/{FINDING_ID}/timeline",
     ]
     assert len(printed) == 1
     assert isinstance(printed[0], ExternalIssueWrapper)
-    assert printed[0].obj["id"] == 1
+    assert printed[0].obj["id"] == ADVISORY_ID
     assert printed[0].obj["history"] == HISTORY
 
 
@@ -180,11 +185,11 @@ def test_advisory_missing_id():
 def test_advisory_visibility(monkeypatch):
     request, _, printed = _patch(monkeypatch)
 
-    result = CliRunner().invoke(advisory, ["1", "visibility", "public"])
+    result = CliRunner().invoke(advisory, [ADVISORY_ID, "visibility", "public"])
 
     assert result.exit_code == 0, result.output
     assert request["method"] == "PATCH"
-    assert request["path"] == "/external_issues/1"
+    assert request["path"] == f"/external_issues/{ADVISORY_ID}"
     assert request["json"] == {"visibility": "PUBLIC"}
     assert printed == ["Advisory visibility set to PUBLIC"]
 
@@ -217,14 +222,14 @@ def test_external_issue_wrapper_renders():
     console.print(ExternalIssueWrapper(ITEMS[0]))
     text = console.export_text()
 
-    assert "Advisory 1" in text
+    assert f"Advisory {ADVISORY_ID}" in text
     assert "SQL injection in login" in text
     assert "Security advisory" in text
     assert "Github" in text
     assert "High" in text
     assert "Private" in text
-    assert "42" in text
-    assert "10" in text
+    assert EXECUTION_ID in text
+    assert FINDING_ID in text
     assert "GHSA-x" in text
     assert "desc" in text
     assert "2026-09-01 10:00:00" in text
@@ -235,12 +240,12 @@ def test_advisory_edit_patches_title_and_body(monkeypatch):
     request, _, printed = _patch(monkeypatch)
 
     result = CliRunner().invoke(
-        advisory, ["1", "edit", "--title", "Human title", "--body", "Human body."]
+        advisory, [ADVISORY_ID, "edit", "--title", "Human title", "--body", "Human body."]
     )
 
     assert result.exit_code == 0, result.output
     assert request["method"] == "PATCH"
-    assert request["path"] == "/external_issues/1"
+    assert request["path"] == f"/external_issues/{ADVISORY_ID}"
     assert request["json"] == {"title": "Human title", "description": "Human body."}
     assert printed == ["Advisory updated"]
 
@@ -248,7 +253,7 @@ def test_advisory_edit_patches_title_and_body(monkeypatch):
 def test_advisory_edit_requires_a_field(monkeypatch):
     _patch(monkeypatch)
 
-    result = CliRunner().invoke(advisory, ["1", "edit"])
+    result = CliRunner().invoke(advisory, [ADVISORY_ID, "edit"])
 
     assert result.exit_code != 0
     assert "Pass --title" in result.output

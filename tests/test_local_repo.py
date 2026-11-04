@@ -3,6 +3,9 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from satori_cli.commands.local import local
+from tests.ids import pid
+
+EXECUTION_ID = pid("exec", 100)
 
 
 class _FakeResponse:
@@ -29,7 +32,7 @@ class _FakeTempDir:
 
 
 LOCAL_CREATE = {
-    "id": 50,
+    "id": pid("job", 50),
     "type": "LOCAL",
     "visibility": "PRIVATE",
     "created_at": "2026-01-01T00:00:00Z",
@@ -69,10 +72,10 @@ def test_local_repo_clones_and_posts_repository(monkeypatch, tmp_path):
 
     def fake_client_get(path, params=None, **kwargs):
         if path == "/executions":
-            return _FakeResponse({"items": [{"id": 100}]})
-        if path == "/executions/100":
+            return _FakeResponse({"items": [{"id": EXECUTION_ID}]})
+        if path == f"/executions/{EXECUTION_ID}":
             return _FakeResponse(
-                {"id": 100, "report": {"total_fails": 0, "detail": {}}}
+                {"id": EXECUTION_ID, "report": {"total_fails": 0, "detail": {}}}
             )
         raise AssertionError(f"Unexpected GET {path}")
 
@@ -152,4 +155,4 @@ def test_local_repo_clones_and_posts_repository(monkeypatch, tmp_path):
         }
     ]
     assert any(Path(p).name == "app" for p in chdirs)
-    assert verify_calls == [100]
+    assert verify_calls == [EXECUTION_ID]

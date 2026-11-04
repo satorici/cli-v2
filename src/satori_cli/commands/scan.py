@@ -11,9 +11,10 @@ from ..utils.console import stdout, wait_job_until_finished
 from ..utils.misc import list_jobs, remove_none_values
 from ..utils.repo import is_wildcard_repo, normalize_repo_target
 from ..utils.wrappers import JobWrapper
+from ..utils.public_id import is_public_id
 
 
-def _require_scan_id(scan_id: Optional[int]) -> int:
+def _require_scan_id(scan_id: Optional[str]) -> str:
     if scan_id is None:
         raise click.UsageError("Missing argument 'SCAN-ID'.")
     return scan_id
@@ -22,11 +23,12 @@ def _require_scan_id(scan_id: Optional[int]) -> int:
 class ScanGroup(click.Group):
     def parse_args(self, ctx, args):
         # `scan ID`, `scan ID status` and `scan ID --json` manage a scan; anything else
-        # creates one (a bare number would otherwise become the `ID/*` wildcard)
-        if args and args[0].isdigit() and (
+        # creates one (an ID would otherwise become the `ID/*` wildcard). A bare owner
+        # that looks like an ID (21 letters and digits) needs the explicit `owner/*`
+        if args and is_public_id(args[0]) and (
             len(args) == 1 or args[1] in self.commands or args[1].startswith("-")
         ):
-            ctx.obj = int(args.pop(0))
+            ctx.obj = args.pop(0)
         return super().parse_args(ctx, args)
 
     def resolve_command(self, ctx, args):
@@ -160,7 +162,7 @@ def scan_create(
 @scan.command(name="status")
 @opts.json_opt
 @click.pass_obj
-def scan_status(scan_id: Optional[int], **kwargs):
+def scan_status(scan_id: Optional[str], **kwargs):
     scan_id = _require_scan_id(scan_id)
     res = client.get(f"/jobs/{scan_id}")
     stdout.print(JobWrapper(res.json()))
@@ -168,7 +170,7 @@ def scan_status(scan_id: Optional[int], **kwargs):
 
 @scan.command(name="stop")
 @click.pass_obj
-def scan_stop(scan_id: Optional[int]):
+def scan_stop(scan_id: Optional[str]):
     scan_id = _require_scan_id(scan_id)
     client.patch(f"/jobs/scans/{scan_id}", json={"status": "CANCELED"})
     stdout.print("Scan stopped")
@@ -176,9 +178,9 @@ def scan_stop(scan_id: Optional[int]):
 
 @scan.command(name="clean")
 @click.pass_obj
-def scan_clean(scan_id: Optional[int]):
+def scan_clean(scan_id: Optional[str]):
     scan_id = _require_scan_id(scan_id)
-    execution_ids: list[int] = []
+    execution_ids: list[str] = []
     page = 1
 
     while True:
@@ -207,7 +209,7 @@ def scan_clean(scan_id: Optional[int]):
 
 @scan.command(name="delete")
 @click.pass_obj
-def scan_delete(scan_id: Optional[int]):
+def scan_delete(scan_id: Optional[str]):
     scan_id = _require_scan_id(scan_id)
     client.delete(f"/jobs/{scan_id}")
     stdout.print("Scan deleted")

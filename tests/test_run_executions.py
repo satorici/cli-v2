@@ -5,6 +5,10 @@ from satori_cli.commands.run import _require_first_execution_id, run
 from satori_cli.exceptions import SatoriError
 from satori_cli.models import Source
 from satori_cli.utils.arguments import _RunSourceParam
+from tests.ids import pid
+
+JOB_ID = pid("job", 99)
+EXECUTION_ID = pid("exec", 42)
 
 
 class _FakeResponse:
@@ -18,9 +22,9 @@ class _FakeResponse:
 def test_require_first_execution_id_returns_id(monkeypatch):
     monkeypatch.setattr(
         "satori_cli.commands.run.client.get",
-        lambda *args, **kwargs: _FakeResponse({"items": [{"id": 42}]}),
+        lambda *args, **kwargs: _FakeResponse({"items": [{"id": EXECUTION_ID}]}),
     )
-    assert _require_first_execution_id(1) == 42
+    assert _require_first_execution_id(JOB_ID) == EXECUTION_ID
 
 
 def test_require_first_execution_id_raises_on_empty(monkeypatch):
@@ -49,7 +53,7 @@ def test_run_playbook_alias_uses_current_directory(
     def post(path, json):
         request["path"] = path
         request["body"] = json
-        return _FakeResponse({"id": 42, "files_upload": {"url": "upload"}})
+        return _FakeResponse({"id": JOB_ID, "files_upload": {"url": "upload"}})
 
     def upload_files(self, data):
         uploaded["source"] = self._arg
@@ -58,7 +62,7 @@ def test_run_playbook_alias_uses_current_directory(
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("satori_cli.commands.run.client.post", post)
     monkeypatch.setattr(
-        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [1]
+        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [pid("exec", 1)]
     )
     monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
     monkeypatch.setattr(Source, "upload_files", upload_files)
@@ -79,12 +83,12 @@ def test_run_forwards_expire(monkeypatch, tmp_path):
 
     def post(path, json):
         request["body"] = json
-        return _FakeResponse({"id": 42, "files_upload": None})
+        return _FakeResponse({"id": JOB_ID, "files_upload": None})
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("satori_cli.commands.run.client.post", post)
     monkeypatch.setattr(
-        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [1]
+        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [pid("exec", 1)]
     )
     monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
 
@@ -99,12 +103,12 @@ def test_run_forwards_notify(monkeypatch, tmp_path):
 
     def post(path, json):
         request["body"] = json
-        return _FakeResponse({"id": 42, "files_upload": None})
+        return _FakeResponse({"id": JOB_ID, "files_upload": None})
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("satori_cli.commands.run.client.post", post)
     monkeypatch.setattr(
-        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [1]
+        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [pid("exec", 1)]
     )
     monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
 
@@ -144,12 +148,12 @@ def test_explicit_playbook_overrides_run_alias(monkeypatch, tmp_path):
 
     def post(path, json):
         request["body"] = json
-        return _FakeResponse({"id": 42, "files_upload": None})
+        return _FakeResponse({"id": JOB_ID, "files_upload": None})
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("satori_cli.commands.run.client.post", post)
     monkeypatch.setattr(
-        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [1]
+        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [pid("exec", 1)]
     )
     monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
 
@@ -179,12 +183,12 @@ def test_explicit_alias_path_is_not_converted(monkeypatch, tmp_path):
 
     def post(path, json):
         request["body"] = json
-        return _FakeResponse({"id": 42, "files_upload": None})
+        return _FakeResponse({"id": JOB_ID, "files_upload": None})
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("satori_cli.commands.run.client.post", post)
     monkeypatch.setattr(
-        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [1]
+        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [pid("exec", 1)]
     )
     monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
 
@@ -239,7 +243,7 @@ def test_run_with_repo_creates_scan(monkeypatch, repo_flag):
         request["body"] = json
         return _FakeResponse(
             {
-                "id": 99,
+                "id": JOB_ID,
                 "type": "SCAN",
                 "playbook_source": "satori://code/python/pyspector_v2.yml",
                 "visibility": "PRIVATE",
@@ -252,7 +256,7 @@ def test_run_with_repo_creates_scan(monkeypatch, repo_flag):
 
     monkeypatch.setattr("satori_cli.commands.run.client.post", post)
     monkeypatch.setattr(
-        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [1]
+        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [pid("exec", 1)]
     )
     monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
 
@@ -279,7 +283,7 @@ def test_run_with_repo_output_waits_and_shows(monkeypatch):
     def post(path, json):
         return _FakeResponse(
             {
-                "id": 99,
+                "id": JOB_ID,
                 "type": "SCAN",
                 "playbook_source": "satori://code/python/pyspector_v2.yml",
                 "visibility": "PRIVATE",
@@ -298,13 +302,13 @@ def test_run_with_repo_output_waits_and_shows(monkeypatch):
 
     monkeypatch.setattr("satori_cli.commands.run.client.post", post)
     monkeypatch.setattr(
-        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [42]
+        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [EXECUTION_ID]
     )
     monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
     monkeypatch.setattr("satori_cli.commands.run.stderr.print", lambda *args: None)
     monkeypatch.setattr("satori_cli.commands.run.wait_job_until_finished", wait)
     monkeypatch.setattr(
-        "satori_cli.commands.run._require_first_execution_id", lambda job_id: 42
+        "satori_cli.commands.run._require_first_execution_id", lambda job_id: EXECUTION_ID
     )
     monkeypatch.setattr("satori_cli.commands.run.show_execution_output", show)
 
@@ -319,8 +323,8 @@ def test_run_with_repo_output_waits_and_shows(monkeypatch):
     )
 
     assert result.exit_code == 0, result.output
-    assert waited == {"job_id": 99}
-    assert shown == {"execution_id": 42}
+    assert waited == {"job_id": JOB_ID}
+    assert shown == {"execution_id": EXECUTION_ID}
 
 
 def test_run_with_repo_verify_waits_and_verifies(monkeypatch):
@@ -330,7 +334,7 @@ def test_run_with_repo_verify_waits_and_verifies(monkeypatch):
     def post(path, json):
         return _FakeResponse(
             {
-                "id": 99,
+                "id": JOB_ID,
                 "type": "SCAN",
                 "playbook_source": "satori://code/python/pyspector_v2.yml",
                 "visibility": "PRIVATE",
@@ -346,7 +350,7 @@ def test_run_with_repo_verify_waits_and_verifies(monkeypatch):
 
     def list_ids(execution_id):
         verified["listed"] = execution_id
-        return [10, 11]
+        return [pid("fnd", 10), pid("fnd", 11)]
 
     def batch_verify(finding_ids, min_severity=None):
         verified["finding_ids"] = finding_ids
@@ -356,7 +360,7 @@ def test_run_with_repo_verify_waits_and_verifies(monkeypatch):
     monkeypatch.setattr("satori_cli.commands.run.stderr.print", lambda *args: None)
     monkeypatch.setattr("satori_cli.commands.run.wait_job_until_finished", wait)
     monkeypatch.setattr(
-        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [42]
+        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [EXECUTION_ID]
     )
     monkeypatch.setattr(
         "satori_cli.commands.run.list_finding_ids_for_execution", list_ids
@@ -376,19 +380,19 @@ def test_run_with_repo_verify_waits_and_verifies(monkeypatch):
     )
 
     assert result.exit_code == 0, result.output
-    assert waited == {"job_id": 99}
-    assert verified == {"listed": 42, "finding_ids": [10, 11]}
+    assert waited == {"job_id": JOB_ID}
+    assert verified == {"listed": EXECUTION_ID, "finding_ids": [pid("fnd", 10), pid("fnd", 11)]}
 
 
 def test_verify_executions_all_ids(monkeypatch):
     from satori_cli.commands.run import _verify_executions
 
-    listed: list[int] = []
-    verified_calls: list[list[int]] = []
+    listed: list[str] = []
+    verified_calls: list[list[str]] = []
 
     def list_ids(execution_id):
         listed.append(execution_id)
-        return [100 + execution_id]
+        return [f"finding-of-{execution_id}"]
 
     def batch_verify(finding_ids, min_severity=None):
         verified_calls.append(list(finding_ids))
@@ -401,17 +405,18 @@ def test_verify_executions_all_ids(monkeypatch):
     )
     monkeypatch.setattr("satori_cli.commands.run.stderr.print", lambda *args: None)
 
-    _verify_executions([1, 2])
+    first, second = pid("exec", 1), pid("exec", 2)
+    _verify_executions([first, second])
 
-    assert listed == [1, 2]
-    assert verified_calls == [[101], [102]]
+    assert listed == [first, second]
+    assert verified_calls == [[f"finding-of-{first}"], [f"finding-of-{second}"]]
 
 
 def test_verify_executions_skips_empty(monkeypatch):
     from satori_cli.commands.run import _verify_executions
 
     messages: list[str] = []
-    verified_calls: list[list[int]] = []
+    verified_calls: list[list[str]] = []
 
     monkeypatch.setattr(
         "satori_cli.commands.run.list_finding_ids_for_execution",
@@ -426,7 +431,7 @@ def test_verify_executions_skips_empty(monkeypatch):
         lambda *args: messages.append(" ".join(str(a) for a in args)),
     )
 
-    _verify_executions([9])
+    _verify_executions([pid("exec", 9)])
 
     assert verified_calls == []
     assert any("No findings" in m for m in messages)
@@ -462,7 +467,7 @@ def test_run_owner_repo_with_playbook_creates_scan(monkeypatch):
         request["body"] = json
         return _FakeResponse(
             {
-                "id": 99,
+                "id": JOB_ID,
                 "type": "SCAN",
                 "playbook_source": "satori://code/python/pyspector_v2.yml",
                 "visibility": "PRIVATE",
@@ -476,7 +481,7 @@ def test_run_owner_repo_with_playbook_creates_scan(monkeypatch):
     monkeypatch.setattr("satori_cli.commands.run.client.post", post)
     monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
     monkeypatch.setattr(
-        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [1]
+        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [pid("exec", 1)]
     )
 
     result = CliRunner().invoke(
@@ -502,7 +507,7 @@ def test_run_owner_repo_without_playbook_omits_playbook_source(monkeypatch):
         request["body"] = json
         return _FakeResponse(
             {
-                "id": 99,
+                "id": JOB_ID,
                 "type": "SCAN",
                 "playbook_source": "bundle://resolved",
                 "visibility": "PRIVATE",
@@ -516,7 +521,7 @@ def test_run_owner_repo_without_playbook_omits_playbook_source(monkeypatch):
     monkeypatch.setattr("satori_cli.commands.run.client.post", post)
     monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
     monkeypatch.setattr(
-        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [1]
+        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [pid("exec", 1)]
     )
 
     result = CliRunner().invoke(run, ["satorici/satori-cli"])
@@ -535,7 +540,7 @@ def test_run_repo_flag_without_source_omits_playbook_source(monkeypatch):
         request["body"] = json
         return _FakeResponse(
             {
-                "id": 99,
+                "id": JOB_ID,
                 "type": "SCAN",
                 "playbook_source": "bundle://resolved",
                 "visibility": "PRIVATE",
@@ -549,7 +554,7 @@ def test_run_repo_flag_without_source_omits_playbook_source(monkeypatch):
     monkeypatch.setattr("satori_cli.commands.run.client.post", post)
     monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
     monkeypatch.setattr(
-        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [1]
+        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [pid("exec", 1)]
     )
 
     result = CliRunner().invoke(run, ["--repo", "satorici/satori-cli"])
@@ -575,12 +580,12 @@ def test_run_existing_local_owner_repo_dir_is_run_not_scan(monkeypatch, tmp_path
     def post(path, json):
         request["path"] = path
         request["body"] = json
-        return _FakeResponse({"id": 42, "files_upload": None})
+        return _FakeResponse({"id": JOB_ID, "files_upload": None})
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("satori_cli.commands.run.client.post", post)
     monkeypatch.setattr(
-        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [1]
+        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [pid("exec", 1)]
     )
     monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
 
@@ -618,7 +623,7 @@ def test_run_owner_repo_same_repo_flag_ok(monkeypatch):
         request["body"] = json
         return _FakeResponse(
             {
-                "id": 99,
+                "id": JOB_ID,
                 "type": "SCAN",
                 "playbook_source": "satori://code/python/pyspector_v2.yml",
                 "visibility": "PRIVATE",
@@ -632,7 +637,7 @@ def test_run_owner_repo_same_repo_flag_ok(monkeypatch):
     monkeypatch.setattr("satori_cli.commands.run.client.post", post)
     monkeypatch.setattr("satori_cli.commands.run.stdout.print", lambda *args: None)
     monkeypatch.setattr(
-        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [1]
+        "satori_cli.commands.run._wait_execution_ids_for_job", lambda *a, **k: [pid("exec", 1)]
     )
 
     result = CliRunner().invoke(

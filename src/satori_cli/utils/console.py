@@ -22,7 +22,7 @@ stdout = Console(highlighter=SatoriHighlighter(), theme=satori_theme)
 stderr = Console(highlighter=SatoriHighlighter(), theme=satori_theme, stderr=True)
 
 
-def wait_job_until_finished(job_id: int):
+def wait_job_until_finished(job_id: str):
     with progress.Progress(
         progress.SpinnerColumn("dots2"),
         progress.TextColumn("[progress.description]Status: {task.description}"),
@@ -124,7 +124,7 @@ def format_raw_results(
         current_path = _print_output_entry(output, console, current_path, output_format)
 
 
-def show_raw_output(execution_id: int, stream: Literal["stdout", "stderr"]):
+def show_raw_output(execution_id: str, stream: Literal["stdout", "stderr"]):
     with SpooledTemporaryFile() as f:
         res = client.get(f"/executions/{execution_id}/output", follow_redirects=True)
         f.write(res.content)
@@ -151,7 +151,7 @@ class HttpxStreamFile(io.RawIOBase):
             return 0
 
 
-def load_execution_outputs(execution_id: int) -> list[dict]:
+def load_execution_outputs(execution_id: str) -> list[dict]:
     """Fetch and decode msgpack execution outputs without printing."""
     with client.stream(
         "GET", f"/executions/{execution_id}/output", follow_redirects=True, timeout=None
@@ -161,7 +161,7 @@ def load_execution_outputs(execution_id: int) -> list[dict]:
 
 
 def show_execution_output(
-    execution_id: int, console=None, filter_tests: list[str] | None = None
+    execution_id: str, console=None, filter_tests: list[str] | None = None
 ):
     with client.stream(
         "GET", f"/executions/{execution_id}/output", follow_redirects=True, timeout=None
@@ -169,12 +169,12 @@ def show_execution_output(
         format_raw_results(HttpxStreamFile(stream), console, filter_tests)
 
 
-def show_execution(execution_id: int):
+def show_execution(execution_id: str):
     res = client.get(f"/executions/{execution_id}", follow_redirects=True)
     stdout.print(ExecutionWrapper(res.json()))
 
 
-def download_execution_files(execution_id: int):
+def download_execution_files(execution_id: str):
     res = client.get(f"/executions/{execution_id}/files")
 
     with httpx2.stream("GET", res.headers["Location"]) as s:
@@ -193,7 +193,7 @@ def download_execution_files(execution_id: int):
                     f.write(chunk)
 
 
-def export_job_files(job_id: int, region: str | None = None, dest: str = "."):
+def export_job_files(job_id: str, region: str | None = None, dest: str = "."):
     if not Path(dest).is_dir():
         Path(dest).mkdir(parents=True, exist_ok=True)
 
@@ -219,7 +219,7 @@ def export_job_files(job_id: int, region: str | None = None, dest: str = "."):
 
     with httpx2.Client() as c:
 
-        def download(id: int):
+        def download(id: str):
             url = client.get(f"/executions/{id}/files").headers["Location"]
 
             with c.stream("GET", url) as s:

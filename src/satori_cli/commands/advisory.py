@@ -5,10 +5,11 @@ from ..utils import options as opts
 from ..utils.console import stdout
 from ..utils.groups import IdGroup
 from ..utils.wrappers import ExternalIssueListWrapper, ExternalIssueWrapper, PagedWrapper
+from ..utils.public_id import ADVISORY_ID, EXECUTION_ID
 
 
 @click.command("advisories")
-@click.option("--execution-id", type=int)
+@click.option("--execution-id", type=EXECUTION_ID)
 @click.option(
     "--kind",
     type=click.Choice(["SECURITY_ADVISORY", "ISSUE"], case_sensitive=False),
@@ -26,7 +27,7 @@ from ..utils.wrappers import ExternalIssueListWrapper, ExternalIssueWrapper, Pag
 def advisories(
     page: int,
     quantity: int,
-    execution_id: int | None,
+    execution_id: str | None,
     kind: str | None,
     provider: str | None,
     order: str | None,
@@ -49,7 +50,7 @@ def advisories(
     stdout.print(PagedWrapper(res.json(), page, quantity, ExternalIssueListWrapper))
 
 
-@click.group(cls=IdGroup, invoke_without_command=True)
+@click.group(cls=IdGroup, id_type=ADVISORY_ID, invoke_without_command=True)
 @opts.json_opt
 @click.pass_context
 def advisory(ctx, **kwargs):
@@ -77,7 +78,7 @@ def advisory(ctx, **kwargs):
     help="Read the new description from a file (wins over --body).",
 )
 @click.pass_obj
-def advisory_edit(advisory_id: int, title: str | None, description: str | None, body_file):
+def advisory_edit(advisory_id: str, title: str | None, description: str | None, body_file):
     """Edit a draft advisory's title or description to humanize it before publishing.
 
     Only a draft can be edited; once the advisory is published to GitHub its text is fixed
@@ -103,7 +104,7 @@ def advisory_edit(advisory_id: int, title: str | None, description: str | None, 
     "value", type=click.Choice(["PUBLIC", "PRIVATE", "UNLISTED"], case_sensitive=False)
 )
 @click.pass_obj
-def advisory_visibility(advisory_id: int, value: str):
+def advisory_visibility(advisory_id: str, value: str):
     if advisory_id is None:
         raise click.UsageError("Missing argument 'ADVISORY-ID'.")
     client.patch(

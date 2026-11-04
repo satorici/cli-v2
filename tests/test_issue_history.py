@@ -4,11 +4,14 @@ from rich.console import Console
 from satori_cli.commands.issue import issue
 from satori_cli.config import config
 from satori_cli.utils.wrappers import IssueWrapper
+from tests.ids import pid
+
+FINDING_ID = pid("fnd", 333)
 
 FINDING = {
-    "id": 333,
+    "id": FINDING_ID,
     "created_at": "2026-09-21T00:00:00.123456Z",
-    "execution_id": 42,
+    "execution_id": pid("exec", 42),
     "source": "PLAYBOOK",
     "identity": {"tool": "semgrep"},
     "fingerprint": "abc",
@@ -34,7 +37,7 @@ HISTORY = [
         "kind": "event",
         "id": 2,
         "created_at": "2026-09-21T00:01:00Z",
-        "finding_id": 333,
+        "finding_id": FINDING_ID,
         "type": "STATUS_CHANGED",
         "payload": {"from": "OPEN", "to": "CONFIRMED"},
         "display_name": "alice",
@@ -82,12 +85,12 @@ def _patch_view(monkeypatch, history=None):
 def test_issue_view_fetches_timeline(monkeypatch):
     requests, printed = _patch_view(monkeypatch)
 
-    result = CliRunner().invoke(issue, ["333"])
+    result = CliRunner().invoke(issue, [FINDING_ID])
 
     assert result.exit_code == 0, result.output
     assert [r["path"] for r in requests] == [
-        "/findings/333",
-        "/findings/333/timeline",
+        f"/findings/{FINDING_ID}",
+        f"/findings/{FINDING_ID}/timeline",
     ]
     assert len(printed) == 1
     wrapper = printed[0]
@@ -98,16 +101,16 @@ def test_issue_view_fetches_timeline(monkeypatch):
 def test_issue_view_json_includes_history(monkeypatch):
     requests, printed = _patch_view(monkeypatch)
 
-    result = CliRunner().invoke(issue, ["333", "--json"])
+    result = CliRunner().invoke(issue, [FINDING_ID, "--json"])
 
     assert result.exit_code == 0, result.output
     assert [r["path"] for r in requests] == [
-        "/findings/333",
-        "/findings/333/timeline",
+        f"/findings/{FINDING_ID}",
+        f"/findings/{FINDING_ID}/timeline",
     ]
     wrapper = printed[0]
     assert isinstance(wrapper, IssueWrapper)
-    assert wrapper.obj["id"] == 333
+    assert wrapper.obj["id"] == FINDING_ID
     assert wrapper.obj["history"] == HISTORY
 
 
@@ -139,7 +142,7 @@ def test_issue_history_created_event():
             "kind": "event",
             "id": 2,
             "created_at": "2026-09-21T00:01:00Z",
-            "finding_id": 333,
+            "finding_id": FINDING_ID,
             "type": "CREATED",
             "payload": {},
         },

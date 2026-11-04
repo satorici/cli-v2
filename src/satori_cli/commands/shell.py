@@ -19,6 +19,7 @@ from ..utils.console import stdout
 from ..utils.groups import IdGroup
 from ..utils.misc import remove_none_values
 from ..utils.wrappers import PagedWrapper, SshSessionsListWrapper
+from ..utils.public_id import EXECUTION_ID
 
 
 def get_terminal_size():
@@ -93,7 +94,7 @@ def interactive_shell(host: str, token: str):
         ssh_client.close()
 
 
-@click.group(cls=IdGroup, invoke_without_command=True)
+@click.group(cls=IdGroup, id_type=EXECUTION_ID, invoke_without_command=True)
 @opts.cpu_opt
 @opts.memory_opt
 @opts.image_opt
@@ -103,8 +104,8 @@ def shell(ctx, cpu, memory, image, region_filter):
     if ctx.invoked_subcommand is not None:
         return
 
-    # `IdGroup` captures a bare numeric argument (the execution id) into
-    # `ctx.obj` before this group's own option parsing runs.
+    # `IdGroup` captures the execution ID argument into `ctx.obj` before this
+    # group's own option parsing runs.
     execution_id = ctx.obj
 
     if execution_id is not None:

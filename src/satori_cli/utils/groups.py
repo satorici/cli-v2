@@ -2,10 +2,17 @@ import rich_click as click
 
 
 class IdGroup(click.Group):
-    """Click group that accepts a numeric ID before options or subcommands."""
+    """Click group that takes an ID before its options or subcommand.
 
-    def __init__(self, *args, id_attr: str = "obj", **kwargs):
+    The first positional argument before the subcommand is the ID, converted (and
+    validated) with ``id_type``; arguments after the subcommand belong to it.
+    """
+
+    def __init__(
+        self, *args, id_attr: str = "obj", id_type: click.ParamType = click.INT, **kwargs
+    ):
         self._id_attr = id_attr
+        self._id_type = id_type
         super().__init__(*args, **kwargs)
 
     def parse_args(self, ctx, args):
@@ -18,13 +25,15 @@ class IdGroup(click.Group):
         }
         remaining = []
         for i, arg in enumerate(args):
+            if arg in self.commands:
+                remaining.extend(args[i:])
+                break
             if (
-                not getattr(ctx, self._id_attr, None)
+                getattr(ctx, self._id_attr, None) is None
+                and not arg.startswith("-")
                 and not (i and args[i - 1] in valued)
-                and arg not in self.commands
-                and arg.isdigit()
             ):
-                setattr(ctx, self._id_attr, int(arg))
+                setattr(ctx, self._id_attr, self._id_type.convert(arg, None, ctx))
             else:
                 remaining.append(arg)
         return super().parse_args(ctx, remaining)

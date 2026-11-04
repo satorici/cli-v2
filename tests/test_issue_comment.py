@@ -2,6 +2,9 @@ from click.testing import CliRunner
 
 from satori_cli.commands.issue import issue
 from satori_cli.config import config
+from tests.ids import pid
+
+FINDING_ID = pid("fnd", 10)
 
 COMMENT = {
     "kind": "comment",
@@ -49,21 +52,21 @@ def _patch(monkeypatch):
 def test_issue_comment_create(monkeypatch):
     request, printed = _patch(monkeypatch)
 
-    result = CliRunner().invoke(issue, ["10", "comment", "hello"])
+    result = CliRunner().invoke(issue, [FINDING_ID, "comment", "hello"])
 
     assert result.exit_code == 0, result.output
     assert request["method"] == "POST"
-    assert request["path"] == "/findings/10/comments"
+    assert request["path"] == f"/findings/{FINDING_ID}/comments"
     assert request["json"] == {"body": "hello"}
-    assert printed == ["Comment 42 added to issue 10"]
+    assert printed == [f"Comment 42 added to issue {FINDING_ID}"]
 
 
 def test_issue_comment_json(monkeypatch):
     request, printed = _patch(monkeypatch)
 
-    result = CliRunner().invoke(issue, ["10", "comment", "hello", "--json"])
+    result = CliRunner().invoke(issue, [FINDING_ID, "comment", "hello", "--json"])
 
     assert result.exit_code == 0, result.output
-    assert request["path"] == "/findings/10/comments"
+    assert request["path"] == f"/findings/{FINDING_ID}/comments"
     assert request["json"] == {"body": "hello"}
     assert printed == [COMMENT]

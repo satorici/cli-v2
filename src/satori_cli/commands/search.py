@@ -18,6 +18,7 @@ from ..utils import options as opts
 from ..utils.console import stderr, stdout
 from ..utils.misc import remove_none_values
 from ..utils.wrappers import ExecutionListWrapper, OutputWrapper, PagedWrapper
+from ..utils.public_id import EXECUTION_ID, JOB_ID
 
 
 def isodatetime(arg: str):
@@ -51,9 +52,17 @@ def search_filter_options(f):
     f = click.option(
         "--job-type", type=click.Choice(["RUN", "SCAN", "MONITOR", "GITHUB", "LOCAL"])
     )(f)
-    f = click.option("--job-id", type=int)(f)
-    f = click.option("--id-gt", type=int)(f)
-    f = click.option("--id-lt", type=int)(f)
+    f = click.option("--job-id", type=JOB_ID)(f)
+    f = click.option(
+        "--id-gt",
+        type=EXECUTION_ID,
+        help="Only executions created after this execution",
+    )(f)
+    f = click.option(
+        "--id-lt",
+        type=EXECUTION_ID,
+        help="Only executions created before this execution",
+    )(f)
     f = click.option("--global", is_flag=True)(f)
     f = click.option(
         "--status",
@@ -92,7 +101,7 @@ def get_execution_ids(params):
 
     if total > executions_per_request:
         pages = math.ceil(total / executions_per_request)
-        futures: list[Future[list[int]]] = []
+        futures: list[Future[list[str]]] = []
 
         with ThreadPoolExecutor(max_workers=8) as executor:
             for page in range(2, pages + 1):

@@ -9,6 +9,7 @@ from ..utils import options as opts
 from ..utils.console import stdout
 from ..utils.format import is_json_output
 from ..utils.wrappers import PlaybookCatalogWrapper, PlaybookDetailWrapper
+from ..utils.public_id import is_public_id
 
 
 @click.command("playbooks")
@@ -28,14 +29,15 @@ def playbooks(**kwargs):
 @click.pass_context
 def playbook(ctx, execution_id_or_uri: str, **kwargs):
     if ctx.invoked_subcommand is None:
-        if execution_id_or_uri.isdigit():
+        if is_public_id(execution_id_or_uri):
             res = client.get(f"/executions/{execution_id_or_uri}/playbook")
             stdout.out(res.text)
             return
 
         if not execution_id_or_uri.startswith("satori://"):
             raise SatoriError(
-                "Argument must be an execution ID or a playbook URI starting with satori://"
+                "Argument must be an execution ID (21 letters and digits) "
+                "or a playbook URI starting with satori://"
             )
 
         playbook_id = execution_id_or_uri.removeprefix("satori://")

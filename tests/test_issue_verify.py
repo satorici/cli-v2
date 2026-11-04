@@ -7,10 +7,15 @@ from click.testing import CliRunner
 
 from satori_cli.commands.issue import issue
 from satori_cli.utils import verify_issue as verify_mod
+from tests.ids import pid
+
+FINDING_ID = pid("fnd", 10)
+EXECUTION_ID = pid("exec", 100)
+JOB_ID = pid("job", 50)
 
 FINDING = {
-    "id": 10,
-    "execution_id": 100,
+    "id": FINDING_ID,
+    "execution_id": EXECUTION_ID,
     "title": "SQL injection in login",
     "status": "OPEN",
     "source": "TOOL",
@@ -19,11 +24,11 @@ FINDING = {
     "snapshot": {"cwe": "CWE-89", "filePath": "app/login.py", "lineNumber": 42},
 }
 
-EXECUTION = {"id": 100, "job_id": 50}
-SCAN_JOB = {"id": 50, "type": "SCAN", "repository_data": {"repository": "acme/app"}}
-RUN_JOB = {"id": 50, "type": "RUN", "repository": "acme/app"}
-LOCAL_JOB = {"id": 50, "type": "LOCAL"}
-LOCAL_JOB_WITH_REPO = {"id": 50, "type": "LOCAL", "repository": "acme/app"}
+EXECUTION = {"id": EXECUTION_ID, "job_id": JOB_ID}
+SCAN_JOB = {"id": JOB_ID, "type": "SCAN", "repository_data": {"repository": "acme/app"}}
+RUN_JOB = {"id": JOB_ID, "type": "RUN", "repository": "acme/app"}
+LOCAL_JOB = {"id": JOB_ID, "type": "LOCAL"}
+LOCAL_JOB_WITH_REPO = {"id": JOB_ID, "type": "LOCAL", "repository": "acme/app"}
 
 
 class _FakeResponse:
@@ -71,7 +76,7 @@ def _patch_subprocess(monkeypatch, fake_run):
 
 def _claude_stdout(prompt: str, verdict: str) -> str:
     """A Claude --output-format json envelope assigning `verdict` to every id in the prompt."""
-    ids = [int(x) for x in re.findall(r"- id: (\d+)", prompt)]
+    ids = re.findall(r"- id: ([0-9A-Za-z]{21})", prompt)
     arr = [{"id": i, "verdict": verdict, "line": 1, "evidence": "x"} for i in ids]
     return json.dumps({"subtype": "success", "is_error": False, "result": json.dumps(arr)})
 
@@ -131,30 +136,33 @@ def test_location_from_snapshot_then_identity():
 
 def test_build_verify_prompt_puts_data_first_and_contract_last():
     prompt = verify_mod.build_verify_prompt([FINDING])
-    assert "id: 10" in prompt
+    assert f"id: {FINDING_ID}" in prompt
     assert "location: app/login.py:42" in prompt
     assert "SQL injection in login" in prompt
     assert "CWE-89" in prompt
     assert "JSON array" in prompt
     assert "Agent" not in prompt  # no 3-subagent instruction anymore
-    assert prompt.index("id: 10") < prompt.index("JSON array")  # data before task
+    assert prompt.index(f"id: {FINDING_ID}") < prompt.index("JSON array")  # data before task
 
 
 def test_verdicts_parses_array_and_tolerates_fences():
-    assert verify_mod._verdicts('[{"id": 5, "verdict": "TP"}]') == {5: "TP"}
-    assert verify_mod._verdicts('```json\n[{"id":5,"verdict":"FP"}]\n```') == {5: "FP"}
+    a, b = pid("fnd", 5), pid("fnd", 6)
+    assert verify_mod._verdicts(f'[{{"id": "{a}", "verdict": "TP"}}]') == {a: "TP"}
+    assert verify_mod._verdicts(f'```json\n[{{"id":"{b}","verdict":"FP"}}]\n```') == {b: "FP"}
     assert verify_mod._verdicts("not json") is None
-    assert verify_mod._verdicts('[{"id":1,"verdict":"maybe"}]') == {}
+    assert verify_mod._verdicts(f'[{{"id":"{a}","verdict":"maybe"}}]') == {}
 
 
 def test_verdicts_recovers_from_invalid_json():
     # a model echoed a source line with unescaped quotes into a field -> invalid JSON, but the
     # id+verdict pairs are still recovered rather than lost
-    broken = '[{"id": 12, "verdict": "TP", "evidence": "os.system("rm " + u)"},' \
-             ' {"id": 13, "verdict": "fp", "evidence": "re.compile("\\d+")"}]'
-    assert verify_mod._verdicts(broken) == {12: "TP", 13: "FP"}
-    # verdict-before-id order and surrounding prose are tolerated too
-    assert verify_mod._verdicts('Done:\n[{"verdict":"TP","id":9}]') == {9: "TP"}
+    a, b, c = pid("fnd", 12), pid("fnd", 13), pid("fnd", 9)
+    broken = f'[{{"id": "{a}", "verdict": "TP", "evidence": "os.system("rm " + u)"}},' \
+             f' {{"id": "{b}", "verdict": "fp", "evidence": "re.compile("\\d+")"}}]'
+    assert verify_mod._verdicts(broken) == {a: "TP", b: "FP"}
+    # verdict-before-id order, surrounding prose and an unquoted id are tolerated too
+    assert verify_mod._verdicts(f'Done:\n[{{"verdict":"TP","id":"{c}"}}]') == {c: "TP"}
+    assert verify_mod._pairwise_verdicts(f'{{"id": {c}, "verdict": "FP"}}') == {c: "FP"}
 
 
 def test_judge_findings_agreement_skips_tiebreaker(monkeypatch, tmp_path):
@@ -162,7 +170,7 @@ def test_judge_findings_agreement_skips_tiebreaker(monkeypatch, tmp_path):
     _patch_subprocess(monkeypatch, _fake_run_factory(
         {"analyst": "TP", "adversary": "TP"}, runs))
     verdicts = verify_mod.judge_findings([FINDING], tmp_path, "/bin/claude")
-    assert verdicts == {10: "TP"}
+    assert verdicts == {FINDING_ID: "TP"}
     assert len(runs) == 2  # analyst + adversary only, no tie-breaker
 
 
@@ -171,7 +179,7 @@ def test_judge_findings_disagreement_uses_tiebreaker(monkeypatch, tmp_path):
     _patch_subprocess(monkeypatch, _fake_run_factory(
         {"analyst": "TP", "adversary": "FP", "tiebreak": "FP"}, runs))
     verdicts = verify_mod.judge_findings([FINDING], tmp_path, "/bin/claude")
-    assert verdicts == {10: "FP"}
+    assert verdicts == {FINDING_ID: "FP"}
     assert len(runs) == 3  # analyst + adversary + tie-breaker
 
 
@@ -229,7 +237,7 @@ def test_adversary_runs_on_opus_analyst_on_sonnet(monkeypatch, tmp_path):
 
 
 def test_verify_findings_for_repo_filters_min_severity(monkeypatch, tmp_path):
-    low = {**FINDING, "id": 11, "severity": 3}
+    low = {**FINDING, "id": pid("fnd", 11), "severity": 3}
     runs = []
     _patch_binaries(monkeypatch)
     _patch_subprocess(monkeypatch, _fake_run_factory(
@@ -240,8 +248,8 @@ def test_verify_findings_for_repo_filters_min_severity(monkeypatch, tmp_path):
                         lambda path, **kw: patches.append((path, kw.get("json"))))
     verdicts = verify_mod.verify_findings_for_repo(
         [FINDING, low], "acme/app", min_severity="High")
-    assert verdicts == {10: "TP"}  # the Medium (sev 2) finding was skipped
-    assert patches == [("/findings/10", {"status": "TP"})]
+    assert verdicts == {FINDING_ID: "TP"}  # the Medium (sev 2) finding was skipped
+    assert patches == [(f"/findings/{FINDING_ID}", {"status": "TP"})]
 
 
 def test_verify_findings_for_repo_no_eligible_findings_does_nothing(monkeypatch, tmp_path):
@@ -261,9 +269,9 @@ def test_verify_findings_persists_via_patch(monkeypatch, tmp_path):
     _patch_binaries(monkeypatch)
     _patch_subprocess(monkeypatch, _fake_run_factory({"analyst": "TP", "adversary": "TP"}))
     _patch_tempdir(monkeypatch, tmp_path)
-    verdicts = verify_mod.verify_findings([10])
-    assert verdicts == {10: "TP"}
-    assert patches == [("/findings/10", {"status": "TP"})]
+    verdicts = verify_mod.verify_findings([FINDING_ID])
+    assert verdicts == {FINDING_ID: "TP"}
+    assert patches == [(f"/findings/{FINDING_ID}", {"status": "TP"})]
 
 
 def test_verify_findings_usage_limit_is_clean_error(monkeypatch, tmp_path):
@@ -278,7 +286,7 @@ def test_verify_findings_usage_limit_is_clean_error(monkeypatch, tmp_path):
         return subprocess.CompletedProcess(args, 1, "Claude usage limit reached", "")
 
     _patch_subprocess(monkeypatch, fake_run)
-    result = CliRunner().invoke(issue, ["10", "verify"])
+    result = CliRunner().invoke(issue, [FINDING_ID, "verify"])
     assert result.exit_code != 0
     assert "usage limit" in result.output.lower()
 
@@ -291,7 +299,7 @@ def test_issue_verify_happy_path_clones_once(monkeypatch, tmp_path):
     _patch_binaries(monkeypatch)
     _patch_subprocess(monkeypatch, _fake_run_factory({"analyst": "TP", "adversary": "TP"}, runs))
     _patch_tempdir(monkeypatch, tmp_path)
-    result = CliRunner().invoke(issue, ["10", "verify"])
+    result = CliRunner().invoke(issue, [FINDING_ID, "verify"])
     assert result.exit_code == 0, result.output
     clone_runs = [r for r in runs if r[1] == "clone"]
     claude_runs = [r for r in runs if r[1] == "-p"]
@@ -309,7 +317,7 @@ def test_issue_verify_missing_claude(monkeypatch):
         "satori_cli.utils.verify_issue.shutil.which",
         lambda name: "/bin/git" if name == "git" else None,
     )
-    result = CliRunner().invoke(issue, ["10", "verify"])
+    result = CliRunner().invoke(issue, [FINDING_ID, "verify"])
     assert result.exit_code != 0
     assert "claude" in result.output.lower()
 
@@ -317,15 +325,15 @@ def test_issue_verify_missing_claude(monkeypatch):
 def test_issue_verify_missing_repo(monkeypatch):
     monkeypatch.setattr("satori_cli.utils.verify_issue.client.get", _responses(job=LOCAL_JOB))
     _patch_binaries(monkeypatch)
-    result = CliRunner().invoke(issue, ["10", "verify"])
+    result = CliRunner().invoke(issue, [FINDING_ID, "verify"])
     assert result.exit_code != 0
     assert "no associated repository" in result.output
 
 
 def test_list_finding_ids_for_execution_paginates(monkeypatch):
     pages = {
-        1: {"items": [{"id": 1}, {"id": 2}], "total": 3},
-        2: {"items": [{"id": 3}], "total": 3},
+        1: {"items": [{"id": pid("fnd", 1)}, {"id": pid("fnd", 2)}], "total": 3},
+        2: {"items": [{"id": pid("fnd", 3)}], "total": 3},
     }
     calls: list[dict] = []
 
@@ -337,8 +345,10 @@ def test_list_finding_ids_for_execution_paginates(monkeypatch):
 
     monkeypatch.setattr("satori_cli.utils.verify_issue.client.get", get)
     monkeypatch.setattr("satori_cli.utils.verify_issue._FINDINGS_PAGE_SIZE", 2)
-    assert verify_mod.list_finding_ids_for_execution(100) == [1, 2, 3]
+    assert verify_mod.list_finding_ids_for_execution(EXECUTION_ID) == [
+        pid("fnd", 1), pid("fnd", 2), pid("fnd", 3)
+    ]
     assert calls == [
-        {"execution_id": 100, "page": 1, "quantity": 2},
-        {"execution_id": 100, "page": 2, "quantity": 2},
+        {"execution_id": EXECUTION_ID, "page": 1, "quantity": 2},
+        {"execution_id": EXECUTION_ID, "page": 2, "quantity": 2},
     ]

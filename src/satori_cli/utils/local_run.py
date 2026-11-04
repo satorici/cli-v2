@@ -22,7 +22,7 @@ from .execution.runner import (
 @dataclass
 class LocalRunResult:
     job: dict
-    execution_id: Optional[int]
+    execution_id: Optional[str]
     report: Optional[dict]
     timed_out: bool
 
@@ -103,7 +103,7 @@ async def run_local_job(
         )
         res.raise_for_status()
 
-        execution_id: Optional[int] = None
+        execution_id: Optional[str] = None
         report: Optional[dict] = None
         # The execution (and its report) are created by the backend after the
         # results upload, so poll instead of querying once.

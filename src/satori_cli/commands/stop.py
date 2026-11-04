@@ -4,8 +4,9 @@ import rich_click as click
 
 from ..api import client
 from ..utils.console import stdout
+from ..utils.public_id import JOB_ID
 
-job_id_arg = click.argument("run-id", type=int)
+job_id_arg = click.argument("run-id", type=JOB_ID)
 
 
 @click.group()
@@ -15,7 +16,7 @@ def stop():
 
 @stop.command()
 @job_id_arg
-def run(run_id: int):
+def run(run_id: str):
     client.patch(f"/jobs/runs/{run_id}", json={"status": "CANCELED"})
     stdout.print("Run stopped")
 

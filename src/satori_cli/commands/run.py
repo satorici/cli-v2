@@ -42,7 +42,7 @@ from .issue import list_issues
 
 
 def _verify_executions(
-    execution_ids: list[int], min_severity: str | None = None
+    execution_ids: list[str], min_severity: str | None = None
 ) -> None:
     for execution_id in execution_ids:
         finding_ids = list_finding_ids_for_execution(execution_id)
@@ -55,14 +55,14 @@ def _verify_executions(
         run_verify_findings(finding_ids, min_severity=min_severity)
 
 
-def _require_first_execution_id(run_id) -> int:
+def _require_first_execution_id(run_id) -> str:
     ids = _wait_execution_ids_for_job(run_id, quantity=1)
     if not ids:
         raise SatoriError(f"No executions found for run {run_id}")
     return ids[0]
 
 
-def _execution_ids_for_job(job_id, quantity: int = 1) -> list[int]:
+def _execution_ids_for_job(job_id, quantity: int = 1) -> list[str]:
     items = client.get(
         "/executions", params={"job_id": job_id, "quantity": quantity}
     ).json()["items"]
@@ -71,9 +71,9 @@ def _execution_ids_for_job(job_id, quantity: int = 1) -> list[int]:
 
 def _wait_execution_ids_for_job(
     job_id, quantity: int = 1, attempts: int = 30, delay: float = 1.0
-) -> list[int]:
+) -> list[str]:
     """Poll until executions exist; the backend creates them after the job is RUNNING."""
-    ids: list[int] = []
+    ids: list[str] = []
     for _ in range(attempts):
         ids = _execution_ids_for_job(job_id, quantity)
         if len(ids) >= quantity:
@@ -82,7 +82,7 @@ def _wait_execution_ids_for_job(
     return ids
 
 
-def _print_report_urls(execution_ids: list[int]) -> None:
+def _print_report_urls(execution_ids: list[str]) -> None:
     if is_json_output() or not execution_ids:
         return
     for execution_id in execution_ids:
@@ -90,7 +90,7 @@ def _print_report_urls(execution_ids: list[int]) -> None:
         stdout.print(f"Report: {report_url(execution_id)}")
 
 
-def _compact_job(job: dict, report_ids: list[int] | None = None) -> JobWrapper:
+def _compact_job(job: dict, report_ids: list[str] | None = None) -> JobWrapper:
     return JobWrapper(job, compact=True, report_ids=report_ids or None)
 
 
@@ -110,7 +110,7 @@ def _print_skipped_repositories(job: dict) -> None:
 
 
 def _show_execution(
-    execution_id: int,
+    execution_id: str,
     *,
     show_stdout: bool,
     show_stderr: bool,

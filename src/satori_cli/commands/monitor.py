@@ -8,6 +8,7 @@ from ..utils.console import stdout
 from ..utils.groups import IdGroup
 from ..utils.misc import list_jobs
 from ..utils.wrappers import JobWrapper
+from ..utils.public_id import JOB_ID
 
 
 @click.command("monitors")
@@ -18,7 +19,7 @@ def list_monitors(page: int, quantity: int, visibility: Optional[str], **kwargs)
     return list_jobs(page, quantity, "MONITOR", visibility)
 
 
-@click.group(cls=IdGroup, invoke_without_command=True)
+@click.group(cls=IdGroup, id_type=JOB_ID, invoke_without_command=True)
 @opts.json_opt
 @click.pass_context
 def monitor(ctx, **kwargs):
@@ -34,28 +35,28 @@ def monitor(ctx, **kwargs):
     "value", type=click.Choice(["PUBLIC", "PRIVATE", "UNLISTED"], case_sensitive=False)
 )
 @click.pass_obj
-def monitor_visibility(monitor_id: int, value: str):
+def monitor_visibility(monitor_id: str, value: str):
     client.patch(f"/jobs/{monitor_id}", json={"visibility": value.upper()})
     stdout.print(f"Monitor visibility set to {value.upper()}")
 
 
 @monitor.command(name="start")
 @click.pass_obj
-def monitor_start(monitor_id: int):
+def monitor_start(monitor_id: str):
     client.patch(f"/jobs/monitors/{monitor_id}", json={"status": "RUNNING"})
     stdout.print("Monitor started")
 
 
 @monitor.command(name="pause")
 @click.pass_obj
-def monitor_pause(monitor_id: int):
+def monitor_pause(monitor_id: str):
     client.patch(f"/jobs/monitors/{monitor_id}", json={"status": "PAUSED"})
     stdout.print("Monitor paused")
 
 
 @monitor.command(name="cancel")
 @click.pass_obj
-def monitor_cancel(monitor_id: int):
+def monitor_cancel(monitor_id: str):
     client.patch(f"/jobs/monitors/{monitor_id}", json={"status": "CANCELED"})
     stdout.print("Monitor canceled")
 
@@ -66,8 +67,8 @@ monitor.add_command(monitor_cancel, name="stop")
 
 @monitor.command(name="clean")
 @click.pass_obj
-def monitor_clean(monitor_id: int):
-    execution_ids: list[int] = []
+def monitor_clean(monitor_id: str):
+    execution_ids: list[str] = []
     page = 1
 
     while True:
@@ -96,6 +97,6 @@ def monitor_clean(monitor_id: int):
 
 @monitor.command(name="delete")
 @click.pass_obj
-def monitor_delete(monitor_id: int):
+def monitor_delete(monitor_id: str):
     client.delete(f"/jobs/{monitor_id}")
     stdout.print("Monitor deleted")
