@@ -1,5 +1,3 @@
-from typing import Optional
-
 import rich_click as click
 from click_option_group import MutuallyExclusiveOptionGroup, optgroup
 from httpx2 import HTTPStatusError
@@ -10,6 +8,7 @@ from ..utils import options as opts
 from ..utils.console import stderr, stdout
 from ..utils.format import is_json_output
 from ..utils.groups import IdGroup
+from ..utils.public_id import EXECUTION_ID, FINDING_ID
 from ..utils.verify_issue import verify_issue
 from ..utils.wrappers import (
     ExternalIssueWrapper,
@@ -17,7 +16,6 @@ from ..utils.wrappers import (
     IssueWrapper,
     PagedWrapper,
 )
-from ..utils.public_id import EXECUTION_ID, FINDING_ID
 
 ISSUE_STATUSES = [
     "OPEN",
@@ -26,6 +24,12 @@ ISSUE_STATUSES = [
     "FIXED",
     "FP",
     "ACCEPTED",
+]
+EXPLOITABILITY_VALUES = [
+    "UNKNOWN",
+    "EXPLOITABLE",
+    "NOT_EXPLOITABLE",
+    "INCONCLUSIVE",
 ]
 
 # The position is the numeric severity: 0 = BLOCKER (worst) … 5 = INFO.
@@ -57,7 +61,9 @@ def normalize_severities(values: list[int | str]) -> list[int] | str:
                     f"Choose from {', '.join(SEVERITY_ALIASES)} or ints 0-5."
                 )
         else:
-            return f"severity entries must be ints or names; got {type(value).__name__}."
+            return (
+                f"severity entries must be ints or names; got {type(value).__name__}."
+            )
         if index not in seen:
             seen.add(index)
             result.append(index)
@@ -65,8 +71,8 @@ def normalize_severities(values: list[int | str]) -> list[int] | str:
 
 
 def parse_severity_csv(
-    ctx: click.Context, param: click.Parameter, value: Optional[str]
-) -> Optional[list[int]]:
+    ctx: click.Context, param: click.Parameter, value: str | None
+) -> list[int] | None:
     if value is None:
         return None
     parts = [part.strip() for part in value.split(",")]
@@ -83,11 +89,12 @@ def parse_severity_csv(
 def list_issues(
     page: int,
     quantity: int,
-    execution_id: Optional[str] = None,
-    status: Optional[str] = None,
-    source: Optional[str] = None,
-    severity: Optional[list[int]] = None,
-    order: Optional[str] = None,
+    execution_id: str | None = None,
+    status: str | None = None,
+    exploitability: str | None = None,
+    source: str | None = None,
+    severity: list[int] | None = None,
+    order: str | None = None,
 ):
     params = {
         k: v
@@ -96,6 +103,7 @@ def list_issues(
             "quantity": quantity,
             "execution_id": execution_id,
             "status": status.upper() if status else None,
+            "exploitability": exploitability.upper() if exploitability else None,
             "source": source.upper() if source else None,
             "severity": severity,
             "order": order.upper() if order else None,
@@ -116,11 +124,17 @@ def list_issues(
 
 
 @click.command("issues")
-@click.argument("execution_id_arg", metavar="EXECUTION-ID", type=EXECUTION_ID, required=False)
+@click.argument(
+    "execution_id_arg", metavar="EXECUTION-ID", type=EXECUTION_ID, required=False
+)
 @click.option("--execution-id", "execution_id_opt", type=EXECUTION_ID)
 @click.option(
     "--status",
     type=click.Choice(ISSUE_STATUSES, case_sensitive=False),
+)
+@click.option(
+    "--exploitability",
+    type=click.Choice(EXPLOITABILITY_VALUES, case_sensitive=False),
 )
 @click.option(
     "--source",
@@ -141,12 +155,13 @@ def list_issues(
 def issues(
     page: int,
     quantity: int,
-    execution_id_arg: Optional[str],
-    execution_id_opt: Optional[str],
-    status: Optional[str],
-    source: Optional[str],
-    severity: Optional[list[int]],
-    order: Optional[str],
+    execution_id_arg: str | None,
+    execution_id_opt: str | None,
+    status: str | None,
+    exploitability: str | None,
+    source: str | None,
+    severity: list[int] | None,
+    order: str | None,
     **kwargs,
 ):
     if (
@@ -164,6 +179,7 @@ def issues(
         if execution_id_arg is not None
         else execution_id_opt,
         status=status,
+        exploitability=exploitability,
         source=source,
         severity=severity,
         order=order,
@@ -196,6 +212,30 @@ def issue_status(finding_id: str, value: str, **kwargs):
         stdout.print(f"Issue {finding_id} status set to {value.upper()}")
 
 
+@issue.command(name="exploitability")
+@click.argument("value", type=click.Choice(EXPLOITABILITY_VALUES, case_sensitive=False))
+@click.option("--reason", help="Reason recorded in the finding timeline")
+@opts.json_opt
+@click.pass_obj
+def issue_exploitability(finding_id: str, value: str, reason: str | None, **kwargs):
+    if finding_id is None:
+        raise click.UsageError("Missing argument 'FINDING-ID'.")
+    normalized = value.upper()
+    if normalized != "UNKNOWN" and not (reason or "").strip():
+        raise click.UsageError("--reason is required unless exploitability is UNKNOWN.")
+    res = client.patch(
+        f"/findings/{finding_id}",
+        json={
+            "exploitability": normalized,
+            "exploitability_reason": (reason or "").strip() or None,
+        },
+    )
+    if is_json_output():
+        stdout.print_json(res.json())
+    else:
+        stdout.print(f"Issue {finding_id} exploitability set to {normalized}")
+
+
 @issue.command(name="comment")
 @click.argument("body")
 @opts.json_opt
@@ -224,9 +264,7 @@ def issue_verify(finding_id: str):
 @optgroup.group(cls=MutuallyExclusiveOptionGroup)
 @optgroup.option("--publish", is_flag=True, help="Publish the draft advisory to GitHub")
 @optgroup.option("--delete", is_flag=True, help="Delete the advisory")
-@optgroup.option(
-    "--status", is_flag=True, help="Fetch remote GitHub advisory status"
-)
+@optgroup.option("--status", is_flag=True, help="Fetch remote GitHub advisory status")
 @opts.json_opt
 @click.pass_obj
 def issue_advisory(
@@ -238,9 +276,7 @@ def issue_advisory(
     body = {"finding_id": finding_id}
 
     if delete:
-        res = client.request(
-            "DELETE", "/external_issues/security_advisory", json=body
-        )
+        res = client.request("DELETE", "/external_issues/security_advisory", json=body)
         data = res.json()
         if is_json_output():
             stdout.print_json(data)

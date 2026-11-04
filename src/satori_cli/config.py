@@ -13,7 +13,7 @@ class Config:
         config = {}
 
         self._env_config = {
-            k[len("SATORI_"):].lower(): v
+            k[len("SATORI_") :].lower(): v
             for k, v in os.environ.items()
             if k.startswith("SATORI_")
         }
@@ -27,7 +27,8 @@ class Config:
 
         for i, arg in enumerate(sys.argv):
             if arg == "--profile":
-                profile = sys.argv[i + 1]
+                if i + 1 < len(sys.argv) and not sys.argv[i + 1].startswith("-"):
+                    profile = sys.argv[i + 1]
                 break
             if arg.startswith("--profile="):
                 profile = arg.split("=")[1]
@@ -35,9 +36,6 @@ class Config:
 
         if "profile" in self._env_config:
             profile = self._env_config["profile"]
-
-        if profile:
-            profile = profile
 
         self._config = config
         self._current_config = {}
@@ -62,18 +60,27 @@ class Config:
         config = always_merger.merge(config, self._current_config)
         return config
 
+    def display_dict(self):
+        """Return configuration values with credentials safe for terminal output."""
+        config = dict(self.get_all())
+        if config.get("token"):
+            config["token"] = "***"
+        return config
+
     def save(self, key: str, value, profile="default"):
         if not self.CONFIG_FILE.is_file():
-            self.CONFIG_FILE.write_text(safe_dump({}))
+            self.CONFIG_FILE.touch(mode=0o600)
 
-        config: dict = safe_load(self.CONFIG_FILE.read_bytes())
+        config: dict = safe_load(self.CONFIG_FILE.read_bytes()) or {}
         config.setdefault(profile, {})[key] = safe_load(value)
 
-        with open(self.CONFIG_FILE, "w") as f:
+        with open(self.CONFIG_FILE, "w", encoding="utf-8") as f:
             f.write(safe_dump(config))
+        self.CONFIG_FILE.chmod(0o600)
+        self._config = config
 
     def __str__(self):
-        return str(self.get_all())
+        return str(self.display_dict())
 
 
 config = Config()

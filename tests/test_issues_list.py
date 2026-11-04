@@ -58,6 +58,15 @@ def test_issues_severity_alias_maps_to_list(monkeypatch):
     assert request["params"]["severity"] == [2]
 
 
+def test_issues_filters_exploitability(monkeypatch):
+    request, _ = _patch_get(monkeypatch)
+
+    result = CliRunner().invoke(issues, ["--exploitability", "exploitable"])
+
+    assert result.exit_code == 0, result.output
+    assert request["params"]["exploitability"] == "EXPLOITABLE"
+
+
 def test_issues_severity_csv_maps_to_ints(monkeypatch):
     request, _ = _patch_get(monkeypatch)
 

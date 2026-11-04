@@ -1,5 +1,4 @@
 import sys
-from typing import Optional
 
 import rich_click as click
 from httpx2 import HTTPStatusError
@@ -14,7 +13,7 @@ from ..utils.options import profile_opt, resolve_organization
 @click.argument("key", required=False)
 @click.argument("value", required=False)
 @profile_opt
-def config_(key: Optional[str], value: Optional[str], **kwargs):
+def config_(key: str | None, value: str | None, **kwargs):
     if key is None:
         stdout.print(config)
         return
@@ -68,4 +67,4 @@ def _show_organization(profile: str):
         stdout.print(organization_id)
         stderr.print(f"Organization {organization_id} not found in profile {profile}")
         return
-    stdout.print(f"{org['name']} ({organization_id})")
+    stdout.print(f"{organization_id} ({org['name']})")
