@@ -57,8 +57,6 @@ def test_invalid_public_ids(value):
         ["report", "42", "output"],
         ["report", "42"],
         ["reports", "42"],
-        ["issue", "10", "status", "TP"],
-        ["advisory", "1"],
         ["monitor", "5", "pause"],
         ["execution", "get", "42"],
         ["execution", "list", "--job-id", "7"],
@@ -132,3 +130,30 @@ def test_verdicts_keyed_by_public_id():
     assert verify_mod._verdicts(f'[{{"id": "{ID}", "verdict": "tp"}}]') == {ID: "TP"}
     broken = f'[{{"id": "{ID}", "verdict": "FP", "x": "a"b"}}, {{"verdict":"TP","id":{other}}}]'
     assert verify_mod._verdicts(broken) == {ID: "FP", other: "TP"}
+
+
+# TEMPORARY: legacy integer IDs for findings and advisories. Remove with `allow_legacy_int`.
+def test_legacy_int_finding_id_is_sent_as_is(calls):
+    result = CliRunner().invoke(cli, ["issue", "10", "status", "TP"])
+
+    assert result.exit_code == 0, result.output
+    assert calls == [("patch", "/findings/10")]
+
+
+def test_legacy_int_advisory_id_is_sent_as_is(calls):
+    CliRunner().invoke(cli, ["advisory", "1"])
+
+    assert calls and calls[0] == ("get", "/external_issues/1")
+
+
+def test_legacy_int_finding_id_creates_an_advisory(calls):
+    CliRunner().invoke(cli, ["issue", "125333", "advisory"])
+
+    assert calls and calls[0] == ("post", "/external_issues/security_advisory")
+
+
+def test_oversized_int_finding_id_is_rejected(calls):
+    result = CliRunner().invoke(cli, ["issue", "9" * 19, "status", "TP"])
+
+    assert result.exit_code == 2, result.output
+    assert calls == []
