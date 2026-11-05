@@ -77,8 +77,21 @@ def advisory(ctx, **kwargs):
     type=click.File("r"),
     help="Read the new description from a file (wins over --body).",
 )
+@click.option(
+    "--severity",
+    type=click.Choice(["low", "medium", "high", "critical"], case_sensitive=False),
+    help="Set the independently assessed advisory severity.",
+)
+@click.option("--cvss-vector", help="Set the CVSS 3.1 base vector.")
 @click.pass_obj
-def advisory_edit(advisory_id: str, title: str | None, description: str | None, body_file):
+def advisory_edit(
+    advisory_id: str,
+    title: str | None,
+    description: str | None,
+    body_file,
+    severity: str | None,
+    cvss_vector: str | None,
+):
     """Edit a draft advisory's title or description to humanize it before publishing.
 
     Only a draft can be edited; once the advisory is published to GitHub its text is fixed
@@ -88,13 +101,19 @@ def advisory_edit(advisory_id: str, title: str | None, description: str | None, 
         raise click.UsageError("Missing argument 'ADVISORY-ID'.")
     if body_file is not None:
         description = body_file.read()
-    if title is None and description is None:
-        raise click.UsageError("Pass --title, --body or --body-file.")
+    if all(value is None for value in (title, description, severity, cvss_vector)):
+        raise click.UsageError(
+            "Pass --title, --body, --body-file, --severity or --cvss-vector."
+        )
     payload: dict[str, str] = {}
     if title is not None:
         payload["title"] = title
     if description is not None:
         payload["description"] = description
+    if severity is not None:
+        payload["severity"] = severity.upper()
+    if cvss_vector is not None:
+        payload["cvss_vector"] = cvss_vector
     client.patch(f"/external_issues/{advisory_id}", json=payload)
     stdout.print("Advisory updated")
 

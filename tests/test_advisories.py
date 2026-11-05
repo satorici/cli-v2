@@ -257,3 +257,16 @@ def test_advisory_edit_requires_a_field(monkeypatch):
 
     assert result.exit_code != 0
     assert "Pass --title" in result.output
+
+
+def test_advisory_edit_patches_independent_risk_assessment(monkeypatch):
+    request, _, _ = _patch(monkeypatch)
+    vector = "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N"
+
+    result = CliRunner().invoke(
+        advisory,
+        [ADVISORY_ID, "edit", "--severity", "high", "--cvss-vector", vector],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert request["json"] == {"severity": "HIGH", "cvss_vector": vector}

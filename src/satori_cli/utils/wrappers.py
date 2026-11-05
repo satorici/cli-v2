@@ -433,6 +433,13 @@ class IssueWrapper(Wrapper[dict]):
 
         grid.add_row("Title", finding["title"])
         grid.add_row("Status", finding["status"])
+        exploitability = finding.get("exploitability")
+        grid.add_row(
+            "Exploitability",
+            exploitability.capitalize().replace("_", " ")
+            if isinstance(exploitability, str)
+            else "N/A",
+        )
         grid.add_row("Risk", risk)
         grid.add_row("Source", finding["source"].capitalize())
         grid.add_row("Execution", _ref(finding["execution_id"]))

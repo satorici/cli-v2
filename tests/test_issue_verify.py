@@ -291,6 +291,28 @@ def test_verify_findings_usage_limit_is_clean_error(monkeypatch, tmp_path):
     assert "usage limit" in result.output.lower()
 
 
+def test_five_hour_subscription_limit_is_terminal(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_run(args, **kwargs):
+        calls.append(args)
+        stdout = json.dumps({
+            "subtype": "success",
+            "is_error": True,
+            "result": "You've hit your 5-hour limit · resets 9:50am",
+        })
+        return subprocess.CompletedProcess(args, 0, stdout, "")
+
+    monkeypatch.setattr("satori_cli.utils.verify_issue.subprocess.run", fake_run)
+    try:
+        verify_mod._run_claude("/bin/claude", [FINDING], verify_mod.ANALYST, tmp_path)
+    except verify_mod.UsageLimitError:
+        pass
+    else:
+        raise AssertionError("the subscription limit must stop verification")
+    assert len(calls) == 1  # terminal limits must not burn the remaining retries
+
+
 def test_issue_verify_happy_path_clones_once(monkeypatch, tmp_path):
     runs = []
     monkeypatch.setattr("satori_cli.utils.verify_issue.client.get",

@@ -44,7 +44,8 @@ _RETRY_BACKOFF_S = 2.0
 _TOOLS = ("Read", "Grep", "Glob")
 _USAGE_LIMIT_RE = re.compile(
     r"usage limit|session limit|rate.?limit|quota exceeded|credit balance"
-    r"|insufficient_quota|overloaded_error|try again later",
+    r"|insufficient_quota|overloaded_error|try again later"
+    r"|hit your (?:\d+(?:-hour)?|[^\r\n]+?) limit",
     re.IGNORECASE,
 )
 _FENCE_RE = re.compile(r"```(?:json)?\s*(.+?)```", re.DOTALL)

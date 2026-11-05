@@ -17,6 +17,7 @@ FINDING = {
     "fingerprint": "abc",
     "title": "SQL Injection",
     "status": "CONFIRMED",
+    "exploitability": "EXPLOITABLE",
     "severity": 3,
     "snapshot": {"cwe": "CWE-89"},
     "assignee_id": None,
@@ -120,6 +121,8 @@ def test_issue_history_renders():
     console.print(IssueWrapper(FINDING, history=HISTORY))
     text = console.export_text()
 
+    assert text.index("Status") < text.index("Exploitability") < text.index("Risk")
+    assert "Exploitable" in text
     assert "History" in text
     assert 'alice said "esta vulnerabilidad' in text
     assert "alice changed the status to confirmed" in text
