@@ -265,15 +265,39 @@ def issue_verify(finding_id: str):
 @optgroup.option("--publish", is_flag=True, help="Publish the draft advisory to GitHub")
 @optgroup.option("--delete", is_flag=True, help="Delete the advisory")
 @optgroup.option("--status", is_flag=True, help="Fetch remote GitHub advisory status")
+@optgroup.option(
+    "--improve",
+    is_flag=True,
+    help="Rewrite the draft's title/description into a comprehensive report with Claude Code",
+)
 @opts.json_opt
 @click.pass_obj
 def issue_advisory(
-    finding_id: str, publish: bool, delete: bool, status: bool, **kwargs
+    finding_id: str, publish: bool, delete: bool, status: bool, improve: bool, **kwargs
 ):
     if finding_id is None:
         raise click.UsageError("Missing argument 'FINDING-ID'.")
 
     body = {"finding_id": finding_id}
+
+    if improve:
+        from ..utils.improve_report import UsageLimitError as ImproveUsageLimitError
+        from ..utils.improve_report import improve_advisory
+
+        try:
+            report = improve_advisory(finding_id)
+        except ImproveUsageLimitError as error:
+            raise click.ClickException(
+                "Claude usage limit reached; re-run to continue."
+            ) from error
+        if report is None:
+            raise click.ClickException("Could not improve this advisory (see warnings above).")
+        if is_json_output():
+            stdout.print_json(report)
+        else:
+            stdout.print("Advisory improved")
+            stdout.print(f"New title: {report['title']}")
+        return
 
     if delete:
         res = client.request("DELETE", "/external_issues/security_advisory", json=body)

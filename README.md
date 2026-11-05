@@ -127,12 +127,14 @@ Running `satori-v2` with no subcommand lists your jobs (dashboard). Use `--publi
 | `issue <finding-id> advisory --publish` | Publish the draft advisory to GitHub |
 | `issue <finding-id> advisory --delete` | Delete the local advisory; best-effort close on GitHub (prints a WARNING if close fails) |
 | `issue <finding-id> advisory --status` | Fetch remote GitHub advisory status |
+| `issue <finding-id> advisory --improve` | Rewrite the draft's title and description into a comprehensive report with Claude Code |
 
 ### `advisory` subcommands
 
 | Subcommand | Description |
 | --- | --- |
 | `advisory <advisory-id>` | Show the external issue and finding timeline |
+| `advisory <advisory-id> edit --title <text> --body <text>` | Edit a draft's title or description before publishing |
 | `advisory <advisory-id> visibility <PUBLIC\|PRIVATE\|UNLISTED>` | Set the advisory visibility |
 
 ### `organization` subcommands

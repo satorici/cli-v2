@@ -127,9 +127,13 @@ def test_playbook_rejects_an_integer(calls):
 
 def test_verdicts_keyed_by_public_id():
     other = "Z" * 21
-    assert verify_mod._verdicts(f'[{{"id": "{ID}", "verdict": "tp"}}]') == {ID: "TP"}
+    assert verify_mod._verdicts(f'[{{"id": "{ID}", "verdict": "tp"}}]') == {
+        ID: {"verdict": "TP", "evidence": ""}
+    }
     broken = f'[{{"id": "{ID}", "verdict": "FP", "x": "a"b"}}, {{"verdict":"TP","id":{other}}}]'
-    assert verify_mod._verdicts(broken) == {ID: "FP", other: "TP"}
+    assert verify_mod._verdicts(broken) == {
+        ID: {"verdict": "FP", "evidence": ""}, other: {"verdict": "TP", "evidence": ""}
+    }
 
 
 # TEMPORARY: legacy integer IDs for findings and advisories. Remove with `allow_legacy_int`.

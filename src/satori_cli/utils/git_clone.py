@@ -27,6 +27,31 @@ _TRANSIENT_CLONE_RE = re.compile(
 )
 
 
+# A cloned repo's agent config to move aside before running Claude in it: `.claude/` (hooks,
+# settings, skills, commands, agents -> code execution), `.mcp.json` (servers Claude would
+# spawn), and the instruction files Claude auto-loads (prompt injection).
+_UNTRUSTED_CONFIG = (".claude", ".mcp.json", "CLAUDE.md", "AGENTS.md", ".cursorrules")
+
+
+def defang_clone(clone_dir: Path) -> None:
+    """Rename a cloned repo's agent config to ``*.bak`` before running Claude in it, so an
+    untrusted repo's hooks, MCP servers and instruction files cannot take effect. Claude loads
+    project config from its working directory with no trust prompt in ``-p`` mode, so moving
+    these files aside -- deterministically, before Claude starts -- is what stops a cloned
+    repo from running code or injecting instructions during an agent pass over it. Shared by
+    every caller that runs Claude over an untrusted clone (verify, improve-report, ...)."""
+    for name in _UNTRUSTED_CONFIG:
+        entry = clone_dir / name
+        if not entry.exists():
+            continue
+        backup = clone_dir / f"{name}.bak"
+        if backup.is_dir():
+            shutil.rmtree(backup, ignore_errors=True)
+        elif backup.exists():
+            backup.unlink()
+        entry.rename(backup)
+
+
 def require_git(quiet: bool = False) -> str:
     git = shutil.which("git")
     if not git:
@@ -34,6 +59,18 @@ def require_git(quiet: bool = False) -> str:
             raise SatoriError("`git` is not installed or not on PATH.")
         raise click.UsageError("`git` is not installed or not on PATH.")
     return git
+
+
+def require_claude() -> str:
+    """Path to the Claude Code CLI binary, required by every agent pass over a clone
+    (verify, improve-report, ...)."""
+    claude = shutil.which("claude")
+    if not claude:
+        raise click.UsageError(
+            "`claude` (Claude Code CLI) is not installed or not on PATH. "
+            "Install with: npm install -g @anthropic-ai/claude-code"
+        )
+    return claude
 
 
 def clone_repo(git: str, repository: str, dest: Path, quiet: bool = False) -> Path:

@@ -9,9 +9,7 @@ ANTHROPIC_* variables are stripped so it never bills the API or hits another mod
 from __future__ import annotations
 
 import json
-import os
 import re
-import shutil
 import subprocess
 import tempfile
 import time
@@ -21,33 +19,22 @@ from typing import Any, Optional
 import rich_click as click
 
 from ..api import client
+from .claude_agent import (
+    CLAUDE_ATTEMPTS,
+    RETRY_BACKOFF_S,
+    USAGE_LIMIT_RE,
+    claude_env,
+    finding_location,
+    severity_floor,
+    severity_label,
+    snapshot_text,
+)
 from .console import stderr
-from .git_clone import clone_repo, require_git
+from .git_clone import clone_repo, defang_clone, require_claude, require_git
 
-_SNAPSHOT_MAX_CHARS = 12_000
-_RISK_LABELS = {
-    0: "Blocker",
-    1: "Critical",
-    2: "High",
-    3: "Medium",
-    4: "Low",
-    5: "Info",
-}
-_SEVERITY_RANK = {label.lower(): value for value, label in _RISK_LABELS.items()}
-
-# tries per agent: a model may answer with prose instead of the JSON array, or be briefly
-# overloaded; a usage limit is terminal and stops at once
-CLAUDE_ATTEMPTS = 3
-_RETRY_BACKOFF_S = 2.0
 # the only tools verify needs; --tools caps the tool-defs SENT per call (~15k -> ~2k tokens;
 # --allowedTools alone does not, it only gates permission)
 _TOOLS = ("Read", "Grep", "Glob")
-_USAGE_LIMIT_RE = re.compile(
-    r"usage limit|session limit|rate.?limit|quota exceeded|credit balance"
-    r"|insufficient_quota|overloaded_error|try again later"
-    r"|hit your (?:\d+(?:-hour)?|[^\r\n]+?) limit",
-    re.IGNORECASE,
-)
 _FENCE_RE = re.compile(r"```(?:json)?\s*(.+?)```", re.DOTALL)
 _ARRAY_RE = re.compile(r"\[.*\]", re.DOTALL)
 # Last-resort recovery: pull id+verdict pairs even when the JSON is invalid (e.g. a model
@@ -95,7 +82,9 @@ _TASK = (
     "For each finding below, open its file at the given line, trace input -> sink, check "
     "sanitizers and reachability, then decide TP (real and exploitable) or FP. "
     "Output ONLY a JSON array -- no prose, no markdown fences. Each element: "
-    '{"id": "<finding id string>", "verdict": "TP" or "FP", "line": <1-based line int>}.'
+    '{"id": "<finding id string>", "verdict": "TP" or "FP", "line": <1-based line int>, '
+    '"evidence": "<one or two sentences: the concrete input source, the path it takes to the '
+    'sink, and why that path is or is not reachable/exploitable>"}.'
 )
 
 
@@ -145,38 +134,6 @@ def resolve_repository(finding_id: str) -> tuple[dict[str, Any], str]:
     return finding, repository
 
 
-def _severity_label(severity: Any) -> str:
-    if severity is None:
-        return "N/A"
-    if isinstance(severity, int):
-        return _RISK_LABELS.get(severity, str(severity))
-    return str(severity)
-
-
-def _snapshot_text(snapshot: Any) -> str:
-    if snapshot is None:
-        return "null"
-    try:
-        text = json.dumps(snapshot, indent=2, default=str)
-    except (TypeError, ValueError):
-        text = str(snapshot)
-    if len(text) > _SNAPSHOT_MAX_CHARS:
-        return text[:_SNAPSHOT_MAX_CHARS] + "\n... [truncated]"
-    return text
-
-
-def _location(finding: dict[str, Any]) -> str:
-    """file:line the finding points at (from its snapshot, falling back to identity), so the
-    agent can open the exact code rather than dig it out of the snapshot JSON."""
-    snapshot = finding.get("snapshot")
-    snapshot = snapshot if isinstance(snapshot, dict) else {}
-    identity = finding.get("identity")
-    identity = identity if isinstance(identity, dict) else {}
-    path = snapshot.get("filePath") or identity.get("path") or "?"
-    line = snapshot.get("lineNumber") or identity.get("start_line") or "?"
-    return f"{path}:{line}"
-
-
 def build_verify_prompt(findings: list[dict[str, Any]]) -> str:
     """The per-call user prompt: the findings to judge first, the task and output contract
     last -- the stable role and criteria live in the system prompt."""
@@ -184,26 +141,32 @@ def build_verify_prompt(findings: list[dict[str, Any]]) -> str:
     for finding in findings:
         blocks.append(
             f"- id: {finding['id']}\n"
-            f"  severity: {_severity_label(finding.get('severity'))}\n"
+            f"  severity: {severity_label(finding.get('severity'))}\n"
             f"  title: {finding.get('title') or ''}\n"
-            f"  location: {_location(finding)}\n"
-            f"  snapshot: {_snapshot_text(finding.get('snapshot'))}"
+            f"  location: {finding_location(finding)}\n"
+            f"  snapshot: {snapshot_text(finding.get('snapshot'))}"
         )
     blocks += ["", _TASK]
     return "\n".join(blocks)
 
 
-def _pairwise_verdicts(text: str) -> dict[str, str]:
-    """Recover {id: verdict} by scanning for id+verdict pairs directly -- tolerant of invalid
-    JSON (a stray unescaped quote in an unused field) and of prose around the array."""
-    verdicts: dict[str, str] = {}
+def _pairwise_verdicts(text: str) -> dict[str, dict[str, str]]:
+    """Recover {id: {"verdict", "evidence"}} by scanning for id+verdict pairs directly --
+    tolerant of invalid JSON (a stray unescaped quote in an unused field) and of prose around
+    the array. No evidence is recoverable this way (that field isn't in the pair regex), so
+    it's always empty here -- only the full JSON path in _verdicts carries it."""
+    verdicts: dict[str, dict[str, str]] = {}
     for first_id, first_v, second_v, second_id in _PAIR_RE.findall(text):
-        verdicts[first_id or second_id] = (first_v or second_v).upper()
+        verdicts[first_id or second_id] = {
+            "verdict": (first_v or second_v).upper(),
+            "evidence": "",
+        }
     return verdicts
 
 
-def _verdicts(text: str) -> Optional[dict[str, str]]:
-    """The {id: 'TP'|'FP'} map parsed from an agent's JSON-array answer, or None."""
+def _verdicts(text: str) -> Optional[dict[str, dict[str, str]]]:
+    """The {id: {"verdict": "TP"|"FP", "evidence": str}} map parsed from an agent's JSON-array
+    answer, or None."""
     text = text.strip()
     fence = _FENCE_RE.search(text)
     body = fence.group(1).strip() if fence else text
@@ -217,7 +180,10 @@ def _verdicts(text: str) -> Optional[dict[str, str]]:
             data = None
     if isinstance(data, list):
         return {
-            str(item["id"]): item["verdict"].upper()
+            str(item["id"]): {
+                "verdict": item["verdict"].upper(),
+                "evidence": str(item.get("evidence") or ""),
+            }
             for item in data
             if isinstance(item, dict) and "id" in item
             and str(item.get("verdict")).upper() in ("TP", "FP")
@@ -226,32 +192,12 @@ def _verdicts(text: str) -> Optional[dict[str, str]]:
 
 
 def _require_binaries() -> tuple[str, str]:
-    git = require_git()
-    claude = shutil.which("claude")
-    if not claude:
-        raise click.UsageError(
-            "`claude` (Claude Code CLI) is not installed or not on PATH. "
-            "Install with: npm install -g @anthropic-ai/claude-code"
-        )
-    return git, claude
-
-
-def _claude_env() -> dict[str, str]:
-    """The environment for Claude, stripped of the API key/base-url/model so verification
-    always uses the local subscription rather than a billed API or another model. (Secrets are
-    not scrubbed here: the untrusted repo can't reach this environment anyway -- its hooks are
-    renamed away before Claude starts and the agent's tools are read-only -- and a name-based
-    denylist would be a fragile, bypassable guard, not a boundary.)"""
-    return {
-        key: value
-        for key, value in os.environ.items()
-        if key not in ("ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "ANTHROPIC_MODEL")
-    }
+    return require_git(), require_claude()
 
 
 def _claude_once(
     claude: str, prompt: str, role: str, cwd: Path
-) -> tuple[Optional[dict[str, str]], str]:
+) -> tuple[Optional[dict[str, dict[str, str]]], str]:
     """Run one Claude agent (role via the system prompt) over the repo in cwd. Returns
     (verdicts|None, output); output is kept so the caller can spot a usage limit."""
     result = subprocess.run(  # noqa: S603
@@ -280,7 +226,7 @@ def _claude_once(
         capture_output=True,
         text=True,
         check=False,
-        env=_claude_env(),
+        env=claude_env(),
     )
     output = (result.stdout or "") + (result.stderr or "")
     if result.returncode:
@@ -298,7 +244,9 @@ def _claude_once(
     return _verdicts(envelope.get("result", "")), output
 
 
-def _run_claude(claude: str, findings: list[dict[str, Any]], role: str, cwd: Path) -> dict[str, str]:
+def _run_claude(
+    claude: str, findings: list[dict[str, Any]], role: str, cwd: Path
+) -> dict[str, dict[str, str]]:
     """Run an agent, retrying an unparseable answer a few times. A usage limit is terminal
     (a retry only burns more quota) and raises UsageLimitError. Returns {} if no verdicts
     could be parsed after every attempt."""
@@ -308,10 +256,10 @@ def _run_claude(claude: str, findings: list[dict[str, Any]], role: str, cwd: Pat
         verdicts, output = _claude_once(claude, prompt, role, cwd)
         if verdicts is not None:
             return verdicts
-        if _USAGE_LIMIT_RE.search(output):
+        if USAGE_LIMIT_RE.search(output):
             raise UsageLimitError(output[-200:])
         if attempt < CLAUDE_ATTEMPTS:
-            time.sleep(_RETRY_BACKOFF_S)
+            time.sleep(RETRY_BACKOFF_S)
     stderr.print(
         f"WARNING: verify {_ROLE_NAMES.get(role, 'agent')} returned no parseable verdicts "
         f"(last output: {output[-200:].strip()!r})."
@@ -321,18 +269,23 @@ def _run_claude(claude: str, findings: list[dict[str, Any]], role: str, cwd: Pat
 
 def judge_findings(
     findings: list[dict[str, Any]], clone_dir: Path, claude: str
-) -> dict[str, str]:
+) -> dict[str, dict[str, str]]:
     """Judge all findings with two agents -- an analyst and an adversary -- over one clone,
-    settling any disagreement with a tie-breaker. Returns {finding_id: 'TP'|'FP'} (a finding
-    with no agreed/decisive verdict is omitted). Raises UsageLimitError on a usage limit."""
+    settling any disagreement with a tie-breaker. Returns {finding_id: {"verdict": "TP"|"FP",
+    "evidence": str}} (a finding with no agreed/decisive verdict is omitted). The evidence kept
+    is the analyst's when the two agree (falling back to the adversary's if the analyst gave
+    none), or the tie-breaker's when one was needed. Raises UsageLimitError on a usage limit."""
     analysis = _run_claude(claude, findings, ANALYST, clone_dir)
     adversary = _run_claude(claude, findings, ADVERSARY, clone_dir)
-    verdicts: dict[str, str] = {}
+    verdicts: dict[str, dict[str, str]] = {}
     for finding in findings:
         fid = finding["id"]
         first, second = analysis.get(fid), adversary.get(fid)
-        if first is not None and first == second:
-            verdicts[fid] = first
+        if first is not None and second is not None and first["verdict"] == second["verdict"]:
+            verdicts[fid] = {
+                "verdict": first["verdict"],
+                "evidence": first.get("evidence") or second.get("evidence") or "",
+            }
             continue
         tie = _run_claude(claude, [finding], TIEBREAKER, clone_dir)
         if tie.get(fid):
@@ -341,15 +294,11 @@ def judge_findings(
 
 
 def _severity_floor(min_severity: Any) -> Optional[int]:
-    if min_severity is None:
-        return None
-    if isinstance(min_severity, int):
-        return min_severity
-    floor = _SEVERITY_RANK.get(str(min_severity).lower())
-    if floor is None:
+    floor = severity_floor(min_severity)
+    if floor is None and min_severity is not None:
         raise click.UsageError(
             f"Unknown severity {min_severity!r}; use one of: "
-            + ", ".join(_RISK_LABELS[value] for value in sorted(_RISK_LABELS))
+            "Blocker, Critical, High, Medium, Low, Info"
         )
     return floor
 
@@ -362,42 +311,22 @@ def _meets_severity(finding: dict[str, Any], floor: Optional[int]) -> bool:
     return isinstance(severity, int) and severity <= floor
 
 
-# A cloned repo's agent config we move aside before running Claude in it: `.claude/` (hooks,
-# settings, skills, commands, agents -> code execution), `.mcp.json` (servers Claude would
-# spawn), and the instruction files Claude auto-loads (prompt injection).
-_UNTRUSTED_CONFIG = (".claude", ".mcp.json", "CLAUDE.md", "AGENTS.md", ".cursorrules")
-
-
-def _defang_clone(clone_dir: Path) -> None:
-    """Rename a cloned repo's agent config to ``*.bak`` before running Claude in it, so an
-    untrusted repo's hooks, MCP servers and instruction files cannot take effect. Claude loads
-    project config from its working directory with no trust prompt in ``-p`` mode, so moving
-    these files aside -- deterministically, before Claude starts -- is what stops a cloned
-    repo from running code or injecting instructions during verification."""
-    for name in _UNTRUSTED_CONFIG:
-        entry = clone_dir / name
-        if not entry.exists():
-            continue
-        backup = clone_dir / f"{name}.bak"
-        if backup.is_dir():
-            shutil.rmtree(backup, ignore_errors=True)
-        elif backup.exists():
-            backup.unlink()
-        entry.rename(backup)
-
-
 def verify_findings_for_repo(
     findings: list[dict[str, Any]],
     repository: str,
     min_severity: Any = None,
     persist: bool = True,
     quiet: bool = False,
-) -> dict[str, str]:
+) -> dict[str, dict[str, str]]:
     """Clone `repository` once and judge `findings` (only those at or above `min_severity`,
-    e.g. 'High', when given). Persists each verdict via the API unless persist=False, and
-    returns {finding_id: 'TP'|'FP'}. Raises UsageLimitError on a Claude usage limit. `quiet`
-    makes a failed clone raise SatoriError (for batch callers whose own progress is the
-    output)."""
+    e.g. 'High', when given). Returns {finding_id: {"verdict": "TP"|"FP", "evidence": str}}.
+    Unless persist=False, persists each verdict via the API; a TP also gets its exploitability
+    set to EXPLOITABLE with the judging agents' own evidence as the reason, in the same PATCH,
+    so a confirmed TP is immediately eligible for an advisory (which requires exploitability to
+    already be set) and so improve_report has real, agent-stated grounding to work from instead
+    of just the bare tool snapshot. An FP is status-only; there is nothing to claim exploitable.
+    Raises UsageLimitError on a Claude usage limit. `quiet` makes a failed clone raise
+    SatoriError (for batch callers whose own progress is the output)."""
     floor = _severity_floor(min_severity)
     todo = [finding for finding in findings if _meets_severity(finding, floor)]
     if not todo:
@@ -405,11 +334,15 @@ def verify_findings_for_repo(
     git, claude = _require_binaries()
     with tempfile.TemporaryDirectory(prefix="satori-verify-") as tmp:
         clone_dir = clone_repo(git, repository, Path(tmp), quiet=quiet)
-        _defang_clone(clone_dir)
+        defang_clone(clone_dir)
         verdicts = judge_findings(todo, clone_dir, claude)
     if persist:
-        for finding_id, verdict in verdicts.items():
-            client.patch(f"/findings/{finding_id}", json={"status": verdict})
+        for finding_id, result in verdicts.items():
+            body = {"status": result["verdict"]}
+            if result["verdict"] == "TP":
+                body["exploitability"] = "EXPLOITABLE"
+                body["exploitability_reason"] = result.get("evidence") or None
+            client.patch(f"/findings/{finding_id}", json=body)
     return verdicts
 
 
@@ -440,9 +373,11 @@ def list_finding_ids_for_execution(execution_id: str) -> list[str]:
     return ids
 
 
-def verify_findings(finding_ids: list[str], min_severity: Any = None) -> dict[str, str]:
+def verify_findings(
+    finding_ids: list[str], min_severity: Any = None
+) -> dict[str, dict[str, str]]:
     """Verify multiple findings (of one repo) with a single clone; persist and report each
-    verdict. Returns {finding_id: 'TP'|'FP'}."""
+    verdict. Returns {finding_id: {"verdict": "TP"|"FP", "evidence": str}}."""
     if not finding_ids:
         return {}
 
@@ -465,10 +400,11 @@ def verify_findings(finding_ids: list[str], min_severity: Any = None) -> dict[st
         ) from error
 
     for finding in findings:
-        verdict = verdicts.get(finding["id"], "undecided")
+        result = verdicts.get(finding["id"])
+        verdict = result["verdict"] if result else "undecided"
         stderr.print(f"finding {finding['id']}: {verdict}")
     return verdicts
 
 
-def verify_issue(finding_id: str) -> dict[str, str]:
+def verify_issue(finding_id: str) -> dict[str, dict[str, str]]:
     return verify_findings([finding_id])
