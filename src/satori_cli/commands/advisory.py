@@ -82,7 +82,7 @@ def advisory(ctx, **kwargs):
     type=click.Choice(["low", "medium", "high", "critical"], case_sensitive=False),
     help="Set the independently assessed advisory severity.",
 )
-@click.option("--cvss-vector", help="Set the CVSS 3.1 base vector.")
+@click.option("--cvss-vector", help="Set the CVSS 4.0 Base vector.")
 @click.pass_obj
 def advisory_edit(
     advisory_id: str,
