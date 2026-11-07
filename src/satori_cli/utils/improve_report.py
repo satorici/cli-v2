@@ -2,12 +2,17 @@
 
 Runs one Claude agent, role IMPROVE_PROMPT, over the real cloned repository, given the
 finding and the draft advisory's current (auto-generated, boilerplate) title and
-description, and returns a rewritten {"title", "description"}. Same trust model as
-verify_issue: Claude runs on the local subscription (the ANTHROPIC_* variables are
-stripped) with read-only tools, over a clone whose agent config has been moved aside first
-(see git_clone.defang_clone), so an untrusted repo cannot run code or inject instructions.
+description, and returns a rewritten {"title", "description", "cvss_vector", "severity",
+"remediation"}. Same trust model as verify_issue: Claude runs on the local subscription
+(the ANTHROPIC_* variables are stripped) with read-only tools, over a clone whose agent
+config has been moved aside first (see git_clone.defang_clone), so an untrusted repo
+cannot run code or inject instructions.
 
-IMPROVE_PROMPT is a placeholder below -- fill in the real prompt before relying on this.
+The report body (title + description) is neutral, third-person, and exactly three
+sections (Summary, Vulnerable Code, Impact): no CVSS prose (the vector/severity are
+still computed and persisted as their own fields, just not rendered into the text) and
+no remediation advice in the body. Remediation is persisted separately, as a follow-up
+comment on the finding, right after the advisory draft is updated (see improve_advisory).
 """
 
 from __future__ import annotations
@@ -37,10 +42,9 @@ from .console import stderr
 from .git_clone import clone_repo, defang_clone, require_claude, require_git
 from .verify_issue import UsageLimitError, resolve_repository
 
-# TODO(user): placeholder role/task text below -- replace with the final wording once given.
 IMPROVE_PROMPT = (
     "You are a security report editor for Satori CI's vulnerability disclosure pipeline. "
-    "You turn a bare, auto-generated advisory draft into a clean, comprehensive report a "
+    "You turn a bare, auto-generated advisory draft into a clean, precise report a "
     "maintainer can act on, grounded entirely in the real source code at your working "
     "directory and the finding's own recorded evidence."
 )
@@ -51,21 +55,32 @@ IMPROVE_SYSTEM_COMMON = (
     "only a starting point; the source code in your working directory is the ground truth.\n"
     "Never claim a reproduction, exploit, or proof of concept that is not either (a) explicitly "
     "recorded in the finding's exploitability reason given to you below, or (b) a direct, literal "
-    "reading of the code path you opened. You have read-only tools and cannot execute anything "
-    "yourself; if the exploitability reason describes a live reproduction, you may describe it "
-    "accurately, but you must not invent command output, HTTP responses, or other 'evidence' you "
-    "did not receive.\n"
-    "Write in first person plural (we), in prose, not bullet lists, except where a list is "
-    "genuinely clearer (e.g. multiple file locations). Never use em dashes or en dashes.\n"
-    "Structure the description with these sections, as Markdown headers: Summary, Proof of "
-    "Concept (or Reachability if no live reproduction was recorded), Impact, CVSS, Remediation.\n"
-    "Compute a CVSS 4.0 base vector from what you actually confirmed, not from the raw tool's "
+    "reading of the code path you opened; do not invent command output, HTTP responses, or other "
+    "'evidence' you did not receive. This is an internal accuracy constraint only: never write "
+    "about it, and never mention your own tools, methodology, or what was or was not executed or "
+    "tested. The report states what the vulnerability is and does, nothing about how this report "
+    "itself was produced.\n"
+    "Write in neutral, third-person, precise technical prose, not bullet lists except where a "
+    "list is genuinely clearer (e.g. multiple file locations). Never use the words 'I', 'we', "
+    "'us', or 'our'. Never use em dashes or en dashes. Describe the code and the data flow "
+    "directly: 'the handler passes X to Y', not 'we found that the handler passes X to Y'.\n"
+    "Structure the description with exactly these three sections, as Markdown headers, in this "
+    "order, and no others: Summary, Vulnerable Code, Impact. Vulnerable Code must quote the "
+    "actual vulnerable source (file path, line numbers, and a real code snippet read from the "
+    "repository) and explain the data flow that reaches it. Do not add a CVSS section and do not "
+    "add a Remediation section: compute the CVSS vector and severity as separate output fields "
+    "(below), not as description prose, and return remediation guidance as its own separate "
+    "field, not inside the description.\n"
+    "The title must follow the pattern '<vulnerability class or mechanism> in <component or "
+    "location> leads to <concrete consequence>', naming the real vulnerability class and "
+    "consequence, never just the raw tool rule name.\n"
+    "Compute a CVSS 4.0 base vector from what was actually confirmed, not from the raw tool's "
     "severity label: score Attack Vector, Attack Complexity, Attack Requirements, Privileges "
-    "Required and User Interaction from the real reachability you read in the code "
+    "Required and User Interaction from the real reachability read in the code "
     "(network-reachable and unauthenticated is not automatic; a finding that needs local access, "
     "a victim's action, or specific preconditions must say so in the vector), and score the "
     "Vulnerable System impact (VC/VI/VA) from what the sink actually allows on the system "
-    "containing the flaw, not the worst case you can imagine; score Subsequent System impact "
+    "containing the flaw, not the worst case imaginable; score Subsequent System impact "
     "(SC/SI/SA) only when the finding itself demonstrates impact reaching beyond that system, "
     "otherwise leave it None. Set the severity label to match that score (Critical/High/Medium/"
     "Low), even if it differs from the draft's current severity."
@@ -75,13 +90,15 @@ _MODEL = "sonnet"
 _TOOLS = ("Read", "Grep", "Glob")
 
 _IMPROVE_TASK = (
-    "Rewrite this advisory's title and description using the structure above. The title should "
-    "name the actual vulnerability class and consequence, not just restate the raw tool rule "
-    "name. Output ONLY a JSON object -- no prose, no markdown fences: "
-    '{"title": "<improved title>", "description": "<improved description, markdown>", '
+    "Rewrite this advisory's title and description using the structure above, and write a "
+    "separate remediation field (neutral, third-person, 2 to 4 sentences, no markdown header) "
+    "naming the concrete fix. Output ONLY a JSON object -- no prose, no markdown fences: "
+    '{"title": "<improved title, following the required pattern>", '
+    '"description": "<improved description, markdown, Summary/Vulnerable Code/Impact only>", '
     '"cvss_vector": "<CVSS:4.0/AV:.../AC:.../AT:.../PR:.../UI:.../VC:.../VI:.../VA:.../SC:.../'
     'SI:.../SA:... base vector>", '
-    '"severity": "<CRITICAL, HIGH, MEDIUM or LOW, matching the vector>"}.'
+    '"severity": "<CRITICAL, HIGH, MEDIUM or LOW, matching the vector>", '
+    '"remediation": "<the concrete fix, neutral third-person prose>"}.'
 )
 # The backend's required CVSS format has changed mid-session before (3.1, then 4.0); this is
 # confirmed current as of 2026-11-05. If it rejects a well-formed 4.0 vector again, that is a
@@ -141,12 +158,14 @@ def _severity_from_vector(cvss_vector: str) -> Optional[str]:
 
 
 def _parse_report(text: str) -> Optional[dict[str, str]]:
-    """The {"title", "description", "cvss_vector", "severity"} object parsed from an agent's
-    JSON answer, or None. A malformed CVSS vector fails the whole parse (triggering a retry),
-    since the backend rejects a publish without a valid CVSS 4.0 base vector. severity is not
-    taken from the agent's own label: it is computed from the vector (see
-    _severity_from_vector), since the backend 409s a PATCH whose severity field disagrees
-    with what it derives from the vector itself."""
+    """The {"title", "description", "cvss_vector", "severity", "remediation"} object parsed
+    from an agent's JSON answer, or None. A malformed CVSS vector fails the whole parse
+    (triggering a retry), since the backend rejects a publish without a valid CVSS 4.0 base
+    vector. severity is not taken from the agent's own label: it is computed from the vector
+    (see _severity_from_vector), since the backend 409s a PATCH whose severity field disagrees
+    with what it derives from the vector itself. remediation is required too -- it is persisted
+    separately (see improve_advisory), not folded into description, so a response missing it
+    is just as incomplete as one missing the CVSS vector."""
     text = text.strip()
     if text.startswith("```"):
         text = text.strip("`")
@@ -162,7 +181,12 @@ def _parse_report(text: str) -> Optional[dict[str, str]]:
             data = json.loads(text[start : end + 1])
         except ValueError:
             return None
-    if not isinstance(data, dict) or "title" not in data or "description" not in data:
+    if (
+        not isinstance(data, dict)
+        or "title" not in data
+        or "description" not in data
+        or not str(data.get("remediation") or "").strip()
+    ):
         return None
     cvss_vector = str(data.get("cvss_vector") or "")
     if not _CVSS4_RE.match(cvss_vector):
@@ -175,6 +199,7 @@ def _parse_report(text: str) -> Optional[dict[str, str]]:
         "description": str(data["description"]),
         "cvss_vector": cvss_vector,
         "severity": severity,
+        "remediation": str(data["remediation"]),
     }
 
 
@@ -266,18 +291,33 @@ def _exploitability_reason(finding_id: str) -> str:
     return ""
 
 
+def _post_remediation_comment(finding_id: str, remediation: str) -> None:
+    """Post the remediation as a follow-up comment on the finding, right after the advisory
+    draft is updated. Remediation never lives in the advisory body itself (see
+    IMPROVE_SYSTEM_COMMON); this is its only home. Best-effort: a failure here must not
+    discard the title/description/CVSS rewrite that already succeeded."""
+    try:
+        client.post(f"/findings/{finding_id}/comments", json={"body": f"Remediation: {remediation}"})
+    except HTTPStatusError as error:
+        detail = error.response.text if error.response is not None else str(error)
+        stderr.print(f"WARNING: improve-report {finding_id}: could not post remediation comment ({detail.strip()}).")
+
+
 def improve_advisory(finding_id: str, persist: bool = True) -> Optional[dict[str, str]]:
     """Clone the finding's repo, run the IMPROVE_PROMPT agent over it with the finding and
     the existing draft advisory's current title/description, and return the rewritten
-    {"title", "description", "cvss_vector", "severity"} (a CVSS 4.0 base vector and a
-    matching severity label, computed by the agent from what it actually confirmed, not
-    copied from the tool's raw severity -- a publish 409s without a valid CVSS vector).
-    PATCHes the advisory with the result unless persist=False, or returns None without
-    touching anything if there is no draft, the repo cannot be cloned, or Claude could not
-    produce a parseable answer (including an invalid CVSS vector or severity label).
-    Raises UsageLimitError on a usage limit. Only a draft can be changed; once published to
-    GitHub the advisory text is fixed there (same rule as `satori-v2 advisory edit`), so this
-    is a no-op on an already-published one.
+    {"title", "description", "cvss_vector", "severity", "remediation"} (a CVSS 4.0 base
+    vector and a matching severity label, computed by the agent from what it actually
+    confirmed, not copied from the tool's raw severity -- a publish 409s without a valid
+    CVSS vector). PATCHes the advisory with the title/description/cvss_vector/severity
+    unless persist=False, then posts remediation as a follow-up comment on the finding (see
+    _post_remediation_comment) -- remediation is never part of the advisory body. Returns
+    None without touching anything if there is no draft, the repo cannot be cloned, or
+    Claude could not produce a parseable answer (including a missing remediation field, an
+    invalid CVSS vector, or an invalid severity label). Raises UsageLimitError on a usage
+    limit. Only a draft can be changed; once published to GitHub the advisory text is fixed
+    there (same rule as `satori-v2 advisory edit`), so this is a no-op on an
+    already-published one.
     """
     advisory = _find_advisory(finding_id)
     if advisory is None:
@@ -299,9 +339,15 @@ def improve_advisory(finding_id: str, persist: bool = True) -> Optional[dict[str
         report = _run_claude(claude, prompt, clone_dir)
     if report is None:
         return None
+    advisory_fields = {
+        "title": report["title"],
+        "description": report["description"],
+        "cvss_vector": report["cvss_vector"],
+        "severity": report["severity"],
+    }
     if persist:
         try:
-            client.patch(f"/external_issues/{advisory['id']}", json=report)
+            client.patch(f"/external_issues/{advisory['id']}", json=advisory_fields)
         except HTTPStatusError as error:
             detail = error.response.text if error.response is not None else str(error)
             if "cvss" not in detail.lower():
@@ -317,4 +363,5 @@ def improve_advisory(finding_id: str, persist: bool = True) -> Optional[dict[str
             client.patch(f"/external_issues/{advisory['id']}", json={
                 "title": report["title"], "description": report["description"],
             })
+        _post_remediation_comment(finding_id, report["remediation"])
     return report
