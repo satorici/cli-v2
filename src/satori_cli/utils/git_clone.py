@@ -13,6 +13,7 @@ from pathlib import Path
 import rich_click as click
 
 from ..exceptions import SatoriError
+from .repo import parse_github_remote
 
 log = logging.getLogger(__name__)
 
@@ -59,6 +60,29 @@ def require_git(quiet: bool = False) -> str:
             raise SatoriError("`git` is not installed or not on PATH.")
         raise click.UsageError("`git` is not installed or not on PATH.")
     return git
+
+
+def origin_repository(directory: str | None = None) -> str | None:
+    """The GitHub ``owner/repo`` of the ``origin`` remote of the git checkout containing
+    ``directory`` (default: the current directory). None when there is no git, no checkout,
+    no origin, or origin is not on github.com: detection never fails the caller."""
+    git = shutil.which("git")
+    if not git:
+        return None
+    try:
+        result = subprocess.run(  # noqa: S603
+            [git, "-C", directory or ".", "remote", "get-url", "origin"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+        )
+    except OSError:
+        return None
+    if result.returncode != 0:
+        return None
+    return parse_github_remote(result.stdout)
 
 
 def require_claude() -> str:

@@ -56,14 +56,10 @@ def test_local_verify_requires_repo(tmp_path):
     assert "--verify requires --repo" in result.output
 
 
-def test_local_repo_clones_and_posts_repository(monkeypatch, tmp_path):
-    playbook = tmp_path / "playbook.yml"
-    playbook.write_text("{ cmd: [echo hi] }\n")
-
+def _fake_local_run(monkeypatch):
+    """Fake the API, the bundle upload and the command runner; return (posts, chdirs)."""
     posts: list[dict] = []
-    clone_calls: list[dict] = []
     chdirs: list[str] = []
-    verify_calls: list[int] = []
 
     def fake_post(path, json=None, **kwargs):
         posts.append({"path": path, "json": json})
@@ -108,6 +104,85 @@ def test_local_repo_clones_and_posts_repository(monkeypatch, tmp_path):
     monkeypatch.setattr(
         "satori_cli.utils.local_run.process_commands",
         fake_process_commands,
+    )
+    return posts, chdirs
+
+
+def _no_clone(monkeypatch):
+    def fail(*_a, **_k):
+        raise AssertionError("a detected repository must not be cloned")
+
+    monkeypatch.setattr("satori_cli.commands.local.require_git", fail)
+    monkeypatch.setattr("satori_cli.commands.local.clone_repo", fail)
+
+
+def test_local_posts_the_origin_repository_of_the_working_directory(
+    monkeypatch, tmp_path
+):
+    (tmp_path / ".satori.yml").write_text("{ cmd: [echo hi] }\n")
+    posts, chdirs = _fake_local_run(monkeypatch)
+    _no_clone(monkeypatch)
+    inspected: list = []
+
+    def fake_origin(directory):
+        inspected.append(directory)
+        return "acme/app"
+
+    monkeypatch.setattr("satori_cli.commands.local.origin_repository", fake_origin)
+
+    result = CliRunner().invoke(local, [str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    assert posts[0]["json"]["repository"] == "acme/app"
+    assert inspected == [str(tmp_path)]
+    assert chdirs == [str(tmp_path)]
+
+
+def test_local_playbook_file_uses_the_current_directory_origin(monkeypatch, tmp_path):
+    playbook = tmp_path / "playbook.yml"
+    playbook.write_text("{ cmd: [echo hi] }\n")
+    posts, _ = _fake_local_run(monkeypatch)
+    _no_clone(monkeypatch)
+    inspected: list = []
+
+    def fake_origin(directory):
+        inspected.append(directory)
+        return "acme/app"
+
+    monkeypatch.setattr("satori_cli.commands.local.origin_repository", fake_origin)
+
+    result = CliRunner().invoke(local, [str(playbook)])
+
+    assert result.exit_code == 0, result.output
+    assert posts[0]["json"]["repository"] == "acme/app"
+    assert inspected == [None]
+
+
+def test_local_without_an_origin_posts_no_repository(monkeypatch, tmp_path):
+    playbook = tmp_path / "playbook.yml"
+    playbook.write_text("{ cmd: [echo hi] }\n")
+    posts, _ = _fake_local_run(monkeypatch)
+    monkeypatch.setattr(
+        "satori_cli.commands.local.origin_repository", lambda directory: None
+    )
+
+    result = CliRunner().invoke(local, [str(playbook)])
+
+    assert result.exit_code == 0, result.output
+    assert posts[0]["json"]["repository"] is None
+
+
+def test_local_repo_clones_and_posts_repository(monkeypatch, tmp_path):
+    playbook = tmp_path / "playbook.yml"
+    playbook.write_text("{ cmd: [echo hi] }\n")
+
+    posts, chdirs = _fake_local_run(monkeypatch)
+    clone_calls: list[dict] = []
+    verify_calls: list[int] = []
+
+    monkeypatch.setattr(
+        "satori_cli.commands.local.origin_repository",
+        lambda directory: "other/detected",
     )
     monkeypatch.setattr(
         "satori_cli.commands.local.require_git",

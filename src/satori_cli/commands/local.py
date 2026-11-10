@@ -18,7 +18,7 @@ from ..utils.arguments import Source, source_arg
 from ..utils.console import format_raw_results, stderr, stdout
 from ..utils.execution.models import CommandLine, Result
 from ..utils.format import is_json_output
-from ..utils.git_clone import clone_repo, require_git
+from ..utils.git_clone import clone_repo, origin_repository, require_git
 from ..utils.highlight import highlight_result
 from ..utils.local_run import run_local_job
 from ..utils.repo import wildcard_owner
@@ -117,6 +117,8 @@ def local(
         work_dir = str(clone_repo(git, repository, Path(clone_tmpdir.name)))
     elif source.type == "DIR":
         work_dir = source._arg
+    # --repo names the repository; otherwise it is the checkout the commands run in.
+    job_repository = repository or origin_repository(work_dir)
 
     def run_job(
         on_running=None,
@@ -135,7 +137,7 @@ def local(
                 parameters=input,
                 visibility=visibility or "PRIVATE",
                 tags=tags_obj,
-                repository=repository,
+                repository=job_repository,
                 workdir=work_dir,
                 run=tuple(run or ()),
                 timeout=timeout,
