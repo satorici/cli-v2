@@ -66,17 +66,3 @@ def highlight_text(text: str) -> Text:
 def highlight_result(text: str) -> Text:
     """Apply theme Pass/Fail styles when console highlighting is not enough."""
     return highlight_text(text)
-
-
-def result_text(statuses: list[str]) -> Text:
-    """One line per status. A passing test or assert is informational: it says
-    the check ran clean, not that the report passed (findings fail it too)."""
-    lines = [
-        Text("Info", style="info") if status == "Pass" else highlight_text(status)
-        for status in statuses
-    ]
-    return Text("\n").join(lines)
-
-
-def result_icon(status: str) -> str:
-    return "ℹ️" if status == "Pass" else "❌"

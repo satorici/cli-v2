@@ -17,7 +17,7 @@ else:
 
 from ..constants import report_url
 from ..utils.format import is_json_output
-from ..utils.highlight import highlight_text, result_icon, result_text
+from ..utils.highlight import highlight_result, highlight_text
 
 T = TypeVar("T")
 
@@ -698,7 +698,7 @@ class ReportWrapper(Wrapper[list[dict]]):
             )
 
             for detail in self.obj:
-                check = result_icon(detail["test_status"])
+                check = "✅" if detail["test_status"] == "Pass" else "❌"
                 test_name = check + " " + ":".join(detail["test"].split(" > "))
                 asserts = detail.get("asserts") or []
 
@@ -707,7 +707,7 @@ class ReportWrapper(Wrapper[list[dict]]):
                         test_name,
                         "",
                         "",
-                        result_text([detail["test_status"]]),
+                        highlight_result(detail["test_status"]),
                     )
                     table.add_section()
                     continue
@@ -716,7 +716,9 @@ class ReportWrapper(Wrapper[list[dict]]):
                 for name, valresults in grouped_asserts:
                     values = list(valresults)
                     expected = "\n".join([str(val["expected"]) for val in values])
-                    status = result_text([str(val["status"]) for val in values])
+                    status = highlight_result(
+                        "\n".join([str(val["status"]) for val in values])
+                    )
 
                     table.add_row(test_name, name.lstrip("assert"), expected, status)
                     test_name = ""
@@ -736,11 +738,11 @@ class ReportWrapper(Wrapper[list[dict]]):
         )
 
         for detail in self.obj:
-            check = result_icon(detail["test_status"])
+            check = "✅" if detail["test_status"] == "Pass" else "❌"
             test_name = check + " " + ":".join(detail["test"].split(" > "))
             table.add_row(
                 test_name,
-                result_text([detail["test_status"]]),
+                highlight_result(detail["test_status"]),
                 str(detail.get("testcases", "")),
                 str(detail.get("total_fails", "")),
             )
