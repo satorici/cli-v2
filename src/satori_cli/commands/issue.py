@@ -151,7 +151,7 @@ def list_issues(
     type=click.Choice(["ASC", "DESC"], case_sensitive=False),
 )
 @opts.json_opt
-@opts.pagination_opts
+@opts.pagination_opts(default=200)
 def issues(
     page: int,
     quantity: int,

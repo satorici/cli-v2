@@ -217,13 +217,16 @@ def output_format_opts(fn):
 
 
 page_opt = click.option("--page", default=1, type=int)
-quantity_opt = click.option("--quantity", "-q", "--limit", "-l", default=10, type=int)
+def quantity_opt(default: int = 10):
+    return click.option("--quantity", "-q", "--limit", "-l", default=default, type=int)
 
 
-def pagination_opts(fn):
-    fn = quantity_opt(fn)
-    fn = page_opt(fn)
-    return fn
+def pagination_opts(fn=None, *, default: int = 10):
+    def decorate(f):
+        f = quantity_opt(default)(f)
+        return page_opt(f)
+
+    return decorate if fn is None else decorate(fn)
 
 
 playbook_opt = click.option("--playbook", "-p", callback=_playbook_callback)

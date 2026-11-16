@@ -142,7 +142,7 @@ def _show_execution(
             stderr.print("No report available for this execution.")
 
     if show_issues:
-        list_issues(page=1, quantity=10, execution_id=execution_id)
+        list_issues(page=1, quantity=200, execution_id=execution_id)
 
 
 @click.command()
@@ -561,7 +561,7 @@ def run(
     if show_issues and count == 1:
         if execution_id is None:
             execution_id = _require_first_execution_id(run_id)
-        list_issues(page=1, quantity=10, execution_id=execution_id)
+        list_issues(page=1, quantity=200, execution_id=execution_id)
 
     if verify_findings:
         ids = report_ids

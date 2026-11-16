@@ -325,7 +325,7 @@ def local(
 
     if show_issues:
         if execution_id is not None:
-            list_issues(page=1, quantity=10, execution_id=execution_id)
+            list_issues(page=1, quantity=200, execution_id=execution_id)
         else:
             stderr.print("No execution available to list issues.")
 
