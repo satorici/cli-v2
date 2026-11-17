@@ -67,6 +67,36 @@ def test_issues_filters_exploitability(monkeypatch):
     assert request["params"]["exploitability"] == "EXPLOITABLE"
 
 
+def test_issues_lists_the_report_queue(monkeypatch):
+    request, _ = _patch_get(monkeypatch)
+
+    result = CliRunner().invoke(issues, ["--unreported", "--public-repo"])
+
+    assert result.exit_code == 0, result.output
+    assert request["params"]["reported"] is False
+    assert request["params"]["public_repository"] is True
+
+
+def test_issues_filters_reported_in_private_repositories(monkeypatch):
+    request, _ = _patch_get(monkeypatch)
+
+    result = CliRunner().invoke(issues, ["--reported", "--private-repo"])
+
+    assert result.exit_code == 0, result.output
+    assert request["params"]["reported"] is True
+    assert request["params"]["public_repository"] is False
+
+
+def test_issues_sends_no_report_filters_by_default(monkeypatch):
+    request, _ = _patch_get(monkeypatch)
+
+    result = CliRunner().invoke(issues, [])
+
+    assert result.exit_code == 0, result.output
+    assert "reported" not in request["params"]
+    assert "public_repository" not in request["params"]
+
+
 def test_issues_severity_csv_maps_to_ints(monkeypatch):
     request, _ = _patch_get(monkeypatch)
 

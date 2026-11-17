@@ -93,6 +93,7 @@ def _patch(
     post_response=None,
     post_error=None,
     delete_response=None,
+    get_response=None,
 ):
     _clear_output_flags()
     request = {}
@@ -132,7 +133,7 @@ def _patch(
             return _FakeResponse(STATUS)
         if path.endswith("/timeline"):
             return _FakeResponse(HISTORY)
-        return _FakeResponse()
+        return _FakeResponse(get_response)
 
     monkeypatch.setattr("satori_cli.commands.issue.client.post", post)
     monkeypatch.setattr("satori_cli.commands.issue.client.request", req)
@@ -279,6 +280,64 @@ def test_issue_publish_issue_json(monkeypatch):
 
     assert result.exit_code == 0, result.output
     assert printed == [GITHUB_ISSUE]
+
+
+def test_issue_publish_creates_the_draft_and_names_the_channel(monkeypatch):
+    _, requests, printed, _ = _patch(monkeypatch, post_response=GITHUB_ISSUE)
+
+    result = CliRunner().invoke(issue, [FINDING_ID, "publish"])
+
+    assert result.exit_code == 0, result.output
+    assert [(r["path"], r["json"]) for r in requests] == [
+        ("/external_issues/security_advisory", {"finding_id": FINDING_ID}),
+        ("/external_issues/publish", {"finding_id": FINDING_ID}),
+    ]
+    assert printed == ["issue: https://github.com/org/repo/issues/12"]
+
+
+def test_issue_publish_names_an_advisory(monkeypatch):
+    _, _, printed, _ = _patch(monkeypatch)
+
+    result = CliRunner().invoke(issue, [FINDING_ID, "publish"])
+
+    assert result.exit_code == 0, result.output
+    assert printed == [f"advisory: {ADVISORY['external_url']}"]
+
+
+def test_issue_publish_json(monkeypatch):
+    _, _, printed, _ = _patch(monkeypatch, post_response=GITHUB_ISSUE)
+
+    result = CliRunner().invoke(issue, [FINDING_ID, "publish", "--json"])
+
+    assert result.exit_code == 0, result.output
+    assert printed == [GITHUB_ISSUE]
+
+
+CHANNEL = {
+    "repository": "org/repo",
+    "private_vulnerability_reporting": False,
+    "channel": "ISSUE",
+}
+
+
+def test_issue_channel_prints_how_the_repository_takes_a_report(monkeypatch):
+    request, _, printed, _ = _patch(monkeypatch, get_response=CHANNEL)
+
+    result = CliRunner().invoke(issue, [FINDING_ID, "channel"])
+
+    assert result.exit_code == 0, result.output
+    assert request["path"] == "/external_issues/report-channel"
+    assert request["params"] == {"finding_id": FINDING_ID}
+    assert printed == ["issue"]
+
+
+def test_issue_channel_json(monkeypatch):
+    _, _, printed, _ = _patch(monkeypatch, get_response=CHANNEL)
+
+    result = CliRunner().invoke(issue, [FINDING_ID, "channel", "--json"])
+
+    assert result.exit_code == 0, result.output
+    assert printed == [CHANNEL]
 
 
 def test_issue_advisory_delete(monkeypatch):

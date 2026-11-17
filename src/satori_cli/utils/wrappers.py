@@ -310,6 +310,10 @@ class IssueListWrapper(Wrapper[list]):
         table.add_column("Status", min_width=6, max_width=7)
         table.add_column("Source", min_width=6, max_width=7)
         table.add_column("Risk", min_width=6, max_width=7)
+        # Only the findings listing names the repository
+        with_repository = any(finding.get("repository") for finding in self.obj)
+        if with_repository:
+            table.add_column("Repo", ratio=3, no_wrap=True, overflow="ellipsis")
         table.add_column("Execution", **ID_COLUMN)
         table.add_column("Created at", ratio=2, no_wrap=True)
 
@@ -328,6 +332,7 @@ class IssueListWrapper(Wrapper[list]):
                 finding["status"],
                 finding["source"].capitalize(),
                 risk,
+                *([finding.get("repository") or ""] if with_repository else []),
                 _ref(finding["execution_id"]),
                 ISODateTime(finding["created_at"]),
             )

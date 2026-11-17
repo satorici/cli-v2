@@ -95,6 +95,8 @@ def list_issues(
     source: str | None = None,
     severity: list[int] | None = None,
     order: str | None = None,
+    reported: bool | None = None,
+    public_repository: bool | None = None,
 ):
     params = {
         k: v
@@ -107,6 +109,8 @@ def list_issues(
             "source": source.upper() if source else None,
             "severity": severity,
             "order": order.upper() if order else None,
+            "reported": reported,
+            "public_repository": public_repository,
         }.items()
         if v is not None
     }
@@ -150,6 +154,17 @@ def list_issues(
     "--order",
     type=click.Choice(["ASC", "DESC"], case_sensitive=False),
 )
+@click.option(
+    "--reported/--unreported",
+    default=None,
+    help="Only the ones with a report published to GitHub, or only the ones without",
+)
+@click.option(
+    "--public-repo/--private-repo",
+    "public_repository",
+    default=None,
+    help="Only the ones in a public repository, or only in a known private one",
+)
 @opts.json_opt
 @opts.pagination_opts(default=200)
 def issues(
@@ -162,6 +177,8 @@ def issues(
     source: str | None,
     severity: list[int] | None,
     order: str | None,
+    reported: bool | None,
+    public_repository: bool | None,
     **kwargs,
 ):
     if (
@@ -183,6 +200,8 @@ def issues(
         source=source,
         severity=severity,
         order=order,
+        reported=reported,
+        public_repository=public_repository,
     )
 
 
@@ -260,6 +279,21 @@ def issue_verify(finding_id: str):
     verify_issue(finding_id)
 
 
+CHANNEL_NAMES = {"SECURITY_ADVISORY": "advisory", "ISSUE": "issue"}
+
+
+def _publish(finding_id: str, path: str) -> dict:
+    """Publish the finding's report through `path`, creating its draft first."""
+    body = {"finding_id": finding_id}
+    try:
+        client.post("/external_issues/security_advisory", json=body, timeout=10)
+    except HTTPStatusError as e:
+        # 409: the finding already has its draft
+        if e.response.status_code != 409:
+            raise
+    return client.post(path, json=body, timeout=30).json()
+
+
 @issue.command(name="publish-issue")
 @opts.json_opt
 @click.pass_obj
@@ -272,18 +306,48 @@ def issue_publish_issue(finding_id: str, **kwargs):
     if finding_id is None:
         raise click.UsageError("Missing argument 'FINDING-ID'.")
 
-    body = {"finding_id": finding_id}
-    try:
-        client.post("/external_issues/security_advisory", json=body, timeout=10)
-    except HTTPStatusError as e:
-        # 409: the finding already has its draft
-        if e.response.status_code != 409:
-            raise
-    data = client.post("/external_issues/issue/publish", json=body, timeout=30).json()
+    data = _publish(finding_id, "/external_issues/issue/publish")
     if is_json_output():
         stdout.print_json(data)
     else:
         stdout.print(data.get("external_url") or data["external_id"])
+
+
+@issue.command(name="publish")
+@opts.json_opt
+@click.pass_obj
+def issue_publish(finding_id: str, **kwargs):
+    """Report the finding to GitHub through the channel its repository takes.
+
+    A security advisory when the repository accepts private vulnerability reports,
+    else a public issue that only links to the report on Satori.
+    """
+    if finding_id is None:
+        raise click.UsageError("Missing argument 'FINDING-ID'.")
+
+    data = _publish(finding_id, "/external_issues/publish")
+    if is_json_output():
+        stdout.print_json(data)
+    else:
+        url = data.get("external_url") or data["external_id"]
+        stdout.print(f"{CHANNEL_NAMES[data['kind']]}: {url}")
+
+
+@issue.command(name="channel")
+@opts.json_opt
+@click.pass_obj
+def issue_channel(finding_id: str, **kwargs):
+    """Show how the finding's repository takes a report: advisory or issue."""
+    if finding_id is None:
+        raise click.UsageError("Missing argument 'FINDING-ID'.")
+
+    data = client.get(
+        "/external_issues/report-channel", params={"finding_id": finding_id}
+    ).json()
+    if is_json_output():
+        stdout.print_json(data)
+    else:
+        stdout.print(CHANNEL_NAMES[data["channel"]])
 
 
 @issue.command(name="advisory")

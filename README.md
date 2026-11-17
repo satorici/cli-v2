@@ -81,7 +81,7 @@ Running `satori-v2` with no subcommand lists your jobs (dashboard). Use `--publi
 | `execution` | Group for execution management (see subcommands below) |
 | `reports` | List executions/reports with filters |
 | `report` | Show a single execution report (see subcommands below) |
-| `issues` | List findings; supports `--execution-id`, `--status`, `--source`, `--severity`, `--order`, pagination, `--json` |
+| `issues` | List findings; supports `--execution-id`, `--status`, `--exploitability`, `--source`, `--severity`, `--order`, `--reported`/`--unreported` (a report published to GitHub or not), `--public-repo`/`--private-repo`, pagination, `--json`. `--exploitability EXPLOITABLE --unreported --public-repo` is the queue of findings left to report |
 | `issue` | Show or manage a finding (see subcommands below) |
 | `advisories` | List external issues (e.g. GitHub security advisories) you created; supports `--execution-id`, `--kind`, `--provider`, `--order`, `--reported`/`--unreported`, `--state`, `--last-word`, `--order-by`, pagination, `--json`. Status, last comment and last word are GitHub's as of the last sync (opening the dashboard's issues page runs it) |
 | `advisory` | Show or update an external issue by advisory id (see subcommands below) |
@@ -126,6 +126,8 @@ Running `satori-v2` with no subcommand lists your jobs (dashboard). Use `--publi
 | `issue <finding-id> advisory` | Create a security advisory for the finding, or show the existing one |
 | `issue <finding-id> advisory --publish` | Publish the draft advisory to GitHub |
 | `issue <finding-id> publish-issue` | Report through a public GitHub issue, for repositories without private vulnerability reporting: the issue only says there is a security problem and links to the report on Satori (creates the draft if there is none) |
+| `issue <finding-id> publish` | Report through the channel the repository takes: a security advisory when it accepts private vulnerability reports, else a public issue as in `publish-issue` (creates the draft if there is none; prints the channel and the link) |
+| `issue <finding-id> channel` | Print which of the two the repository takes, `advisory` or `issue`, without publishing |
 | `issue <finding-id> advisory --delete` | Delete the local advisory; best-effort close on GitHub (prints a WARNING if close fails) |
 | `issue <finding-id> advisory --status` | Fetch remote GitHub advisory status |
 | `issue <finding-id> advisory --improve` | Rewrite the draft's title and description into a comprehensive report with Claude Code |
