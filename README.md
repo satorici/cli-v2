@@ -81,7 +81,7 @@ Running `satori-v2` with no subcommand lists your jobs (dashboard). Use `--publi
 | `execution` | Group for execution management (see subcommands below) |
 | `reports` | List executions/reports with filters |
 | `report` | Show a single execution report (see subcommands below) |
-| `issues` | List findings; supports `--execution-id`, `--status`, `--exploitability`, `--source`, `--severity`, `--order`, `--reported`/`--unreported` (a report published to GitHub or not), `--public-repo`/`--private-repo`, pagination, `--json`. `--exploitability EXPLOITABLE --unreported --public-repo` is the queue of findings left to report |
+| `issues` | List findings; supports `--execution-id`, `--status`, `--exploitability`, `--source`, `--severity`, `--order`, `--reported`/`--unreported` (a report published to GitHub or not), `--public-repo`/`--private-repo` (`--public-repo` leaves out findings with no repository), pagination, `--json`. The list is the active organization's, or only your own findings on your personal account. `--exploitability EXPLOITABLE --unreported --public-repo` is the queue of findings left to report |
 | `issue` | Show or manage a finding (see subcommands below) |
 | `advisories` | List external issues (e.g. GitHub security advisories) you created; supports `--execution-id`, `--kind`, `--provider`, `--order`, `--reported`/`--unreported`, `--state`, `--last-word`, `--order-by`, pagination, `--json`. Status, last comment and last word are GitHub's as of the last sync (opening the dashboard's issues page runs it) |
 | `advisory` | Show or update an external issue by advisory id (see subcommands below) |

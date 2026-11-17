@@ -163,7 +163,7 @@ def list_issues(
     "--public-repo/--private-repo",
     "public_repository",
     default=None,
-    help="Only the ones in a public repository, or only in a known private one",
+    help="Only the ones with a public repository, or only in a known private one",
 )
 @opts.json_opt
 @opts.pagination_opts(default=200)
