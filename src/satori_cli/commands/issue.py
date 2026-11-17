@@ -260,6 +260,32 @@ def issue_verify(finding_id: str):
     verify_issue(finding_id)
 
 
+@issue.command(name="publish-issue")
+@opts.json_opt
+@click.pass_obj
+def issue_publish_issue(finding_id: str, **kwargs):
+    """Report the finding through a public GitHub issue that links to Satori.
+
+    For repositories without private vulnerability reporting: the issue only says
+    there is a security problem, and the details stay in the linked report.
+    """
+    if finding_id is None:
+        raise click.UsageError("Missing argument 'FINDING-ID'.")
+
+    body = {"finding_id": finding_id}
+    try:
+        client.post("/external_issues/security_advisory", json=body, timeout=10)
+    except HTTPStatusError as e:
+        # 409: the finding already has its draft
+        if e.response.status_code != 409:
+            raise
+    data = client.post("/external_issues/issue/publish", json=body, timeout=30).json()
+    if is_json_output():
+        stdout.print_json(data)
+    else:
+        stdout.print(data.get("external_url") or data["external_id"])
+
+
 @issue.command(name="advisory")
 @optgroup.group(cls=MutuallyExclusiveOptionGroup)
 @optgroup.option("--publish", is_flag=True, help="Publish the draft advisory to GitHub")
@@ -328,7 +354,6 @@ def issue_advisory(
             "/external_issues",
             params={
                 "finding_id": finding_id,
-                "kind": "SECURITY_ADVISORY",
                 "quantity": 1,
             },
         )
@@ -357,7 +382,6 @@ def issue_advisory(
             "/external_issues",
             params={
                 "finding_id": finding_id,
-                "kind": "SECURITY_ADVISORY",
                 "quantity": 1,
             },
         )

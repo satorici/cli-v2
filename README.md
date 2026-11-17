@@ -125,6 +125,7 @@ Running `satori-v2` with no subcommand lists your jobs (dashboard). Use `--publi
 | `issue <finding-id> verify` | Verify the finding with Claude Code (comment + TP/FP) |
 | `issue <finding-id> advisory` | Create a security advisory for the finding, or show the existing one |
 | `issue <finding-id> advisory --publish` | Publish the draft advisory to GitHub |
+| `issue <finding-id> publish-issue` | Report through a public GitHub issue, for repositories without private vulnerability reporting: the issue only says there is a security problem and links to the report on Satori (creates the draft if there is none) |
 | `issue <finding-id> advisory --delete` | Delete the local advisory; best-effort close on GitHub (prints a WARNING if close fails) |
 | `issue <finding-id> advisory --status` | Fetch remote GitHub advisory status |
 | `issue <finding-id> advisory --improve` | Rewrite the draft's title and description into a comprehensive report with Claude Code |

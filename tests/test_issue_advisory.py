@@ -191,7 +191,6 @@ def test_issue_advisory_already_exists_published(monkeypatch):
     assert requests[1]["path"] == "/external_issues"
     assert requests[1]["params"] == {
         "finding_id": FINDING_ID,
-        "kind": "SECURITY_ADVISORY",
         "quantity": 1,
     }
     assert requests[2]["path"] == f"/findings/{FINDING_ID}/timeline"
@@ -234,6 +233,52 @@ def test_issue_advisory_publish(monkeypatch):
     assert request["timeout"] == 30
     assert printed == [ADVISORY["external_url"]]
     assert not any(r["path"].endswith("/timeline") for r in requests)
+
+
+GITHUB_ISSUE = {
+    **DRAFT_ADVISORY,
+    "kind": "ISSUE",
+    "external_url": "https://github.com/org/repo/issues/12",
+    "external_id": "12",
+}
+
+
+def test_issue_publish_issue_creates_the_draft_and_publishes(monkeypatch):
+    _, requests, printed, _ = _patch(monkeypatch, post_response=GITHUB_ISSUE)
+
+    result = CliRunner().invoke(issue, [FINDING_ID, "publish-issue"])
+
+    assert result.exit_code == 0, result.output
+    assert [(r["path"], r["json"]) for r in requests] == [
+        ("/external_issues/security_advisory", {"finding_id": FINDING_ID}),
+        ("/external_issues/issue/publish", {"finding_id": FINDING_ID}),
+    ]
+    assert printed == ["https://github.com/org/repo/issues/12"]
+
+
+def test_issue_publish_issue_reuses_an_existing_draft(monkeypatch):
+    _, _, printed, _ = _patch(monkeypatch)
+
+    def post(path, json=None, timeout=None):
+        if path == "/external_issues/security_advisory":
+            raise _conflict()
+        return _FakeResponse(GITHUB_ISSUE)
+
+    monkeypatch.setattr("satori_cli.commands.issue.client.post", post)
+
+    result = CliRunner().invoke(issue, [FINDING_ID, "publish-issue"])
+
+    assert result.exit_code == 0, result.output
+    assert printed == ["https://github.com/org/repo/issues/12"]
+
+
+def test_issue_publish_issue_json(monkeypatch):
+    _, _, printed, _ = _patch(monkeypatch, post_response=GITHUB_ISSUE)
+
+    result = CliRunner().invoke(issue, [FINDING_ID, "publish-issue", "--json"])
+
+    assert result.exit_code == 0, result.output
+    assert printed == [GITHUB_ISSUE]
 
 
 def test_issue_advisory_delete(monkeypatch):
@@ -287,7 +332,6 @@ def test_issue_advisory_status(monkeypatch):
     assert requests[0]["path"] == "/external_issues"
     assert requests[0]["params"] == {
         "finding_id": FINDING_ID,
-        "kind": "SECURITY_ADVISORY",
         "quantity": 1,
     }
     assert requests[1]["method"] == "GET"
