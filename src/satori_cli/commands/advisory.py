@@ -22,6 +22,21 @@ from ..utils.public_id import ADVISORY_ID, EXECUTION_ID
     "--order",
     type=click.Choice(["ASC", "DESC"], case_sensitive=False),
 )
+@click.option(
+    "--reported/--unreported",
+    default=None,
+    help="Only the ones published to GitHub, or only the drafts",
+)
+@click.option("--state", help="GitHub state, e.g. triage, closed, open")
+@click.option(
+    "--last-word",
+    type=click.Choice(["REPORTER", "OTHER", "NONE"], case_sensitive=False),
+    help="Who commented last: you (REPORTER), someone else (OTHER) or nobody (NONE)",
+)
+@click.option(
+    "--order-by",
+    type=click.Choice(["created_at", "reported_at", "last_comment_at"], case_sensitive=False),
+)
 @opts.json_opt
 @opts.pagination_opts
 def advisories(
@@ -31,9 +46,17 @@ def advisories(
     kind: str | None,
     provider: str | None,
     order: str | None,
+    reported: bool | None,
+    state: str | None,
+    last_word: str | None,
+    order_by: str | None,
     **kwargs,
 ):
-    """List external issues (e.g. GitHub security advisories) you created."""
+    """List external issues (e.g. GitHub security advisories) you created.
+
+    The GitHub state and the last comment are the ones stored at the last sync,
+    which runs when the dashboard's issues page is opened.
+    """
     params = {
         k: v
         for k, v in {
@@ -43,6 +66,10 @@ def advisories(
             "kind": kind.upper() if kind else None,
             "provider": provider.upper() if provider else None,
             "order": order.upper() if order else None,
+            "reported": reported,
+            "remote_state": state.lower() if state else None,
+            "last_word": last_word.upper() if last_word else None,
+            "order_by": order_by.lower() if order_by else None,
         }.items()
         if v is not None
     }

@@ -335,6 +335,24 @@ class IssueListWrapper(Wrapper[list]):
         yield table
 
 
+_EXTERNAL_ISSUE_KINDS = {"SECURITY_ADVISORY": "Advisory", "ISSUE": "Issue"}
+_LAST_WORDS = {"OTHER": "They replied", "REPORTER": "We replied"}
+
+
+def _external_issue_status(item: dict) -> str:
+    """GitHub's state as of the last sync; a report never synced is just published."""
+    if not item.get("external_id"):
+        return "Unpublished"
+    return (item.get("remote_state") or "published").capitalize()
+
+
+def _last_comment(item: dict) -> str | None:
+    if not (at := item.get("last_comment_at")):
+        return None
+    when = to_datetime(at).strftime("%Y-%m-%d %H:%M")
+    return f"{item.get('last_comment_by') or 'someone'}, {when}"
+
+
 class ExternalIssueListWrapper(Wrapper[list]):
     def __rich_console__(self, console, options):
         table = Table(expand=True)
@@ -343,8 +361,11 @@ class ExternalIssueListWrapper(Wrapper[list]):
         table.add_column("Execution", **ID_COLUMN)
         table.add_column("Repo")
         table.add_column("Title")
+        table.add_column("Kind")
         table.add_column("Severity")
         table.add_column("Status")
+        table.add_column("Last comment")
+        table.add_column("Last word")
 
         for item in self.obj:
             severity = item.get("severity")
@@ -355,16 +376,17 @@ class ExternalIssueListWrapper(Wrapper[list]):
                 style = _SEVERITY_STYLE.get(label.upper(), "")
                 severity_text = f"[{style}]{label}[/{style}]" if style else label
 
-            status = "Published" if item.get("external_id") else "Unpublished"
-
             table.add_row(
                 str(item["id"]),
                 ISODateTime(item["created_at"]),
                 _ref(item["execution_id"]),
                 item.get("repository") or "N/A",
                 item["title"],
+                _EXTERNAL_ISSUE_KINDS.get(item.get("kind"), "N/A"),
                 severity_text,
-                status,
+                _external_issue_status(item),
+                _last_comment(item) or "",
+                _LAST_WORDS.get(item.get("last_word"), ""),
             )
 
         yield table
@@ -399,6 +421,17 @@ class ExternalIssueWrapper(Wrapper[dict]):
         grid.add_row("External ID", item.get("external_id") or "N/A")
         grid.add_row("External URL", item.get("external_url") or "N/A")
         grid.add_row("Created at", ISODateTime(item["created_at"]))
+        if item.get("external_id"):
+            grid.add_row("GitHub state", _external_issue_status(item))
+        if reported_at := item.get("reported_at"):
+            grid.add_row("Reported at", ISODateTime(reported_at))
+        if last_comment := _last_comment(item):
+            last_word = _LAST_WORDS.get(item.get("last_word"))
+            grid.add_row(
+                "Last comment", f"{last_comment} ({last_word})" if last_word else last_comment
+            )
+        if synced_at := item.get("remote_synced_at"):
+            grid.add_row("Synced at", ISODateTime(synced_at))
 
         yield Panel(grid, title=f"Advisory {item['id']}", title_align="left")
 

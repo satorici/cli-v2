@@ -83,7 +83,7 @@ Running `satori-v2` with no subcommand lists your jobs (dashboard). Use `--publi
 | `report` | Show a single execution report (see subcommands below) |
 | `issues` | List findings; supports `--execution-id`, `--status`, `--source`, `--severity`, `--order`, pagination, `--json` |
 | `issue` | Show or manage a finding (see subcommands below) |
-| `advisories` | List external issues (e.g. GitHub security advisories) you created; supports `--execution-id`, `--kind`, `--provider`, `--order`, pagination, `--json` |
+| `advisories` | List external issues (e.g. GitHub security advisories) you created; supports `--execution-id`, `--kind`, `--provider`, `--order`, `--reported`/`--unreported`, `--state`, `--last-word`, `--order-by`, pagination, `--json`. Status, last comment and last word are GitHub's as of the last sync (opening the dashboard's issues page runs it) |
 | `advisory` | Show or update an external issue by advisory id (see subcommands below) |
 | `stop` | Group for stopping runs (see subcommands below) |
 | `search` | Search executions; supports `--job-id`, `--id-gt`/`--id-lt` (created after/before an execution), bulk download/stop/delete |

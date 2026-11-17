@@ -194,6 +194,71 @@ def test_advisory_visibility(monkeypatch):
     assert printed == ["Advisory visibility set to PUBLIC"]
 
 
+TRACKED = {
+    **ITEMS[0],
+    "remote_state": "triage",
+    "reported_at": "2026-09-03T09:00:00Z",
+    "last_comment_at": "2026-09-05T14:30:00Z",
+    "last_comment_by": "maintainer",
+    "last_word": "OTHER",
+    "remote_synced_at": "2026-09-06T08:00:00Z",
+}
+
+
+def test_advisories_tracking_filters(monkeypatch):
+    request, _, _ = _patch(monkeypatch)
+
+    result = CliRunner().invoke(
+        advisories,
+        ["--reported", "--state", "Triage", "--last-word", "other", "--order-by", "last_comment_at"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert request["params"] == {
+        "page": 1,
+        "quantity": 10,
+        "reported": True,
+        "remote_state": "triage",
+        "last_word": "OTHER",
+        "order_by": "last_comment_at",
+    }
+
+
+def test_advisories_unreported_lists_drafts(monkeypatch):
+    request, _, _ = _patch(monkeypatch)
+
+    result = CliRunner().invoke(advisories, ["--unreported"])
+
+    assert result.exit_code == 0, result.output
+    assert request["params"]["reported"] is False
+
+
+def test_external_issue_list_shows_github_state_and_last_word():
+    _clear_output_flags()
+    console = Console(record=True, width=240)
+    console.print(ExternalIssueListWrapper([TRACKED, {**ITEMS[1], "kind": "ISSUE"}]))
+    text = console.export_text()
+
+    assert "Triage" in text
+    assert "maintainer, 2026-09-05 14:30" in text
+    assert "They replied" in text
+    assert "Advisory" in text
+    assert "Issue" in text
+    assert "Unpublished" in text
+
+
+def test_external_issue_wrapper_shows_tracking():
+    _clear_output_flags()
+    console = Console(record=True, width=200)
+    console.print(ExternalIssueWrapper(TRACKED))
+    text = console.export_text()
+
+    assert "GitHub state" in text and "Triage" in text
+    assert "Reported at" in text and "2026-09-03 09:00:00" in text
+    assert "maintainer, 2026-09-05 14:30 (They replied)" in text
+    assert "Synced at" in text
+
+
 def test_external_issue_list_wrapper_renders():
     _clear_output_flags()
     console = Console(record=True, width=200)
