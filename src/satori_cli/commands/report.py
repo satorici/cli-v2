@@ -138,10 +138,14 @@ def report_stop(execution_id: str):
 
 @report.command(name="visibility")
 @click.argument(
-    "value", type=click.Choice(["PUBLIC", "PRIVATE", "UNLISTED"], case_sensitive=False)
+    "value",
+    type=click.Choice(
+        ["PUBLIC", "PRIVATE", "UNLISTED", "CONTRIBUTORS"], case_sensitive=False
+    ),
 )
 @click.pass_obj
 def report_visibility(execution_id: str, value: str):
+    """CONTRIBUTORS: you and the GitHub contributors of the report's public repository."""
     client.patch(f"/executions/{execution_id}", json={"visibility": value.upper()})
     stdout.print(f"Report visibility set to {value.upper()}")
 

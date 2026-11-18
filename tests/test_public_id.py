@@ -86,6 +86,21 @@ def test_id_before_the_subcommand(calls):
     assert calls == [("patch", f"/findings/{ID}")]
 
 
+def test_report_visibility_takes_contributors(calls):
+    result = CliRunner().invoke(cli, ["report", ID, "visibility", "contributors"])
+
+    assert result.exit_code == 0, result.output
+    assert calls == [("patch", f"/executions/{ID}")]
+    assert "CONTRIBUTORS" in result.output
+
+
+def test_advisory_visibility_does_not_take_contributors(calls):
+    result = CliRunner().invoke(cli, ["advisory", ID, "visibility", "contributors"])
+
+    assert result.exit_code != 0
+    assert calls == []
+
+
 def test_subcommand_argument_is_not_read_as_the_id(calls):
     result = CliRunner().invoke(cli, ["advisory", "visibility", "PUBLIC"])
 
