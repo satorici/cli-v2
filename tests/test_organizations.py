@@ -87,6 +87,57 @@ def test_organization_show(monkeypatch):
     assert list(printed[0].columns[1]._cells) == ["Acme"]
 
 
+def test_organization_personal_shows_only_personal(monkeypatch):
+    requests = _record(monkeypatch, "get", ORG)
+    printed = _printed(monkeypatch)
+
+    result = CliRunner().invoke(organization, ["Personal"])
+
+    assert result.exit_code == 0, result.output
+    assert requests == []
+    assert list(printed[0].columns[1]._cells) == ["Personal"]
+
+
+def test_organization_personal_use(monkeypatch):
+    requests = _record(monkeypatch, "get", ORG)
+    saved = _saved(monkeypatch)
+    _printed(monkeypatch)
+
+    result = CliRunner().invoke(organization, ["personal", "use", "--profile", "work"])
+
+    assert result.exit_code == 0, result.output
+    assert requests == []
+    assert saved == [("organization", "null", "work")]
+
+
+def test_organization_personal_rejects_management(monkeypatch):
+    requests = _record(monkeypatch, "delete")
+
+    for args in (["delete", "--yes"], ["members"]):
+        result = CliRunner().invoke(organization, ["Personal", *args])
+        assert result.exit_code != 0
+
+    assert requests == []
+
+
+def test_organization_by_name(monkeypatch):
+    requests = []
+
+    def get(path, **kwargs):
+        requests.append((path, None))
+        return _FakeResponse([ORG] if path == "/organizations" else ORG)
+
+    monkeypatch.setattr("satori_cli.commands.organization.client.get", get)
+    printed = _printed(monkeypatch)
+
+    result = CliRunner().invoke(organization, ["acme"])
+
+    assert result.exit_code == 0, result.output
+    assert requests[0] == ("/organizations", None)
+    assert requests[1] == ("/organizations/7", None)
+    assert list(printed[0].columns[1]._cells) == ["Acme"]
+
+
 def test_organization_requires_an_id(monkeypatch):
     result = CliRunner().invoke(organization, [])
 

@@ -5,10 +5,29 @@ from ..api import client
 from ..config import config
 from ..utils.console import stdout
 from ..utils.groups import IdGroup
-from ..utils.options import profile_opt
+from ..utils.options import profile_opt, resolve_organization
 
 ROLES = ["OWNER", "ADMIN", "MEMBER"]
 role_choice = click.Choice(ROLES, case_sensitive=False)
+
+
+PERSONAL = object()
+
+
+class OrganizationParam(click.ParamType):
+    """An organization ID or name, or `Personal` for your own account"""
+
+    name = "organization"
+
+    def convert(self, value, param, ctx):
+        if value.casefold() == "personal":
+            return PERSONAL
+        return resolve_organization(value)
+
+
+def _use_personal(profile: str):
+    config.save("organization", "null", profile)
+    stdout.print("Using your own account")
 
 
 def _organizations_table(organizations: list[dict], personal: bool = False) -> Table:
@@ -49,17 +68,24 @@ def organizations_create(name: str):
 @profile_opt
 def organizations_personal(profile: str):
     """Act on your own account again instead of an organization"""
-    config.save("organization", "null", profile)
-    stdout.print("Using your own account")
+    _use_personal(profile)
 
 
-@click.group(cls=IdGroup, invoke_without_command=True)
+@click.group(
+    cls=IdGroup, id_type=OrganizationParam(), invoke_without_command=True
+)
 @click.pass_context
 def organization(ctx):
-    """Show the organization ORGANIZATION-ID, or manage it with a subcommand"""
+    """Show the organization ORGANIZATION (ID, name or Personal), or manage it
+    with a subcommand"""
+    if ctx.obj is PERSONAL and ctx.invoked_subcommand not in (None, "use"):
+        raise click.UsageError("Personal is your own account, not an organization")
     if ctx.invoked_subcommand is None:
         if ctx.obj is None:
-            raise click.UsageError("Missing argument 'ORGANIZATION-ID'.")
+            raise click.UsageError("Missing argument 'ORGANIZATION'.")
+        if ctx.obj is PERSONAL:
+            stdout.print(_organizations_table([], personal=True))
+            return
         org = client.get(f"/organizations/{ctx.obj}").json()
         stdout.print(_organizations_table([org]))
 
@@ -67,8 +93,11 @@ def organization(ctx):
 @organization.command(name="use")
 @profile_opt
 @click.pass_obj
-def organization_use(organization_id: int, profile: str):
+def organization_use(organization_id, profile: str):
     """Act on this organization in the following commands"""
+    if organization_id is PERSONAL:
+        _use_personal(profile)
+        return
     client.get(f"/organizations/{organization_id}")
     config.save("organization", str(organization_id), profile)
     stdout.print(f"Using organization {organization_id}")
