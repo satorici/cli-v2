@@ -11,12 +11,14 @@ ROLES = ["OWNER", "ADMIN", "MEMBER"]
 role_choice = click.Choice(ROLES, case_sensitive=False)
 
 
-def _organizations_table(organizations: list[dict]) -> Table:
+def _organizations_table(organizations: list[dict], personal: bool = False) -> Table:
     table = Table(show_header=True, header_style="bold")
     table.add_column("ID")
     table.add_column("Name")
     table.add_column("Plan")
     table.add_column("Your role")
+    if personal:
+        table.add_row("-", "Personal", "-", "-")
     for org in organizations:
         table.add_row(str(org["id"]), org["name"], org["plan"], org["role"])
     return table
@@ -29,7 +31,9 @@ def organizations(ctx):
     `config organization ID|NAME`, `organization ID use`, `--org ID|NAME` at the
     end of a command or SATORI_ORGANIZATION, on your own account otherwise."""
     if ctx.invoked_subcommand is None:
-        stdout.print(_organizations_table(client.get("/organizations").json()))
+        stdout.print(
+            _organizations_table(client.get("/organizations").json(), personal=True)
+        )
 
 
 @organizations.command(name="create")

@@ -51,9 +51,9 @@ def test_organizations_list(monkeypatch):
     assert result.exit_code == 0, result.output
     assert requests == [("/organizations", None)]
     table = printed[0]
-    assert list(table.columns[0]._cells) == ["7"]
-    assert list(table.columns[1]._cells) == ["Acme"]
-    assert list(table.columns[3]._cells) == ["OWNER"]
+    assert list(table.columns[0]._cells) == ["-", "7"]
+    assert list(table.columns[1]._cells) == ["Personal", "Acme"]
+    assert list(table.columns[3]._cells) == ["-", "OWNER"]
 
 
 def test_organizations_create(monkeypatch):
