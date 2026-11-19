@@ -143,14 +143,20 @@ def organization_members(organization_id: int):
 
 
 @organization.command(name="add")
-@click.argument("email")
+@click.argument("email", required=False)
+@click.option("--github", metavar="USERNAME", help="Find the user by GitHub username")
 @click.option("--role", type=role_choice, default="MEMBER", show_default=True)
 @click.pass_obj
-def organization_add(organization_id: int, email: str, role: str):
-    """Add the user with EMAIL, who must have logged in to Satori"""
+def organization_add(
+    organization_id: int, email: str | None, github: str | None, role: str
+):
+    """Add the user with EMAIL or --github USERNAME, who must have logged in to Satori"""
+    if (email is None) == (github is None):
+        raise click.UsageError("Pass either EMAIL or --github USERNAME")
+    who = {"email": email} if github is None else {"github": github}
     member = client.post(
         f"/organizations/{organization_id}/members",
-        json={"email": email, "role": role.upper()},
+        json={**who, "role": role.upper()},
     ).json()
     stdout.print(f"User {member['user_id']} added as {member['role']}")
 

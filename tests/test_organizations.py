@@ -1,3 +1,4 @@
+import pytest
 from click.testing import CliRunner
 
 from satori_cli.commands.organization import organization, organizations
@@ -223,6 +224,29 @@ def test_organization_add_with_role(monkeypatch):
     assert requests == [
         ("/organizations/7/members", {"email": "a@b.c", "role": "ADMIN"})
     ]
+
+
+def test_organization_add_by_github(monkeypatch):
+    requests = _record(monkeypatch, "post", {"user_id": 3, "role": "MEMBER"})
+    _printed(monkeypatch)
+
+    result = CliRunner().invoke(organization, ["7", "add", "--github", "octocat"])
+
+    assert result.exit_code == 0, result.output
+    assert requests == [
+        ("/organizations/7/members", {"github": "octocat", "role": "MEMBER"})
+    ]
+
+
+@pytest.mark.parametrize("who", [[], ["a@b.c", "--github", "octocat"]])
+def test_organization_add_takes_an_email_or_a_github_username(monkeypatch, who):
+    requests = _record(monkeypatch, "post")
+
+    result = CliRunner().invoke(organization, ["7", "add", *who])
+
+    assert result.exit_code == 2
+    assert "Pass either EMAIL or --github USERNAME" in result.output
+    assert requests == []
 
 
 def test_organization_role(monkeypatch):

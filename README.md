@@ -155,7 +155,7 @@ plan). Commands act on your own account unless an organization is selected with
 | `organization <id> rename <name>` | Rename it (OWNER/ADMIN) |
 | `organization <id> delete` | Delete it with all of its jobs, reports and findings (OWNER) |
 | `organization <id> members` | List members and roles |
-| `organization <id> add <email> [--role OWNER\|ADMIN\|MEMBER]` | Add a user who has logged in to Satori (default MEMBER) |
+| `organization <id> add <email> [--role OWNER\|ADMIN\|MEMBER]` | Add a user who has logged in to Satori (default MEMBER); `add --github <username>` finds them by GitHub account |
 | `organization <id> role <user-id> <role>` | Change a member's role |
 | `organization <id> remove <user-id>` | Remove a member, or leave with your own user id |
 
