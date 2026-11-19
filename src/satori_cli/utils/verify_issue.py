@@ -361,6 +361,7 @@ def list_finding_ids_for_execution(execution_id: str) -> list[str]:
                 "page": page,
                 "quantity": _FINDINGS_PAGE_SIZE,
             },
+            timeout=60,
         ).json()
         items = data.get("items") or []
         ids.extend(item["id"] for item in items if "id" in item)

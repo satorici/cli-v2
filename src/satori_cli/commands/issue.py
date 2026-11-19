@@ -114,7 +114,8 @@ def list_issues(
         }.items()
         if v is not None
     }
-    res = client.get("/findings", params=params)
+    # The first listing of an execution parses its findings inside the request.
+    res = client.get("/findings", params=params, timeout=60)
     data = res.json()
     if order is None:
         data["items"] = sorted(
