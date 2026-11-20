@@ -147,10 +147,14 @@ def advisory_edit(
 
 @advisory.command(name="visibility")
 @click.argument(
-    "value", type=click.Choice(["PUBLIC", "PRIVATE", "UNLISTED"], case_sensitive=False)
+    "value",
+    type=click.Choice(
+        ["PUBLIC", "PRIVATE", "UNLISTED", "CONTRIBUTORS"], case_sensitive=False
+    ),
 )
 @click.pass_obj
 def advisory_visibility(advisory_id: str, value: str):
+    """CONTRIBUTORS: you and the GitHub contributors of the advisory's public repository."""
     if advisory_id is None:
         raise click.UsageError("Missing argument 'ADVISORY-ID'.")
     client.patch(

@@ -138,7 +138,7 @@ Running `satori-v2` with no subcommand lists your jobs (dashboard). Use `--publi
 | --- | --- |
 | `advisory <advisory-id>` | Show the external issue and finding timeline |
 | `advisory <advisory-id> edit --title <text> --body <text>` | Edit a draft's title or description before publishing |
-| `advisory <advisory-id> visibility <PUBLIC\|PRIVATE\|UNLISTED>` | Set the advisory visibility |
+| `advisory <advisory-id> visibility <PUBLIC\|PRIVATE\|UNLISTED\|CONTRIBUTORS>` | Set the advisory visibility. `CONTRIBUTORS` shares it with the GitHub contributors of its repository, which must be public. Publishing a report to GitHub sets it when the advisory was `PRIVATE` or `UNLISTED` |
 
 ### `organization` subcommands
 

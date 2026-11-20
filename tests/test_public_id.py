@@ -94,11 +94,12 @@ def test_report_visibility_takes_contributors(calls):
     assert "CONTRIBUTORS" in result.output
 
 
-def test_advisory_visibility_does_not_take_contributors(calls):
+def test_advisory_visibility_takes_contributors(calls):
     result = CliRunner().invoke(cli, ["advisory", ID, "visibility", "contributors"])
 
-    assert result.exit_code != 0
-    assert calls == []
+    assert result.exit_code == 0, result.output
+    assert calls == [("patch", f"/external_issues/{ID}")]
+    assert "CONTRIBUTORS" in result.output
 
 
 def test_subcommand_argument_is_not_read_as_the_id(calls):
