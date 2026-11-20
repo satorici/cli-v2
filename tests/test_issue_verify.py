@@ -259,8 +259,29 @@ def test_verify_findings_for_repo_filters_min_severity(monkeypatch, tmp_path):
         [FINDING, low], "acme/app", min_severity="High")
     assert verdicts == {FINDING_ID: {"verdict": "TP", "evidence": "x"}}  # Medium (sev 2) skipped
     assert patches == [(f"/findings/{FINDING_ID}", {
-        "status": "TP", "exploitability": "EXPLOITABLE", "exploitability_reason": "x"
+        "status": "TP", "exploitability": "INCONCLUSIVE",
+        "exploitability_reason": "Static review, not executed: x"
     })]
+
+
+def test_verify_findings_for_repo_keeps_an_exploitability_already_set(monkeypatch, tmp_path):
+    verified = {**FINDING, "exploitability": "EXPLOITABLE"}
+    tried = {**FINDING, "id": pid("fnd", 12), "exploitability": "INCONCLUSIVE"}
+    unknown = {**FINDING, "id": pid("fnd", 13), "exploitability": "UNKNOWN"}
+    _patch_binaries(monkeypatch)
+    _patch_subprocess(monkeypatch, _fake_run_factory({"analyst": "TP", "adversary": "TP"}))
+    _patch_tempdir(monkeypatch, tmp_path)
+    patches = {}
+    monkeypatch.setattr("satori_cli.utils.verify_issue.client.patch",
+                        lambda path, **kw: patches.update({path: kw.get("json")}))
+    verify_mod.verify_findings_for_repo([verified, tried, unknown], "acme/app")
+    assert patches[f"/findings/{FINDING_ID}"] == {"status": "TP"}  # dynamic verdict untouched
+    assert patches[f"/findings/{tried['id']}"] == {"status": "TP"}
+    assert patches[f"/findings/{unknown['id']}"]["exploitability"] == "INCONCLUSIVE"
+
+
+def test_static_reason_without_evidence_still_gives_a_reason():
+    assert verify_mod._static_reason("") == "Static review, not executed."
 
 
 def test_verify_findings_for_repo_no_eligible_findings_does_nothing(monkeypatch, tmp_path):
@@ -283,7 +304,8 @@ def test_verify_findings_persists_via_patch(monkeypatch, tmp_path):
     verdicts = verify_mod.verify_findings([FINDING_ID])
     assert verdicts == {FINDING_ID: {"verdict": "TP", "evidence": "x"}}
     assert patches == [(f"/findings/{FINDING_ID}", {
-        "status": "TP", "exploitability": "EXPLOITABLE", "exploitability_reason": "x"
+        "status": "TP", "exploitability": "INCONCLUSIVE",
+        "exploitability_reason": "Static review, not executed: x"
     })]
 
 

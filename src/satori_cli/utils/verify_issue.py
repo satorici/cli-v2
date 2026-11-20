@@ -311,6 +311,19 @@ def _meets_severity(finding: dict[str, Any], floor: Optional[int]) -> bool:
     return isinstance(severity, int) and severity <= floor
 
 
+STATIC_REVIEW = "Static review, not executed"
+
+
+def _is_unknown(exploitability: Any) -> bool:
+    return not exploitability or str(exploitability).upper() == "UNKNOWN"
+
+
+def _static_reason(evidence: Optional[str]) -> str:
+    """The exploitability reason for a TP judged by reading the code alone."""
+    evidence = (evidence or "").strip()
+    return f"{STATIC_REVIEW}: {evidence}" if evidence else f"{STATIC_REVIEW}."
+
+
 def verify_findings_for_repo(
     findings: list[dict[str, Any]],
     repository: str,
@@ -320,11 +333,13 @@ def verify_findings_for_repo(
 ) -> dict[str, dict[str, str]]:
     """Clone `repository` once and judge `findings` (only those at or above `min_severity`,
     e.g. 'High', when given). Returns {finding_id: {"verdict": "TP"|"FP", "evidence": str}}.
-    Unless persist=False, persists each verdict via the API; a TP also gets its exploitability
-    set to EXPLOITABLE with the judging agents' own evidence as the reason, in the same PATCH,
-    so a confirmed TP is immediately eligible for an advisory (which requires exploitability to
-    already be set) and so improve_report has real, agent-stated grounding to work from instead
-    of just the bare tool snapshot. An FP is status-only; there is nothing to claim exploitable.
+    Unless persist=False, persists each verdict via the API. The agents only read the code --
+    nothing is executed -- so a TP is never claimed EXPLOITABLE here: when the finding has no
+    exploitability yet (UNKNOWN), it is set to INCONCLUSIVE with the agents' own evidence as the
+    reason, in the same PATCH, so improve_report has agent-stated grounding to work from. A
+    value already set (a tool's dynamic verification, or a person's call) is left alone. An
+    advisory still needs EXPLOITABLE: a dynamic verification or `issue ID exploitability`.
+    An FP is status-only.
     Raises UsageLimitError on a Claude usage limit. `quiet` makes a failed clone raise
     SatoriError (for batch callers whose own progress is the output)."""
     floor = _severity_floor(min_severity)
@@ -337,11 +352,12 @@ def verify_findings_for_repo(
         defang_clone(clone_dir)
         verdicts = judge_findings(todo, clone_dir, claude)
     if persist:
+        current = {finding["id"]: finding.get("exploitability") for finding in todo}
         for finding_id, result in verdicts.items():
             body = {"status": result["verdict"]}
-            if result["verdict"] == "TP":
-                body["exploitability"] = "EXPLOITABLE"
-                body["exploitability_reason"] = result.get("evidence") or None
+            if result["verdict"] == "TP" and _is_unknown(current.get(finding_id)):
+                body["exploitability"] = "INCONCLUSIVE"
+                body["exploitability_reason"] = _static_reason(result.get("evidence"))
             client.patch(f"/findings/{finding_id}", json=body)
     return verdicts
 
