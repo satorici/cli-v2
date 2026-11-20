@@ -231,3 +231,32 @@ def test_local_repo_clones_and_posts_repository(monkeypatch, tmp_path):
     ]
     assert any(Path(p).name == "app" for p in chdirs)
     assert verify_calls == [EXECUTION_ID]
+
+
+def _render(job: dict, **kwargs) -> str:
+    from rich.console import Console
+
+    from satori_cli.utils.wrappers import JobWrapper
+
+    console = Console(width=100, record=True)
+    console.print(JobWrapper(job, **kwargs))
+    return console.export_text()
+
+
+def test_job_panel_shows_the_repository_of_a_local_job():
+    assert "acme/app" in _render(LOCAL_CREATE, compact=True)
+
+
+def test_job_panel_shows_the_repository_of_a_scan():
+    scan = {
+        **LOCAL_CREATE,
+        "type": "SCAN",
+        "repository": None,
+        "repository_data": {"repository": "acme/scanned"},
+        "criteria": {},
+    }
+    assert "acme/scanned" in _render(scan, compact=True)
+
+
+def test_job_panel_without_a_repository_has_no_row():
+    assert "Repository" not in _render({**LOCAL_CREATE, "repository": None}, compact=True)

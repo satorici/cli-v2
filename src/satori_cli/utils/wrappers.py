@@ -58,6 +58,13 @@ def has_json_output(cls: type[W]):
     return cls
 
 
+def job_repository(job: dict) -> str | None:
+    """The repository a job ran on: a scan keeps it in repository_data, others in repository."""
+    if job["type"] == "SCAN":
+        return (job.get("repository_data") or {}).get("repository")
+    return job.get("repository")
+
+
 def command_generator(job: dict):
     job_type: str = job["type"]
 
@@ -126,6 +133,8 @@ class JobWrapper(Wrapper[dict]):
             job_grid.add_row("Playbook source", highlight_text(job["playbook_source"]))
 
         job_grid.add_row("Visibility", highlight_text(job["visibility"].capitalize()))
+        if repository := job_repository(job):
+            job_grid.add_row("Repository", highlight_text(repository))
         job_grid.add_row("Created at", ISODateTime(job["created_at"]))
 
         if status := job.get("status"):
@@ -211,11 +220,7 @@ class JobListWrapper(Wrapper[list]):
         for job in self.obj:
             job_type = job["type"]
             schedule = job.get("expression", "N/A") if job_type == "MONITOR" else "N/A"
-            repository = (
-                job["repository_data"]["repository"]
-                if job_type == "SCAN" and job.get("repository_data")
-                else "N/A"
-            )
+            repository = job_repository(job) or "N/A"
 
             table.add_row(
                 str(job["id"]),
